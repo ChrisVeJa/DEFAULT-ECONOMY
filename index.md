@@ -6,5 +6,5 @@ In this folder, I present the basic Arellano model. Then, we will:
   3. Approximate the policy functions.
 
 ``` julia
-f(x) =  x
+fd(x) =  x
 ```
