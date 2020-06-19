@@ -5,6 +5,6 @@ In this folder, I present the basic Arellano model. Then, we will:
   2. Simulate a historic path
   3. Approximate the policy functions.
 
-"""
-dadada
-"""
+``` julia
+f(x) =  x
+```
