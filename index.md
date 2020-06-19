@@ -8,5 +8,5 @@ In this folder, I present the basic Arellano model. Then, we will:
 ``` julia
 fd(x) =  x
 ```
-![da](da.jl)
+[da](da.jl)
 
