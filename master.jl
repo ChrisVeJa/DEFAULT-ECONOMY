@@ -1,4 +1,3 @@
-cd("D:/ME/SummerRA/JuliaCode")
 using Random, Distributions,Statistics, LinearAlgebra, Plots,StatsBase,Parameters, Flux;
 include("DefaultEconomy.jl");
 
