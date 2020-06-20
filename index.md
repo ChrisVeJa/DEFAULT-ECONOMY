@@ -108,3 +108,32 @@ which generates similar figures to the original work
 **Note**: The levels `low` and `high` are calculated as a 5% deviation respect the mean `y`
 
 ### 4. Simulating the model
+
+```julia
+EconSim = DefaultEconomy.ModelSimulate(EconSol);
+```
+```julia
+DefaultEconomy.graph_simul(EconSim);
+```
+### 5. Approximation of policy functions with neural networks
+```julia
+VFNeuF  = (vf= EconSim.Simulation[:,6], q = EconSim.Simulation[:,7],states= EconSim.Simulation[:,2:3]);
+VFhat   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3]);
+```
+
+```julia
+DefaultEconomy.graph_neural(VFhat, "Value Function", ["VFneural.pdf" "VFNeuralSmpl.pdf"]);
+```
+```julia
+ns         = 2;
+Q          = 16;
+ϕfun(x)    = log(1+exp(x));
+mhat       = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
+loss(x,y)  = Flux.mse(mhat(x),y);
+opt        = RADAM();
+NeuralChar = DefaultEconomy.NeuralSettings(mhat,loss,opt);
+qhat       = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NeuralChar);
+```
+```julia
+DefaultEconomy.graph_neural(qhat, "Bond price", ["BQneural.pdf" "BQNeuralSmpl.pdf"]);
+```
