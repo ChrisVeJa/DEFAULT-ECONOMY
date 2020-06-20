@@ -104,6 +104,7 @@ which generates similar figures to the original work
 ![imagen1](.//Figures//ValFun.png)
 ![imagen2](.//Figures//Savings.png)
 ![imagen3](.//Figures//BondPrice.png)
-*Note: The levels `low` and `high` are calculated as a 5% deviation respect the mean `y`
+
+**Note**: The levels `low` and `high` are calculated as a 5% deviation respect the mean `y`
 
 ### 4. Simulating the model
