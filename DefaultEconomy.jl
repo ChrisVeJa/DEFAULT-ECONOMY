@@ -1,3 +1,12 @@
+
+###############################################################################
+# 			APPROXIMATING DEFAULT ECONOMIES WITH NEURAL NETWORKS
+# The following module has all the functions used in the master.jl
+
+# Written by: Christian Velasquez (velasqcb@bc.edu)
+# Dont hesitate in send any comment
+###############################################################################
+
 module DefaultEconomy
 using Random, Distributions,Statistics, LinearAlgebra, Plots,StatsBase,Parameters, Flux;
 export ModelSolve,ModelSim;

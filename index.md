@@ -30,7 +30,7 @@ To close the model, the equilibrium bond price is:
 ```math
     qₜ₊₁(Bₜ₊₁,yₜ) = (1-δ)/(1+r)
 ```
-___
+_____________________________________________________________________
 ### 2. Recursive Equilibrium description
 In this economy the equilibrium is a list of policy functions for consumption, debt, default a repayments sets, and bond prices such that:
 
@@ -39,7 +39,7 @@ In this economy the equilibrium is a list of policy functions for consumption, d
     2. Taking as given the bond price; the policy function for debt B0 and sets A(B) , D(B) are in line with the government maximization problem
 
     3. Bond prices are consistent with the default set and the zero profit condition.
-___
+_____________________________________________________________________
 ### 3. Setting and solving the model
 A clue to solve this model is to know that when ``B = 0`` the country is indifferent between defaulting or not, then ``vᵒ = vᶜ = vᵈ``.
 
@@ -107,7 +107,7 @@ which generates similar figures to the original work
 ![Bond Price](.//Figures//BondPrice.png)
 
 **Note**: The levels `low` and `high` are calculated as a 5% deviation respect the mean `y`
-___
+_____________________________________________________________________
 ### 4. Simulating the model
 Now, I will simulate the economy using the following steps:
 
@@ -127,26 +127,37 @@ DefaultEconomy.graph_simul(EconSim);
 ![FigSim1](.//Figures//FigSim1.png)
 ![FigSim2](.//Figures//FigSim2.png)
 ![FigSim3](.//Figures//FigSim3.png)
-___
+_____________________________________________________________________
 ### 5. Approximation of policy functions with neural networks
+Let ϕ(⋅) an activation function, we can approximation any random variable using
+```math
+    Y = ω₀ + ∑ᵏ ϕ(xₖ)
+```
+where `k` is the number of neurons in a hidden layer. and `xₖ` is the input for this neuron. Note , that this input could be athe output of another hidden layer. To estimate the weights we can use the function `neuralAprrox`, which was built based on `Flux.jl`. By default, the function assume a `Dense` neural network with 16 neurons, 1 hidden layer, a softplus (`y = log(1+ eˣ)`) type activation function, a `mean square error` loss function, and a `RADAM` optimizer. The inputs for this function are: i) the variable `Y` to approximate and the states `S` as determinants.
+
+As first example, I approximate the value function using `s = (B,y)`
 ```julia
 VFNeuF  = (vf= EconSim.Simulation[:,6], q = EconSim.Simulation[:,7],states= EconSim.Simulation[:,2:3]);
 VFhat   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3]);
 ```
-
+In this example the 4 epochs run in round 5 seconds (after the first compilation). We graph the results using
 ```julia
 DefaultEconomy.graph_neural(VFhat, "Value Function", ["VFneural.pdf" "VFNeuralSmpl.pdf"]);
 ```
+![NeuralApproxVF](.//Figures//VFneuralSmpl.png)
+
+We can change and add easily the arguments by creating a `NeuralSettings` struct as follows
 ```julia
 ns         = 2;
 Q          = 16;
 ϕfun(x)    = log(1+exp(x));
-mhat       = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
+mhat       = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1)); # 2 hidden layers
 loss(x,y)  = Flux.mse(mhat(x),y);
-opt        = RADAM();
+opt        = Descent();
 NeuralChar = DefaultEconomy.NeuralSettings(mhat,loss,opt);
 qhat       = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NeuralChar);
 ```
 ```julia
 DefaultEconomy.graph_neural(qhat, "Bond price", ["BQneural.pdf" "BQNeuralSmpl.pdf"]);
 ```
+![NeuralApproxQ](.//Figures//BQNeuralSmpl.png)
