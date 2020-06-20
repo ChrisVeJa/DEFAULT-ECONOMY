@@ -9,7 +9,10 @@ This debt is defaultable but if the country chooses to do it, he faces an instan
     s.t.
         cₜ = Dₜ * yₜᵈᵉᶠ + (1-Dₜ)(yₜ + Bₜ - qₜ₊₁(Bₜ₊₁,yₜ)*Bₜ₊₁)
 ```
-where ```Dₜ``` is the default decision (`D = 1` if country defaults), ``yₜᵈᵉᶠ = h(yₜ)`` is the output level under default.
+where ```Dₜ``` is the default decision (`D = 1` if country defaults), ``yₜᵈᵉᶠ = h(yₜ)`` is the output level under default, with
+```math
+    h(yₜ) = min(y,γ* ̄y)
+```
 
 This problem can be expresed in terms of Value Functions following
 ```math
@@ -25,7 +28,7 @@ Let ``D(B)`` the default set, defining as:
 leading a probability of default: `` δ(B',y) = ∫f(y'|y)dy |D(B')``
 To close the model, the equilibrium bond price is:
 ```math
-    qₜ₊₁(Bₜ₊₁,yₜ) = (1-δ)/ (1+r)
+    qₜ₊₁(Bₜ₊₁,yₜ) = (1-δ)/(1+r)
 ```
 ### 2. Recursive Equiulibrium description
 In this economy the equilibrium is a list of policy functions for consumption, debt, default a repayments sets, and bond prices such that:
@@ -39,13 +42,46 @@ In this economy the equilibrium is a list of policy functions for consumption, d
 A clue to solve this model is to know that when ``B = 0`` the country is indifferent between defaulting or not, then ``vᵒ = vᶜ = vᵈ``.
 
 Now, it is time to solve the model in the computer!!!
-
+First we include our module for this kind of economy
 ```julia
-  f(x)  = log(x)
-  f(x,y) = log(x)-y + θ(2)t₁
+using Random, Distributions,Statistics, LinearAlgebra, Plots,StatsBase,Parameters, Flux;
+include("DefaultEconomy.jl");
 ```
 
+Following Arellano (2008), we calibrate the parameter as:
 
-```math
- x = f(x) + t₁ +
+| Parameter     | Description                               | Value     |
+| ----------    | -----------                               | -----     |
+| `β`           | Discount factor                           | 0.953     |
+| `r`           | Risk free interest rate                   | 0.017     |
+| `σ`           | Risk aversion parameter                   | 2.0       |
+| `θ`           | Probability of re-enter after a default   | 0.282     |
+| `γ` (fhat)    | Cost factor of default                    | 0.969     |
+| `Nₑ`          | Number of possibles debt levels           | 251       |
+| `ub`          | Upper bound for assets position           | 0.4       |
+| `lb`          | Lower bound for assets position           | -0.4      |
+| `ρ`           | Persitance of the log-output              | 0.945     |
+| `η`           | Variance of the log-output shock          | 0.025     |
+| `μ`           | Mean of the output shock                  | 0         |
+| `Nₓ`          | Number of points to approximate `y`       | 21        |
+| `m`           | Number of s.d. covers by Tauchen          | 3         |
+
+Additionally, we incorporate two parameters `tol=1e-8` as the convergence acceptance level and `maxite=1000` as the maximum number of iterations. The function `ModelSettings()` creates a structure of type `ModelSttings` with this characteristics
+```julia
+    EconDef = DefaultEconomy.ModelSettings();
+```
+Hence, `EconDef` is a type `ModelSettings` with the fields:
+```julia
+ Params::NamedTuple;    # Parameters
+UtilFun::Function;      # Utility Function
+   yDef::Function;      # Default Loss
+```
+If we prefer we can change the parameters of the model changed directly `EconDef` given that it is mutable. Once we define the settings of the model we find the solution typing
+```julia
+EconSol = DefaultEconomy.SolveDefEcon(EconDef);
+```
+The function `SolveDefEcon` takes a ModelSettings struct as argument and solve the economy using value function iteration, giving as output a type `ModelSolve` compounded by the characteristics:
+```julia
+Settings::ModelSettings;		 # Settings of the Model
+Solution::PolicyFunction;		# Solution of the Model
 ```
