@@ -144,7 +144,7 @@ In this example the 4 epochs run in round 5 seconds (after the first compilation
 ```julia
 DefaultEconomy.graph_neural(VFhat, "Value Function", ["VFneural.pdf" "VFNeuralSmpl.pdf"]);
 ```
-![NeuralApproxVF](.//Figures//VFneuralSmpl.png)
+![NeuralApproxVF](.//Figures//VFNeuralSmpl.png)
 
 We can change and add easily the arguments by creating a `NeuralSettings` struct as follows
 ```julia
