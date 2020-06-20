@@ -1,4 +1,3 @@
-
 ###############################################################################
 # 			APPROXIMATING DEFAULT ECONOMIES WITH NEURAL NETWORKS
 # The following code exemplifies the solution, simulation and approximation

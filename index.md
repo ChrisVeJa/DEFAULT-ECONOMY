@@ -161,3 +161,12 @@ qhat       = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NeuralC
 DefaultEconomy.graph_neural(qhat, "Bond price", ["BQneural.pdf" "BQNeuralSmpl.pdf"]);
 ```
 ![NeuralApproxQ](.//Figures//BQNeuralSmpl.png)
+
+We can see that there are not minimal differences when we try to approximate the price schedule. To see what happen I plot both the simulated data with their respective estimations.
+![PriceQ](.//FiguresAdi//QB.png)
+
+![PriceY](.//FiguresAdi//QY.png)
+
+If we make similar plot in surface type, we observe that big non linearity is not effective cover by the approximation.
+
+![surface](.//FiguresAdi//surface.png)
