@@ -30,7 +30,7 @@ To close the model, the equilibrium bond price is:
 ```math
     qₜ₊₁(Bₜ₊₁,yₜ) = (1-δ)/(1+r)
 ```
-### 2. Recursive Equiulibrium description
+### 2. Recursive Equilibrium description
 In this economy the equilibrium is a list of policy functions for consumption, debt, default a repayments sets, and bond prices such that:
 
     1. Taking as given everything else consumption maximize utility and satisfy the resource constraint
@@ -39,6 +39,7 @@ In this economy the equilibrium is a list of policy functions for consumption, d
 
     3. Bond prices are consistent with the default set and the zero profit condition.
 
+### 3. Setting and solving the model
 A clue to solve this model is to know that when ``B = 0`` the country is indifferent between defaulting or not, then ``vᵒ = vᶜ = vᵈ``.
 
 Now, it is time to solve the model in the computer!!!
@@ -99,6 +100,10 @@ By default there is a graphic method that we can call by typing
 DefaultEconomy.graph_solve(EconSol);
 ```
 which generates similar figures to the original work
+
 ![imagen1](.//Figures//ValFun.png)
 ![imagen2](.//Figures//Savings.png)
 ![imagen3](.//Figures//BondPrice.png)
+*Note: The levels `low` and `high` are calculated as a 5% deviation respect the mean `y`
+
+### 4. Simulating the model
