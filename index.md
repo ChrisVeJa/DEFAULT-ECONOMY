@@ -99,6 +99,6 @@ By default there is a graphic method that we can call by typing
 DefaultEconomy.graph_solve(EconSol);
 ```
 which generates similar figures to the original work
-![imagen1](.//Figures//Valfun.png)
+![imagen1](.//Figures//ValFun.png)
 ![imagen2](.//Figures//Savings.png)
-![imagen3](.//Figures//Bondprice.png)
+![imagen3](.//Figures//BondPrice.png)
