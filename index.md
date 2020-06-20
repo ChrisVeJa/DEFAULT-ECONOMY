@@ -106,7 +106,7 @@ which generates similar figures to the original work
 ![imagen3](.//Figures//BondPrice.png)
 
 **Note**: The levels `low` and `high` are calculated as a 5% deviation respect the mean `y`
-
+...
 ### 4. Simulating the model
 
 ```julia
@@ -115,6 +115,7 @@ EconSim = DefaultEconomy.ModelSimulate(EconSol);
 ```julia
 DefaultEconomy.graph_simul(EconSim);
 ```
+...
 ### 5. Approximation of policy functions with neural networks
 ```julia
 VFNeuF  = (vf= EconSim.Simulation[:,6], q = EconSim.Simulation[:,7],states= EconSim.Simulation[:,2:3]);
