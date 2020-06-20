@@ -1,13 +1,12 @@
 \documentclass[11pt, a4paper]{article}
-\renewcommand{\baselinestretch}{1.15} 
+\renewcommand{\baselinestretch}{1.15}
 \usepackage[toc,page]{appendix}
 \usepackage{mathptmx}
 \usepackage[left=2cm,right=2cm, top=2cm, bottom=2cm]{geometry}
 \usepackage{xcolor}
 \usepackage{enumerate}
-\usepackage[english]{babel}  % Caracteres en ESPAÑOL
+\usepackage[english]{babel}
 \usepackage[utf8]{inputenc}
-%\usepackage{authblk}
 \usepackage{graphicx}
 \usepackage{bigints}
 \usepackage{multirow}
@@ -31,13 +30,13 @@
 \section{ECONOMY WITH DEFAULT}
 	\subsection{SETTING THE MODEL:}
 	The households maximize:
-	\begin{equation}	
+	\begin{equation}
 		E_0\left\{ \sum_t^{\infty} \beta^t U(c_t)\right\}
 	\end{equation}
 	The resource constrain is:
 	\begin{center}
 	\begin{equation*}
-	 c = 
+	 c =
 	 \begin{cases}
 	 y + B - q(B',y)B' \quad \text{if repay}\\
 	 y^{def}	 \text{\hspace{2.3cm} if they default}
@@ -55,12 +54,12 @@
 	where $v^c$ is the value of paying and $v^d$ is the defaulting value. Both are defining next:
 	\begin{align}
 	v^d(y) &= u(y^{def}) + \beta\int_{y'} \left[ \theta v^o(0,y') + (1-\theta)v^d(y')\right]f(y'|y)dy'\\
-	v^c(B,y) &= max_{(B')}\left\{ u(y - q(B',y)B'+B) + \beta\int_{y'}v^o(B',y')f(y'|y)dy' \right\} 
+	v^c(B,y) &= max_{(B')}\left\{ u(y - q(B',y)B'+B) + \beta\int_{y'}v^o(B',y')f(y'|y)dy' \right\}
 	\end{align}
 	In addition, countries face a borrowing constraint $B'\geq -Z$ to prevent Ponzi schemes. Let $A(B)$ and $D(B)$ be the repayment and default sets, such that:
 	\begin{align}
 	 A(B)&=\{y \in Y: v^c(B,y)\geq v^d(y)\}\\
-	 D(B)&=\{y \in  Y: v^c(B,y)< v^d(y)\} 
+	 D(B)&=\{y \in  Y: v^c(B,y)< v^d(y)\}
 	\end{align}
 	Finally, the default probability is:
 	\begin{equation}
@@ -100,7 +99,7 @@
 	The activation function is $\phi(k) = \log\left(1+e^{k}\right)$.\\
 	First of all, I normalize all the states that are our inputs (let's $\tilde s$ the original variable):
 	\begin{equation*}
-		s_i := \frac{\tilde s_i - \frac{1}{2}(\sup(s)+\inf(s))}{\frac{1}{2}(\sup(s)-\inf(s))}	
+		s_i := \frac{\tilde s_i - \frac{1}{2}(\sup(s)+\inf(s))}{\frac{1}{2}(\sup(s)-\inf(s))}
 	\end{equation*}
 	The optimal $\Theta$ is chosen to minimize the sum of square residuals (I am assuming a univariate process):
 	\begin{equation}
@@ -110,8 +109,8 @@
 	\begin{align}
 		\frac{\partial \mathcal{L}}{\partial \theta_0} &= -\sum_i e_i \\
 		\frac{\partial \mathcal{L}}{\partial \theta_{j,1}} &= -\sum_i e_i \phi(k_{j,i}) \\
-		\frac{\partial \mathcal{L}}{\partial \theta_{j,2}} &= -\sum_i \theta_{j,1} e_i \phi'(k_{j,i}) \\	
-		\frac{\partial \mathcal{L}}{\partial \theta_{j,2+l}} &= -\sum_i \theta_{j,1} e_i \phi'(k_{j,i})s_{i,l}				
+		\frac{\partial \mathcal{L}}{\partial \theta_{j,2}} &= -\sum_i \theta_{j,1} e_i \phi'(k_{j,i}) \\
+		\frac{\partial \mathcal{L}}{\partial \theta_{j,2+l}} &= -\sum_i \theta_{j,1} e_i \phi'(k_{j,i})s_{i,l}
 	\end{align}
 	Then, the gradient is:
 	\begin{equation}
@@ -124,7 +123,7 @@
 		\text{then}&\\
 		& \epsilon_{m, i+1} = \gamma \epsilon_{m,i} \\
 		\text{leading:}&\\
-		& \epsilon_{m}^* 
+		& \epsilon_{m}^*
 	\end{align*}
 	therefore $\theta_{m+1} = \theta_m - \epsilon_m^* \nabla_{\theta} \xi(\theta; s,\hat x)$
 	where $||\cdot||_2$ is the common Euclidean norm.
