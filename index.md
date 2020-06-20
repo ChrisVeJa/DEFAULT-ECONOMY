@@ -102,20 +102,31 @@ DefaultEconomy.graph_solve(EconSol);
 ```
 which generates similar figures to the original work
 
-![imagen1](.//Figures//ValFun.png)
-![imagen2](.//Figures//Savings.png)
-![imagen3](.//Figures//BondPrice.png)
+![Value Function](.//Figures//ValFun.png)
+![Saving Policy](.//Figures//Savings.png)
+![Bond Price](.//Figures//BondPrice.png)
 
 **Note**: The levels `low` and `high` are calculated as a 5% deviation respect the mean `y`
 ___
 ### 4. Simulating the model
+Now, I will simulate the economy using the following steps:
+
+[Algorithm](algorithm.md)
+
+The algorithm is implemented in the function  `ModelSimulate` that has as argument a type `ModelSolve` as optionally  thge number of simulation to keep `nsim`, and the not including number of realization to drop  `burn` in terms of percentage `nsim=10000, burn=0.5`
 
 ```julia
 EconSim = DefaultEconomy.ModelSimulate(EconSol);
 ```
+
+To graph the results we use the `graph_simul` function.
+
 ```julia
 DefaultEconomy.graph_simul(EconSim);
 ```
+![FigSim1](.//Figures//FigSim1.png)
+![FigSim2](.//Figures//FigSim2.png)
+![FigSim3](.//Figures//FigSim3.png)
 ___
 ### 5. Approximation of policy functions with neural networks
 ```julia

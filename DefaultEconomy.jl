@@ -420,11 +420,11 @@ function graph_simul(EconSimul::ModelSim; smpl=1:250)
 		mkdir(".\\Figures")
 	end
 	plot(p1,p2,layout=(2,1));
-	savefig(".\\Figures\\FigSim1.pdf");
+	savefig(".\\Figures\\FigSim1.png");
 	plot(p4,p5,layout=(2,1));
-	savefig(".\\Figures\\FigSim2.pdf");
+	savefig(".\\Figures\\FigSim2.png");
 	plot(p3);
-	savefig(".\\Figures\\FigSim3.pdf");
+	savefig(".\\Figures\\FigSim3.png");
 	display("See your graphics")
 end
 

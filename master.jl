@@ -21,4 +21,4 @@ loss(x,y)  = Flux.mse(mhat(x),y);
 opt        = RADAM();
 NeuralChar = DefaultEconomy.NeuralSettings(mhat,loss,opt);
 qhat       = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NeuralChar);
-DefaultEconomy.graph_neural(qhat, "Bond price", ["BQneural.pdf" "BQNeuralSmpl.pdf"]);
+DefaultEconomy.graph_neural(qhat, "Bond price", ["BQneural.png" "BQNeuralSmpl.png"]);
