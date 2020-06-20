@@ -82,6 +82,23 @@ EconSol = DefaultEconomy.SolveDefEcon(EconDef);
 ```
 The function `SolveDefEcon` takes a ModelSettings struct as argument and solve the economy using value function iteration, giving as output a type `ModelSolve` compounded by the characteristics:
 ```julia
-Settings::ModelSettings;		 # Settings of the Model
+Settings::ModelSettings;		# Settings of the Model
 Solution::PolicyFunction;		# Solution of the Model
 ```
+`Solution` itself is a structure whith
+```julia
+ valuefunction::Array{Float64};  # Value Function
+valueNoDefault::Array{Float64};  # Value Function of no defaulting
+  valueDefault::Array{Float64};  # Value Function of default
+  defaulchoice::Array{Float64};  # Default Choice (1:= default)
+    bondpolfun::Array{Float64};	 # Issued Debt for t+1
+     bondprice::Array{Float64};	 # Price of the debt
+```
+By default there is a graphic method that we can call by typing
+```julia
+DefaultEconomy.graph_solve(EconSol);
+```
+which generates similar figures to the original work
+![imagen1](.//Figures//Valfun.png)
+![imagen2](.//Figures//Savings.png)
+![imagen3](.//Figures//Bondprice.png)

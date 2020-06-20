@@ -385,19 +385,19 @@ function graph_solve(modsol::ModelSolve)
 		titlefont = font(12),linestyle=[:solid :dash],
 		linecolor=[:red :blue] ,label=["y-low." "y-high"],
 		foreground_color_legend = nothing, background_color_legend=nothing, legendfontsize=8,legend=:topleft)
-	savefig(".\\Figures\\BondPrice.pdf");
+	savefig(".\\Figures\\BondPrice.png");
 	# Savings Policies
 	plot(b[b_in2],B_p,xlabel="B",lw=[1.15],title="Savings function B'(B,y)",
 		titlefont = font(12),linestyle=[:solid :dash],
 		linecolor=[:red :blue] ,label=["y-low." "y-high"],
 		foreground_color_legend = nothing,background_color_legend=nothing, legendfontsize=8,legend=:topleft)
-	savefig(".\\Figures\\Savings.pdf");
+	savefig(".\\Figures\\Savings.png");
 	# Value function
 	plot(b[b_in2],V_p,xlabel="B",lw=[1.15],title="Value function vo(B,y)",
 		titlefont = font(12),linestyle=[:solid :dash],
 		linecolor=[:red :blue] ,label=["y-low." "y-high"],
 		foreground_color_legend = nothing,background_color_legend=nothing, legendfontsize=8,legend=:topleft)
-	savefig(".\\Figures\\ValFun.pdf");
+	savefig(".\\Figures\\ValFun.png");
 end
 #= ============================================================================
 (6.2)	Graphics for Simulation
