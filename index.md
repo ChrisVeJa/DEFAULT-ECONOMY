@@ -30,6 +30,7 @@ To close the model, the equilibrium bond price is:
 ```math
     qₜ₊₁(Bₜ₊₁,yₜ) = (1-δ)/(1+r)
 ```
+___
 ### 2. Recursive Equilibrium description
 In this economy the equilibrium is a list of policy functions for consumption, debt, default a repayments sets, and bond prices such that:
 
@@ -38,7 +39,7 @@ In this economy the equilibrium is a list of policy functions for consumption, d
     2. Taking as given the bond price; the policy function for debt B0 and sets A(B) , D(B) are in line with the government maximization problem
 
     3. Bond prices are consistent with the default set and the zero profit condition.
-
+___
 ### 3. Setting and solving the model
 A clue to solve this model is to know that when ``B = 0`` the country is indifferent between defaulting or not, then ``vᵒ = vᶜ = vᵈ``.
 
@@ -106,7 +107,7 @@ which generates similar figures to the original work
 ![imagen3](.//Figures//BondPrice.png)
 
 **Note**: The levels `low` and `high` are calculated as a 5% deviation respect the mean `y`
-...
+___
 ### 4. Simulating the model
 
 ```julia
@@ -115,7 +116,7 @@ EconSim = DefaultEconomy.ModelSimulate(EconSol);
 ```julia
 DefaultEconomy.graph_simul(EconSim);
 ```
-...
+___
 ### 5. Approximation of policy functions with neural networks
 ```julia
 VFNeuF  = (vf= EconSim.Simulation[:,6], q = EconSim.Simulation[:,7],states= EconSim.Simulation[:,2:3]);
