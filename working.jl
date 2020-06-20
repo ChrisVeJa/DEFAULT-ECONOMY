@@ -33,7 +33,7 @@ DefaultEconomy.graph_simul(EconSim);
 	ϕfun(x)    = log(1+exp(x));
 	mhat       = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
 	loss(x,y)  = Flux.mse(mhat(x),y);
-	opt        = Descent();
+	opt        = RADAM();
 	NeuralChar = DefaultEconomy.NeuralSettings(mhat,loss,opt);
 	qhat       = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NeuralChar);
 	DefaultEconomy.graph_neural(qhat, "Bond price", ["BQneural.png" "BQNeuralSmpl.png"]);
