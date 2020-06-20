@@ -13,6 +13,7 @@
    it chooses as in point 3, otherwise it stays in the default state.
 
 5. The pseudo code is:
+```
     if Dₜ₋₁ == 0
         Dₜ  = Dₜ(B,y)
         yₜ  = (1-D) yᴺᴰ + D* yᵈᵉᶠ
@@ -28,4 +29,5 @@
             Bₜ  = 0
         end
     end
+```
 6. I discard the first 5000 elements to avoid any effect of the intial point
