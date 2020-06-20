@@ -9,9 +9,15 @@ function update!(x::AbstractArray, x̄)
 end
 
 """
-    update!(opt, p, g)
-    update!(opt, ps::Params, gs)
-Perform an update step of the parameters `ps` (or the single parameter `p`)
-according to optimizer `opt`  and the gradients `gs` (the gradient `g`).
-As a result, the parameters are mutated and the optimizer's internal state may change.
+    @epochs N body
+Run `body` `N` times. Mainly useful for quickly doing multiple epochs of
+training in a REPL.
+# Examples
+```jldoctest
+julia> Flux.@epochs 2 println("hello")
+[ Info: Epoch 1
+hello
+[ Info: Epoch 2
+hello
+```
 """
