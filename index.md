@@ -113,7 +113,7 @@ Now, I will simulate the economy using the following steps:
 
 [Algorithm](algorithm.md)
 
-The algorithm is implemented in the function  `ModelSimulate` that has as argument a type `ModelSolve` as optionally  thge number of simulation to keep `nsim`, and the not including number of realization to drop  `burn` in terms of percentage `nsim=10000, burn=0.5`
+The algorithm is implemented in the function  `ModelSimulate` that has as argument a type `ModelSolve` as optionally  thge number of simulation to keep `nsim`, and the not including number of realization to drop  `burn` in terms of percentage `nsim=100000, burn=0.05`
 
 ```julia
 EconSim = DefaultEconomy.ModelSimulate(EconSol);
@@ -153,7 +153,7 @@ Q          = 16;
 ϕfun(x)    = log(1+exp(x));
 mhat       = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1)); # 2 hidden layers
 loss(x,y)  = Flux.mse(mhat(x),y);
-opt        = Descent();
+opt        = RADAM();
 NeuralChar = DefaultEconomy.NeuralSettings(mhat,loss,opt);
 qhat       = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NeuralChar);
 ```
