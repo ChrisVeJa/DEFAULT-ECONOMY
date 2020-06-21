@@ -245,7 +245,7 @@ function neuralAprrox(y,s; neuSettings=nothing ,fnorm::Function = mynorm)
 	data  = Flux.Data.DataLoader(S',Y');
 	#data  = [(S',Y')];
 	ps    = Flux.params(mhat);
-	Flux.@epochs 4 begin Flux.Optimise.train!(loss, ps, data, opt) ; @show loss(S',Y') end;
+	Flux.@epochs 8 begin Flux.Optimise.train!(loss, ps, data, opt) ; @show loss(S',Y') end;
 	aux   = mhat(S')';
 	hat   = convert(Array{Float64},aux);
 	return  NeuralApprox((Y,S), hat, Flux.params(mhat));

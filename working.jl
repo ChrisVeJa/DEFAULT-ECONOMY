@@ -17,7 +17,7 @@ EconSol = DefaultEconomy.SolveDefEcon(EconDef);
 DefaultEconomy.graph_solve(EconSol);
 
 # Simulating the model
-EconSim = DefaultEconomy.ModelSimulate(EconSol);
+EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=100000,burn=0.05);
 DefaultEconomy.graph_simul(EconSim);
 
 # Approximation with Neural Networks

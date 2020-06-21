@@ -2,7 +2,7 @@
    with zero debt with acces to the market and in its deterministic average
    output level.
 
-2. Conditional in the transition matrix P(y'|y), I simulate 15000 future realizations
+2. Conditional in the transition matrix P(y'|y), I simulate 105000 future realizations
    of the output and create a container matrix [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
 
 3. If the country is not in default, it chooses Dₜ, and Bₜ₊₁ according to the policy
