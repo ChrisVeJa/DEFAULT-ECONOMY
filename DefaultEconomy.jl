@@ -34,13 +34,18 @@ struct  PolicyFunction
 	bondpolfun::Array{Float64};		# Issued Debt for t+1
 	bondprice::Array{Float64};		# Price of the debt
 end
-
+struct Supporting
+	bgrid;
+	ygrid;
+	ydef;
+end
 #= ------------------------------------------------------------------------
 (1.3) Model Solution:
 --------------------------------------------------------------------------- =#
 struct ModelSolve
 	Settings::ModelSettings;		# Settings of the Model
 	Solution::PolicyFunction;		# Solution of the Model
+	Support::Supporting;			# Some support charact
 end
 
 #= ------------------------------------------------------------------------
@@ -119,7 +124,7 @@ function SolveDefEcon(Model::ModelSettings)
 	b[posb0]= 0;
 	Va,VCa,VDa,Da,BPa,qa = solver(b,y,udef,pix,posb0,Model);
 	PolFun  = PolicyFunction(Va,VCa,VDa,Da,BPa,qa);
-	EconSol = ModelSolve(Model,PolFun);
+	EconSol = ModelSolve(Model,PolFun,Supporting(b,y,ydef));
 	display("See your results");
 	return EconSol;
 end
