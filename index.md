@@ -181,9 +181,9 @@ Let `Γ₁`, and `Γ₂` be the estimated parameters by using neural networks. N
 and then solve the Bellman Operator
 
 ```math
-        max[ vᶜ(Bₜ,yₜ|Γ₁,Γ₂) , vᴰ(yₜ|Γ₁) ]
+        max{B',D} [ vᶜ(Bₜ,yₜ|Γ₁,Γ₂) , vᴰ(yₜ|Γ₁) ]
         s.t.
-        vᶜ(Bₜ,yₜ|Γ₁,Γ₂) = max{U(yₜ + Bₜ - qₜ₊₁(Bₜ,yₜ|Γ₂)*Bₜ₊₁)+β ∫vᵒ(Bₜ₊₁,yₜ₊₁|Γ₁)f(y'|y)dy'}
+        vᶜ(Bₜ,yₜ|Γ₁,Γ₂) = max U(yₜ + Bₜ - qₜ₊₁(Bₜ,yₜ|Γ₂)*Bₜ₊₁)+β ∫vᵒ(Bₜ₊₁,yₜ₊₁|Γ₁)f(y'|y)dy'}
         vᴰ(yₜ|Γ₁)      = u(yₜᵈᵉᶠ) + β∫[θvᶜ(0, yₜ₊₁|Γ₁) + (1-θ)vᴰ(yₜ₊₁ᵈᵉᶠ|Γ_1)]f(y'|y)dy
 ```
 Getting `B'(B,y| Γ₁,Γ₂)`, and `D(B,y| Γ₁,Γ₂)`
