@@ -163,6 +163,7 @@ DefaultEconomy.graph_neural(qhat, "Bond price", ["BQneural.pdf" "BQNeuralSmpl.pd
 ![NeuralApproxQ](.//Figures//BQNeuralSmpl.png)
 
 We can see that there are not minimal differences when we try to approximate the price schedule. To see what happen I plot both the simulated data with their respective estimations.
+
 ![PriceQ](.//FiguresAdi//QB.png)
 
 ![PriceY](.//FiguresAdi//QY.png)
