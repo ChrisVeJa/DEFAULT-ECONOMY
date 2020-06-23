@@ -67,3 +67,18 @@ surf2 = surface(s1[:,2],s1[:,1],q1hat,c=:OrRd_9,
 
 plot(surf1,surf2, layout=(1,2),size = (900,400))
 savefig(".\\FiguresAdi\\surface.png");
+
+
+###
+# New working
+###
+
+PFhat  = [VFhat.yhat qhat.yhat];
+
+norminv(x,xmax,xmin) = (x * 0.5*(xmax-xmin)) .+ 0.5*(xmax+xmin);
+
+var1  = norminv(VFhat.yhat,maximum(VFNeuF.vf), minimum(VFNeuF.vf));
+var2  = norminv(qhat.yhat,maximum(VFNeuF.q), minimum(VFNeuF.q))
+varR  = VFNeuF.states
+PFhat = [ var1 var2 varR ];
+PFhat = unique(PFhat, dims=1);
