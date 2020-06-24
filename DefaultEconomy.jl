@@ -354,7 +354,10 @@ function mynorm(x)
     normx  = (x .- 0.5*(fmin+fmax)) ./ frange;
     return normx;
 end
-
+function mynorminv(x,xmax,xmin)
+	 xorig = (x * 0.5*(xmax-xmin)) .+ 0.5*(xmax+xmin);
+	 return xorig;
+ end
 ###############################################################################
 #(6) CODE FOR GRAPHICS
 ###############################################################################
@@ -445,7 +448,7 @@ function graph_simul(EconSimul::ModelSim; smpl=1:250)
 end
 
 #= ============================================================================
-(6.2)	Graphics for Neural Network Approximation
+(6.3)	Graphics for Neural Network Approximation
 =# # ==========================================================================
 function graph_neural(approx::NeuralApprox, namevar::String, titles; smpl=1:250)
 	# --------------------------------------------------------------
@@ -482,5 +485,50 @@ function graph_neural(approx::NeuralApprox, namevar::String, titles; smpl=1:250)
 		foreground_color_legend = nothing, background_color_legend=nothing,
 		legendfontsize=8,legend=:topleft)
 	savefig(".\\Figures\\$title");
+end
+
+
+#= ============================================================================
+(7)			Extensions
+=# # ==========================================================================
+function  MaxBellman(model::ModelSettings,VO::Array,VC::Array,VD::Array,D::Array,q::Array,pix::Array,posb0::Int64,udef,yb,b,BB)
+	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = model.Params;
+	utf     = model.UtilFun;
+	udef    = repeat(udef',ne,1);
+	Bprime  = Array{CartesianIndex{2},2}(undef,ne,nx);
+	VO1,VC1, VD1,D1, Bprime,q1,dif = value_functions!(VO,VC,VD,D,Bprime,q,1,b,pix,posb0,yb,udef,β,θ,utf,r,σ);
+	Bprime1 = BB[Bprime];
+	return VO1,VC1,VD1,D1,Bprime1,q1;
+end
+
+function UpdateModel(EconSolve::ModelSolve,VFNeuF::NamedTuple,VFhat::NeuralApprox,qhat::NeuralApprox; NormFun::Function = mynorm , NormInv::Function = mynorminv)
+	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = EconSolve.Settings.Params;
+	bgrid    = EconSolve.Support.bgrid;
+	ygrid    = EconSolve.Support.ygrid;
+	pix      = EconSolve.Support.pix;
+	ydef     = EconSolve.Support.ydef;
+	# ----------------------------------------
+	# 2. Output in case of default
+	# ----------------------------------------
+	udef    = EconSolve.Settings.UtilFun.(ydef,σ);
+	states   = [repeat(bgrid,length(ygrid),1) repeat(ygrid,inner = (length(bgrid),1))];
+	sta_norm = NormFun(states);
+	vfpre    = VFhat.mhat(sta_norm');
+	qpre     = qhat.mhat(sta_norm');
+	vfpre    = NormInv(vfpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+	qpre     = NormInv(qpre,maximum(VFNeuF.q),minimum(VFNeuF.q));
+	qpre     = max.(qpre,0);
+	VC       = reshape(vfpre,length(bgrid),length(ygrid));
+	q        = reshape(qpre,length(bgrid),length(ygrid));
+	vdpre    = convert(Array,VFhat.mhat([zeros(nx) ydef]')');
+	vdpre    = NormInv(vdpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+	VD       = repeat(vdpre',ne,1);
+	VO       = max.(VC,VD);
+	D        = 1*(VD.>VC);
+	yb       = bgrid .+ ygrid';
+	BB       = repeat(bgrid,1,nx);
+	posb0    = findmin(abs.(0 .- bgrid))[2];
+	VO1,VC1,VD1,D1,Bprime1,q1 = DefaultEconomy.MaxBellman(EconSolve.Settings,VO,VC,VD,D,q,pix,posb0,udef,yb,bgrid,BB);
+	return ModelSolve(EconSolve.Settings,PolicyFunction(VO1,VC1,VD1,D1,Bprime1,q1),EconSolve.Support)
 end
 end
