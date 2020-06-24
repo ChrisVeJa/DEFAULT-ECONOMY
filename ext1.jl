@@ -23,8 +23,8 @@ mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
 loss(x,y)= Flux.mse(mhat_q(x),y);
 opt     = RADAM();
 NQChar  = DefaultEconomy.NeuralSettings(mhat_q,loss,opt);
-VFhat   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3], fnorm = ff);
-qhat    = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NQChar, fnorm=ff);
+VFhat   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3]);
+qhat    = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NQChar);
 
 # [2]
 normfun(x)           = (x .- 0.5*(maximum(x,dims=1)+minimum(x,dims=1))) ./ (0.5*(maximum(x,dims=1)-minimum(x,dims=1)));
@@ -35,4 +35,6 @@ states = [repeat(bgrid,length(ygrid),1) repeat(ygrid,inner = (length(bgrid),1))]
 sta_norm = normfun(states);
 vfpre  = VFhat.mhat(sta_norm');
 qpre   = qhat.mhat(sta_norm');
-vfpre  =
+vfpre  = norminv(vfpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+qpre   = norminv(qpre,maximum(VFNeuF.q),minimum(VFNeuF.q));
+qpre   = max.(qpre,0);
