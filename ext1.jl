@@ -29,15 +29,17 @@ qhat    = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NQChar);
 # [2]
 normfun(x)           = (x .- 0.5*(maximum(x,dims=1)+minimum(x,dims=1))) ./ (0.5*(maximum(x,dims=1)-minimum(x,dims=1)));
 norminv(x,xmax,xmin) = (x * 0.5*(xmax-xmin)) .+ 0.5*(xmax+xmin);
-bgrid  = EconSol.Support.bgrid;
-ygrid  = EconSol.Support.ygrid;
-states = [repeat(bgrid,length(ygrid),1) repeat(ygrid,inner = (length(bgrid),1))];
+bgrid    = EconSol.Support.bgrid;
+ygrid    = EconSol.Support.ygrid;
+states   = [repeat(bgrid,length(ygrid),1) repeat(ygrid,inner = (length(bgrid),1))];
 sta_norm = normfun(states);
-vfpre  = VFhat.mhat(sta_norm');
-qpre   = qhat.mhat(sta_norm');
-vfpre  = norminv(vfpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
-qpre   = norminv(qpre,maximum(VFNeuF.q),minimum(VFNeuF.q));
-qpre   = max.(qpre,0);
+vfpre    = VFhat.mhat(sta_norm');
+qpre     = qhat.mhat(sta_norm');
+vfpre    = norminv(vfpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+qpre     = norminv(qpre,maximum(VFNeuF.q),minimum(VFNeuF.q));
+qpre     = max.(qpre,0);
+vfΘ      = reshape(vfpre,length(bgrid),length(ygrid));
+qΘ       = reshape(qpre,length(bgrid),length(ygrid));
 
-vfΘ  = reshape(vfpre,length(bgrid),length(ygrid));
-qΘ   = reshape(qpre,length(bgrid),length(ygrid));
+
+VO,VC, VD,D, Bprime,q,dif = value_functions!(VO,VC,VD,D,Bprime,q,dif,b,pix,posb0,yb,udef,β,θ,utf,r,σ);

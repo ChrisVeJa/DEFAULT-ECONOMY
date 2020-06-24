@@ -38,6 +38,7 @@ struct Supporting
 	bgrid;
 	ygrid;
 	ydef;
+	pix;
 end
 #= ------------------------------------------------------------------------
 (1.3) Model Solution:
@@ -125,7 +126,7 @@ function SolveDefEcon(Model::ModelSettings)
 	b[posb0]= 0;
 	Va,VCa,VDa,Da,BPa,qa = solver(b,y,udef,pix,posb0,Model);
 	PolFun  = PolicyFunction(Va,VCa,VDa,Da,BPa,qa);
-	EconSol = ModelSolve(Model,PolFun,Supporting(b,y,ydef));
+	EconSol = ModelSolve(Model,PolFun,Supporting(b,y,ydef,pix));
 	display("See your results");
 	return EconSol;
 end
