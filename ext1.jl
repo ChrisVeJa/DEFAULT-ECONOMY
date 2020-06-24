@@ -38,3 +38,6 @@ qpre   = qhat.mhat(sta_norm');
 vfpre  = norminv(vfpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
 qpre   = norminv(qpre,maximum(VFNeuF.q),minimum(VFNeuF.q));
 qpre   = max.(qpre,0);
+
+vfΘ  = reshape(vfpre,length(bgrid),length(ygrid));
+qΘ   = reshape(qpre,length(bgrid),length(ygrid));
