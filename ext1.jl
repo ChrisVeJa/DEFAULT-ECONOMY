@@ -15,18 +15,24 @@ include("DefaultEconomy.jl");
 EconDef = DefaultEconomy.ModelSettings();
 EconSol = DefaultEconomy.SolveDefEcon(EconDef);
 EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=100000,burn=0.05);
+DefaultEconomy.graph_simul(EconSim);
 VFNeuF  = (vf= EconSim.Simulation[:,6], q = EconSim.Simulation[:,7],states= EconSim.Simulation[:,2:3]);
 ns      = 2; Q = 16;
 ϕfun(x) = log(1+exp(x));
-mhat_vf = Chain(Dense(ns,Q,ϕfun), Dense(Q,1)); # this is the default but I will need it later
 mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
 loss(x,y)= Flux.mse(mhat_q(x),y);
 opt     = RADAM();
 NQChar  = DefaultEconomy.NeuralSettings(mhat_q,loss,opt);
-
-VFhat   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3]);
-qhat    = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NQChar);
+VFhat   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3], fnorm = ff);
+qhat    = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NQChar, fnorm=ff);
 
 # [2]
-collect(Iterators.product([1, 2], [3, 4]))
+normfun(x)           = (x .- 0.5*(maximum(x,dims=1)+minimum(x,dims=1))) ./ (0.5*(maximum(x,dims=1)-minimum(x,dims=1)));
 norminv(x,xmax,xmin) = (x * 0.5*(xmax-xmin)) .+ 0.5*(xmax+xmin);
+bgrid  = EconSol.Support.bgrid;
+ygrid  = EconSol.Support.ygrid;
+states = [repeat(bgrid,length(ygrid),1) repeat(ygrid,inner = (length(bgrid),1))];
+sta_norm = normfun(states);
+vfpre  = VFhat.mhat(sta_norm');
+qpre   = qhat.mhat(sta_norm');
+vfpre  =

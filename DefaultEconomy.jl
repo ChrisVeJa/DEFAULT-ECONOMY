@@ -65,6 +65,7 @@ struct NeuralApprox
 	Data::Tuple;
 	yhat;
 	Θ;
+	mhat;
 end
 #= ------------------------------------------------------------------------
 (1.6) Settings for Neural network approximation :
@@ -253,7 +254,7 @@ function neuralAprrox(y,s; neuSettings=nothing ,fnorm::Function = mynorm)
 	Flux.@epochs 8 begin Flux.Optimise.train!(loss, ps, data, opt) ; @show loss(S',Y') end;
 	aux   = mhat(S')';
 	hat   = convert(Array{Float64},aux);
-	return  NeuralApprox((Y,S), hat, Flux.params(mhat));
+	return  NeuralApprox((Y,S), hat, Flux.params(mhat), mhat);
 end
 
 ###############################################################################
