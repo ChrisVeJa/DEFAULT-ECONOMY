@@ -171,3 +171,21 @@ We can see that there are not minimal differences when we try to approximate the
 If we make similar plot in surface type, we observe that big non linearity is not effective cover by the approximation.
 
 ![surface](.//FiguresAdi//surface.png)
+
+## Neural Network model solution based on
+
+Let `Γ₁`, and `Γ₂` be the estimated parameters by using neural networks. Now, we predict
+````math
+        VF(B,y |Γ₁), and q(B,y|Γ₂)
+````
+and then solve the Bellman Operator
+
+```math
+        max{B',D} [ vᶜ(Bₜ,yₜ|Γ₁,Γ₂) , vᴰ(yₜ|Γ₁) ]
+        s.t.
+        vᶜ(Bₜ,yₜ|Γ₁,Γ₂) = max U(yₜ + Bₜ - qₜ₊₁(Bₜ,yₜ|Γ₂)*Bₜ₊₁)+β ∫vᵒ(Bₜ₊₁,yₜ₊₁|Γ₁)f(y'|y)dy'}
+        vᴰ(yₜ|Γ₁)      = u(yₜᵈᵉᶠ) + β∫[θvᶜ(0, yₜ₊₁|Γ₁) + (1-θ)vᴰ(yₜ₊₁ᵈᵉᶠ|Γ_1)]f(y'|y)dy
+```
+Getting `B'(B,y| Γ₁,Γ₂)`, and `D(B,y| Γ₁,Γ₂)`
+
+Then, I simulate the model again, and estimating new parameters for the model. After that we calculate the deviation `deviation = max(abs(Γᵒˡᵈ - Γⁿᵉʷ))`. Repeating the procedure until satisfying a convergence level.
