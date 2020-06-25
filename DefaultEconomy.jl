@@ -315,94 +315,67 @@ function NeuralTraining(y,s; neuSettings=nothing ,fnorm::Function = mynorm, Nepo
 	return  NeuralApprox((Y,S), hat, mhat,neuSettings);
 end
 
-## ============================================================================
-#  (7)			Extensions
-#  ==========================================================================
-function  MaxBellman(model::ModelSettings,VO::Array,VC::Array,VD::Array,D::Array,q::Array,pix::Array,posb0::Int64,udef,yb,b,BB)
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = model.Params;
-	utf     = model.UtilFun;
-	udef    = repeat(udef',ne,1);
-	Bprime  = Array{CartesianIndex{2},2}(undef,ne,nx);
-	VO1,VC1, VD1,D1, Bprime,q1,dif = value_functions!(VO,VC,VD,D,Bprime,q,1,b,pix,posb0,yb,udef,β,θ,utf,r,σ);
-	Bprime1 = BB[Bprime];
-	return VO1,VC1,VD1,D1,Bprime1,q1;
-end
+## #############################################################################
+#  (5) UPDATING NN-MODEL
+###############################################################################
 
-function UpdateModel(EconSolve::ModelSolve,VFNeuF::NamedTuple,VFhat::NeuralApprox,qhat::NeuralApprox; NormFun::Function = mynorm , NormInv::Function = mynorminv)
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = EconSolve.Settings.Params;
-	bgrid    = EconSolve.Support.bgrid;
-	ygrid    = EconSolve.Support.ygrid;
-	pix      = EconSolve.Support.pix;
-	ydef     = EconSolve.Support.ydef;
+# [5.1] Convergence algorithm
+function ConvergeNN(EconSol::ModelSolve,VFNeuF,VFhat::NeuralApprox,qhat::NeuralApprox)
 	# ----------------------------------------
-	# 2. Output in case of default
+	# 1. Old Parameters and Neural Networks
+	Γ1old, re11 = Flux.destructure(VFhat.Mhat);
+	Γ2old, re21 = Flux.destructure(qhat.Mhat);
+
 	# ----------------------------------------
-	udef    = EconSolve.Settings.UtilFun.(ydef,σ);
-	states   = [repeat(bgrid,length(ygrid),1) repeat(ygrid,inner = (length(bgrid),1))];
-	sta_norm = NormFun(states);
-	vfpre    = VFhat.mhat(sta_norm');
-	qpre     = qhat.mhat(sta_norm');
-	vfpre    = NormInv(vfpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
-	qpre     = NormInv(qpre,maximum(VFNeuF.q),minimum(VFNeuF.q));
-	qpre     = max.(qpre,0);
-	VC       = reshape(vfpre,length(bgrid),length(ygrid));
-	q        = reshape(qpre,length(bgrid),length(ygrid));
-	vdpre    = convert(Array,VFhat.mhat([zeros(nx) ydef]')');
-	vdpre    = NormInv(vdpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
-	VD       = repeat(vdpre',ne,1);
-	VO       = max.(VC,VD);
-	D        = 1*(VD.>VC);
-	yb       = bgrid .+ ygrid';
-	BB       = repeat(bgrid,1,nx);
-	posb0    = findmin(abs.(0 .- bgrid))[2];
-	VO1,VC1,VD1,D1,Bprime1,q1 = DefaultEconomy.MaxBellman(EconSolve.Settings,VO,VC,VD,D,q,pix,posb0,udef,yb,bgrid,BB);
-	return ModelSolve(EconSolve.Settings,PolicyFunction(VO1,VC1,VD1,D1,Bprime1,q1),EconSolve.Support)
+	# 2. Dummy Creation of updating containers
+	VFNeuFAux, VFhatAux, qhatAux,Γ1new, re12,difΓ = (nothing,nothing,nothing,nothing,nothing,nothing);
+
+	# ----------------------------------------
+	# 3. Algorithm
+	rep =1
+	while rep < 100
+		# ----------------------------------------
+		# 3.1. Training a new NN
+		VFNeuFAux, VFhatAux, qhatAux = UpdateNN(EconSol,VFNeuF,VFhat,qhat)
+		# ----------------------------------------
+		# 3.2. New parameters
+		Γ1new, re12= Flux.destructure(VFhatAux.Mhat);
+		Γ2new, re22= Flux.destructure(qhatAux.Mhat);
+		difΓ       = max(maximum(abs.(Γ1new - Γ1old)), maximum(abs.(Γ2new-Γ2old)));
+		# ----------------------------------------
+		# 3.3. Updating of parameters
+		Γ1old      = 0.75*Γ1old .+ 0.25*Γ1new;
+		Γ2old      = 0.75*Γ2old .+ 0.25*Γ2new;
+		# ----------------------------------------
+		# 3.1. Updating the NN
+		VFNeuF     = VFNeuFAux;
+		VFhat      = VFhatAux;    VFhat.Mhat = re12(Γ1old);
+		qhat       = qhatAux;     qhat.Mhat  = re22(Γ2old);
+		display("Iteration $rep: -> The maximum difference is $difΓ");
+		rep+=1;
+	end
 end
 
-
-function lalaland(EconSol,VFNeuF,VFhat,qhat)
-  Γ1old, re11 = Flux.destructure(VFhat.mhat);
-  Γ2old, re21 = Flux.destructure(qhat.mhat);
-  VFNeuFAux, VFhatAux, qhatAux,Γ1new, re12,difΓ = (nothing,nothing,nothing,nothing,nothing,nothing);
-  rep =1
-  while rep < 100
-    VFNeuFAux, VFhatAux, qhatAux = UpdateNN(EconSol,VFNeuF,VFhat,qhat)
-    Γ1new, re12= Flux.destructure(VFhatAux.mhat);
-    Γ2new, re22= Flux.destructure(qhatAux.mhat);
-    difΓ       = max(maximum(abs.(Γ1new - Γ1old)), maximum(abs.(Γ2new-Γ2old)));
-    Γ1old      = 0.75*Γ1old .+ 0.25*Γ1new;
-    Γ2old      = 0.75*Γ2old .+ 0.25*Γ2new;
-    VFNeuF     = VFNeuFAux;
-    VFhat      = VFhatAux;    VFhat.mhat = re12(Γ1old);
-    qhat       = qhatAux;     qhat.mhat  = re22(Γ2old);
-    display("Iteration $rep: -> The maximum difference is $difΓ");
-    rep+=1;
-  end
-end
-
+# [5.2] Updating the NN
 function UpdateNN(EconSol,VFNeuF,VFhat,qhat;fnorm::Function = mynorm, Nsim=100000, Burn=0.05, NEpoch=1)
-	# ****************************************
-	# Updating the optimal policies
-	# ****************************************
+	# ----------------------------------------
+	# 1. Updating the solution of the model
 	EconSolAux = DefaultEconomy.UpdateModel(EconSol,VFNeuF,VFhat,qhat);
 
-	# ****************************************
-	# Simulating the new Economy
-	# ****************************************
+	# ----------------------------------------
+	# 2. Simulating new training sample
 	EconSimAux = DefaultEconomy.ModelSimulate(EconSolAux,nsim=Nsim,burn=Burn);
 
-	# ****************************************
-	# Data normalization for NN
-	# ****************************************
-	VFNeuFAux  = (vf= EconSimAux.Simulation[:,6], q = EconSimAux.Simulation[:,7],states= EconSimAux.Simulation[:,2:3]);
+	# ----------------------------------------
+	# 3. Normalization of the sample
+	VFNeuFAux  = (vf= EconSimAux.Sim[:,6], q = EconSimAux.Sim[:,7],states= EconSimAux.Sim[:,2:3]);
 	Yvf        = fnorm(VFNeuFAux.vf);
 	Yqf        = fnorm(VFNeuFAux.q);
 	S          = fnorm(VFNeuFAux.states);
 
-	# ****************************************
-	# NN for Value Function
-	# ****************************************
-	mhat_vf    = VFhat.mhat;
+	# ----------------------------------------
+	# 4.1. Training NN for Value function
+	mhat_vf    = VFhat.Mhat;
 	loss(x,y)  = Flux.mse(mhat_vf(x),y);
 	data       = Flux.Data.DataLoader(S',Yvf');
 	ps         = Flux.params(mhat_vf);
@@ -415,12 +388,11 @@ function UpdateNN(EconSol,VFNeuF,VFhat,qhat;fnorm::Function = mynorm, Nsim=10000
 	end
 	aux        = mhat_vf(S')';
 	hatvf      = convert(Array{Float64},aux);
-	VFhatAux   = NeuralApprox((Yvf,S), hatvf, mhat_vf);
+	VFhatAux   = NeuralApprox((Yvf,S), hatvf, mhat_vf,VFhat.Sett);
 
-	# ****************************************
-	# NN for Bond Price
-	# ****************************************
-	mhat_qf    = qhat.mhat;
+	# ----------------------------------------
+	# 4.2. Training NN for Bond price
+	mhat_qf    = qhat.Mhat;
 	lossq(x,y) = Flux.mse(mhat_qf(x),y);
 	dataq      = Flux.Data.DataLoader(S',Yqf');
 	psq        = Flux.params(mhat_qf);
@@ -433,9 +405,70 @@ function UpdateNN(EconSol,VFNeuF,VFhat,qhat;fnorm::Function = mynorm, Nsim=10000
 	end
 	auxq       = mhat_qf(S')';
 	hatqf      = convert(Array{Float64},auxq);
-	qhatAux    = NeuralApprox((Yqf,S), hatqf, mhat_qf);
+	qhatAux    = NeuralApprox((Yqf,S), hatqf, mhat_qf, qhat.Sett);
 	return VFNeuFAux,VFhatAux, qhatAux;
 end
+
+# [5.3] Updating Solution (Policy functions) of the model
+function UpdateModel(EconSol,VFNeuF,VFhat,qhat; NormFun::Function = mynorm , NormInv::Function = mynorminv)
+	# ----------------------------------------
+	# 1. Feautures of the model
+	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = EconSol.Set.Params;
+	bgrid    = EconSol.Sup.Bgrid;
+	ygrid    = EconSol.Sup.Ygrid;
+	pix      = EconSol.Sup.MarkMat;
+	ydef     = EconSol.Sup.Ydef;
+	yb       = bgrid .+ ygrid';
+	BB       = repeat(bgrid,1,nx);
+	posb0    = findmin(abs.(0 .- bgrid))[2];
+
+	# ----------------------------------------
+	# 2. Utility of Default
+	udef     = EconSol.Set.UtiFun.(ydef,σ);
+
+	# ----------------------------------------
+	# 3. All possible states in the original grid
+	states   = [repeat(bgrid,length(ygrid),1) repeat(ygrid,inner = (length(bgrid),1))];
+	sta_norm = NormFun(states);
+
+	# ----------------------------------------
+	# 4. Predicted VF and Bond Price | old NN
+
+	# 4.1. Value Function
+	vfpre    = VFhat.Mhat(sta_norm');
+	vfpre    = NormInv(vfpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+	# 4.2 Bond Price
+	qpre     = qhat.Mhat(sta_norm');
+	qpre     = NormInv(qpre,maximum(VFNeuF.q),minimum(VFNeuF.q));
+	qpre     = max.(qpre,0);
+
+	# ----------------------------------------
+	# 5. Initial solutions | old NN
+	VC       = reshape(vfpre,length(bgrid),length(ygrid));
+	q        = reshape(qpre,length(bgrid),length(ygrid));
+	vdpre    = convert(Array,VFhat.Mhat([zeros(nx) ydef]')');
+	vdpre    = NormInv(vdpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+	VD       = repeat(vdpre',ne,1);
+	VO       = max.(VC,VD);
+	D        = 1*(VD.>VC);
+
+	# ----------------------------------------
+	# 6. Bellman Operator -> New Policy Functions
+	VO1,VC1,VD1,D1,Bprime1,q1 = DefaultEconomy.MaxBellman(EconSol.Set,VO,VC,VD,D,q,pix,posb0,udef,yb,bgrid,BB);
+
+	return ModelSolve(EconSol.Set,PolicyFunction(VO1,VC1,VD1,D1,Bprime1,q1),EconSol.Sup)
+end
+# [5.4] Belman Operator -> New Policy Functions
+function  MaxBellman(model::ModelSettings,VO::Array,VC::Array,VD::Array,D::Array,q::Array,pix::Array,posb0::Int64,udef,yb,b,BB)
+	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = model.Params;
+	utf     = model.UtiFun;
+	udef    = repeat(udef',ne,1);
+	Bprime  = Array{CartesianIndex{2},2}(undef,ne,nx);
+	VO1,VC1, VD1,D1, Bprime,q1,dif = value_functions!(VO,VC,VD,D,Bprime,q,1,b,pix,posb0,yb,udef,β,θ,utf,r,σ);
+	Bprime1 = BB[Bprime];
+	return VO1,VC1,VD1,D1,Bprime1,q1;
+end
+
 ## #############################################################################
 #  (6) CODE FOR GRAPHICS
 ###############################################################################
@@ -444,7 +477,7 @@ end
 function graph_solve(modsol::ModelSolve)
 	# --------------------------------------------------------------
 	# 0. Unpacking
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Settings.Params;
+	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
 	EconBase = (Va = modsol.Sol.ValFun, VCa = modsol.Sol.ValNoD,VDa = modsol.Sol.ValDef,
 				Da = modsol.Sol.DefCho, BPa = modsol.Sol.DebtPF, qa = modsol.Sol.BPrice);
 	b     = modsol.Sup.Bgrid
@@ -593,9 +626,10 @@ function mynorm(x)
     normx  = (x .- 0.5*(fmin+fmax)) ./ frange;
     return normx;
 end
-# [7.2] Inverse of the Normalization
+# [7.3] Inverse of the Normalization
 function mynorminv(x,xmax,xmin)
 	 xorig = (x * 0.5*(xmax-xmin)) .+ 0.5*(xmax+xmin);
 	 return xorig;
 end
+
 end

@@ -22,11 +22,11 @@ DefaultEconomy.graph_simul(EconSim);
 
 # Approximation with Neural Networks
   # Value Function
-	VFNeuF  = (vf= EconSim.Simulation[:,6], q = EconSim.Simulation[:,7], states= EconSim.Simulation[:,2:3]);
-	VFhat   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3]);
+	VFNeuF  = (vf= EconSim.Sim[:,6], q = EconSim.Sim[:,7], states= EconSim.Sim[:,2:3]);
+	VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
 	DefaultEconomy.graph_neural(VFhat, "Value Function", ["VFneural.png" "VFNeuralSmpl.png"]);
 
-  # Bond Prfice
+  # Bond Price
 	ns         = 2;
 	Q          = 16;
 	ϕfun(x)    = log(1+exp(x));
@@ -34,7 +34,7 @@ DefaultEconomy.graph_simul(EconSim);
 	loss(x,y)  = Flux.mse(mhat(x),y);
 	opt        = RADAM();
 	NeuralChar = DefaultEconomy.NeuralSettings(mhat,loss,opt);
-	qhat       = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NeuralChar);
+	qhat       = DefaultEconomy.NeuralTraining(VFNeuF[2],VFNeuF[3],neuSettings=NeuralChar,Nepoch = 10);
 	DefaultEconomy.graph_neural(qhat, "Bond price", ["BQneural.png" "BQNeuralSmpl.png"]);
 
 # ##################################
@@ -42,7 +42,7 @@ DefaultEconomy.graph_simul(EconSim);
 ##################################
 q1    = qhat.Data[1];
 s1    = qhat.Data[2];
-q1hat = qhat.yhat;
+q1hat = qhat.Yhat;
 
 # SCATTERS
 theme(:ggplot2)

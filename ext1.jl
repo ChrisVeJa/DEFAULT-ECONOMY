@@ -22,9 +22,9 @@ mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
 loss(x,y)= Flux.mse(mhat_q(x),y);
 opt     = RADAM();
 NQChar  = DefaultEconomy.NeuralSettings(mhat_q,loss,opt);
-VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 1);
+VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
 qhat    = DefaultEconomy.NeuralTraining(VFNeuF[2],VFNeuF[3],neuSettings=NQChar,Nepoch = 10);
 
 
 # [2]
-DefaultEconomy.lalaland(EconSol,VFNeuF,VFhat,qhat)
+DefaultEconomy.ConvergeNN(EconSol,VFNeuF,VFhat,qhat);
