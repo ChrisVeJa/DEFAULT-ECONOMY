@@ -22,8 +22,8 @@ mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
 loss(x,y)= Flux.mse(mhat_q(x),y);
 opt     = RADAM();
 NQChar  = DefaultEconomy.NeuralSettings(mhat_q,loss,opt);
-VFhat   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3], Nepoch = 8);
-qhat    = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NQChar,Nepoch = 8);
+VFhat   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3], Nepoch = 10);
+qhat    = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NQChar,Nepoch = 10);
 
 
 # [2]

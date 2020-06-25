@@ -250,7 +250,7 @@ function neuralAprrox(y,s; neuSettings=nothing ,fnorm::Function = mynorm, Nepoch
 	data  = Flux.Data.DataLoader(S',Y');
 	ps    = Flux.params(mhat);
 	#Flux.@epochs 8 begin Flux.Optimise.train!(loss, ps, data, opt) ; @show loss(S',Y') end;
-	Flux.@epochs Nepoch Flux.Optimise.train!(loss, ps, data, opt) ;
+	Flux.@epochs Nepoch  begin Flux.Optimise.train!(loss, ps, data, opt) ; @show loss(S',Y')  end;
 	aux   = mhat(S')';
 	hat   = convert(Array{Float64},aux);
 	return  NeuralApprox((Y,S), hat, mhat);
@@ -571,7 +571,7 @@ function UpdateNN(EconSol,VFNeuF,VFhat,qhat;fnorm::Function = mynorm, Nsim=10000
 	VFNeuFAux  = (vf= EconSimAux.Simulation[:,6], q = EconSimAux.Simulation[:,7],states= EconSimAux.Simulation[:,2:3]);
 	Yvf        = fnorm(VFNeuFAux.vf);
 	Yqf        = fnorm(VFNeuFAux.q);
-	S          = fnorm(VFNeuFaux.states);
+	S          = fnorm(VFNeuFAux.states);
 
 	# ****************************************
 	# NN for Value Function
@@ -581,10 +581,11 @@ function UpdateNN(EconSol,VFNeuF,VFhat,qhat;fnorm::Function = mynorm, Nsim=10000
 	data       = Flux.Data.DataLoader(S',Yvf');
 	ps         = Flux.params(mhat_vf);
 	opt        = RADAM();
-	if Nepoch > 1
+	if NEpoch > 1
 		Flux.@epochs Nepoch Flux.Optimise.train!(loss, ps, data, opt) ;
 	else
-		Flux.Optimise.train!(loss, ps, data, opt)
+		Flux.Optimise.train!(loss, ps, data, opt);
+		@show loss(S',Yvf');
 	end
 	aux        = mhat_vf(S')';
 	hatvf      = convert(Array{Float64},aux);
@@ -598,10 +599,11 @@ function UpdateNN(EconSol,VFNeuF,VFhat,qhat;fnorm::Function = mynorm, Nsim=10000
 	dataq      = Flux.Data.DataLoader(S',Yqf');
 	psq        = Flux.params(mhat_qf);
 	opt        = RADAM();
-	if Nepoch > 1
+	if NEpoch > 1
 		Flux.@epochs Nepoch Flux.Optimise.train!(lossq, psq, dataq, opt) ;
 	else
-		Flux.Optimise.train!(lossq, psq, dataq, opt)
+		Flux.Optimise.train!(lossq, psq, dataq, opt);
+		@show loss(S',Yqf')
 	end
 	auxq       = mhat_qf(S')';
 	hatqf      = convert(Array{Float64},auxq);
