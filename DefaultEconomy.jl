@@ -62,10 +62,9 @@ end
 #= ------------------------------------------------------------------------
 (1.5) Neural Network :
 --------------------------------------------------------------------------- =#
-struct NeuralApprox
+mutable struct NeuralApprox
 	Data::Tuple;
 	yhat;
-	Θ;
 	mhat;
 end
 #= ------------------------------------------------------------------------
@@ -164,7 +163,7 @@ end
 #(3) SIMULATION OF THE ECONOMY
 ###############################################################################
 
-function ModelSimulate(modsol::ModelSolve; nsim=10000, burn=0.5)
+function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05)
 	# -------------------------------------------------------------------------
 	# 0. Unpacking Parameters
 	# -------------------------------------------------------------------------
@@ -238,7 +237,7 @@ end
 ###############################################################################
 #(4) NEURAL NETWORK APPROXIMATION
 ###############################################################################
-function neuralAprrox(y,s; neuSettings=nothing ,fnorm::Function = mynorm)
+function neuralAprrox(y,s; neuSettings=nothing ,fnorm::Function = mynorm, Nepoch = 1)
 	n, ns = size(s);
 	if isa(neuSettings, Nothing)
 		neuSettings = neuralSettings(s);
@@ -248,14 +247,13 @@ function neuralAprrox(y,s; neuSettings=nothing ,fnorm::Function = mynorm)
 	opt   = neuSettings.opt;
 	Y     = fnorm(y);
 	S     = fnorm(s);
-	#data  = [(x,y) = (S[i,:], Y[i])  for i in 1:n];
 	data  = Flux.Data.DataLoader(S',Y');
-	#data  = [(S',Y')];
 	ps    = Flux.params(mhat);
-	Flux.@epochs 8 begin Flux.Optimise.train!(loss, ps, data, opt) ; @show loss(S',Y') end;
+	#Flux.@epochs 8 begin Flux.Optimise.train!(loss, ps, data, opt) ; @show loss(S',Y') end;
+	Flux.@epochs Nepoch Flux.Optimise.train!(loss, ps, data, opt) ;
 	aux   = mhat(S')';
 	hat   = convert(Array{Float64},aux);
-	return  NeuralApprox((Y,S), hat, Flux.params(mhat), mhat);
+	return  NeuralApprox((Y,S), hat, mhat);
 end
 
 ###############################################################################
@@ -501,6 +499,7 @@ function  MaxBellman(model::ModelSettings,VO::Array,VC::Array,VD::Array,D::Array
 	return VO1,VC1,VD1,D1,Bprime1,q1;
 end
 
+
 function UpdateModel(EconSolve::ModelSolve,VFNeuF::NamedTuple,VFhat::NeuralApprox,qhat::NeuralApprox; NormFun::Function = mynorm , NormInv::Function = mynorminv)
 	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = EconSolve.Settings.Params;
 	bgrid    = EconSolve.Support.bgrid;
@@ -531,4 +530,97 @@ function UpdateModel(EconSolve::ModelSolve,VFNeuF::NamedTuple,VFhat::NeuralAppro
 	VO1,VC1,VD1,D1,Bprime1,q1 = DefaultEconomy.MaxBellman(EconSolve.Settings,VO,VC,VD,D,q,pix,posb0,udef,yb,bgrid,BB);
 	return ModelSolve(EconSolve.Settings,PolicyFunction(VO1,VC1,VD1,D1,Bprime1,q1),EconSolve.Support)
 end
+
+
+function lalaland(EconSol,VFNeuF,VFhat,qhat)
+  Γ1old, re11 = Flux.destructure(VFhat.mhat);
+  Γ2old, re21 = Flux.destructure(qhat.mhat);
+  VFNeuFAux, VFhatAux, qhatAux,Γ1new, re12,difΓ = (nothing,nothing,nothing,nothing,nothing,nothing);
+  rep =1
+  while rep < 100
+    VFNeuFAux, VFhatAux, qhatAux = UpdateNN(EconSol,VFNeuF,VFhat,qhat)
+    Γ1new, re12= Flux.destructure(VFhatAux.mhat);
+    Γ2new, re22= Flux.destructure(qhatAux.mhat);
+    difΓ       = max(maximum(abs.(Γ1new - Γ1old)), maximum(abs.(Γ2new-Γ2old)));
+    Γ1old      = 0.75*Γ1old .+ 0.25*Γ1new;
+    Γ2old      = 0.75*Γ2old .+ 0.25*Γ2new;
+    VFNeuF     = VFNeuFAux;
+    VFhat      = VFhatAux;    VFhat.mhat = re12(Γ1old);
+    qhat       = qhatAux;     qhat.mhat  = re22(Γ2old);
+    display("Iteration $rep: -> The maximum difference is $difΓ");
+    rep+=1;
+  end
+end
+
+
+
+function UpdateNN(EconSol,VFNeuF,VFhat,qhat;fnorm::Function = mynorm, Nsim=100000, Burn=0.05, NEpoch=1)
+	# ****************************************
+	# Updating the optimal policies
+	# ****************************************
+	EconSolAux = DefaultEconomy.UpdateModel(EconSol,VFNeuF,VFhat,qhat);
+
+	# ****************************************
+	# Simulating the new Economy
+	# ****************************************
+	EconSimAux = DefaultEconomy.ModelSimulate(EconSolAux,nsim=Nsim,burn=Burn);
+
+	# ****************************************
+	# Data normalization for NN
+	# ****************************************
+	VFNeuFAux  = (vf= EconSimAux.Simulation[:,6], q = EconSimAux.Simulation[:,7],states= EconSimAux.Simulation[:,2:3]);
+	Yvf        = fnorm(VFNeuFAux.vf);
+	Yqf        = fnorm(VFNeuFAux.q);
+	S          = fnorm(VFNeuFaux.states);
+
+	# ****************************************
+	# NN for Value Function
+	# ****************************************
+	mhat_vf    = VFhat.mhat;
+	loss(x,y)  = Flux.mse(mhat_vf(x),y);
+	data       = Flux.Data.DataLoader(S',Yvf');
+	ps         = Flux.params(mhat_vf);
+	opt        = RADAM();
+	if Nepoch > 1
+		Flux.@epochs Nepoch Flux.Optimise.train!(loss, ps, data, opt) ;
+	else
+		Flux.Optimise.train!(loss, ps, data, opt)
+	end
+	aux        = mhat_vf(S')';
+	hatvf      = convert(Array{Float64},aux);
+	VFhatAux   = NeuralApprox((Yvf,S), hatvf, mhat_vf);
+
+	# ****************************************
+	# NN for Bond Price
+	# ****************************************
+	mhat_qf    = qhat.mhat;
+	lossq(x,y) = Flux.mse(mhat_qf(x),y);
+	dataq      = Flux.Data.DataLoader(S',Yqf');
+	psq        = Flux.params(mhat_qf);
+	opt        = RADAM();
+	if Nepoch > 1
+		Flux.@epochs Nepoch Flux.Optimise.train!(lossq, psq, dataq, opt) ;
+	else
+		Flux.Optimise.train!(lossq, psq, dataq, opt)
+	end
+	auxq       = mhat_qf(S')';
+	hatqf      = convert(Array{Float64},auxq);
+	qhatAux    = NeuralApprox((Yqf,S), hatqf, mhat_qf);
+	return VFNeuFAux,VFhatAux, qhatAux;
+end
+
+#=function SolveNN(EconSol,VFNeuF,VFhat,qhat;Nsim=100000, Burn=0.05,ns=2,Q=16, NumEpoch=1)
+	EconSolAux = DefaultEconomy.UpdateModel(EconSol,VFNeuF,VFhat,qhat);
+	EconSimAux = DefaultEconomy.ModelSimulate(EconSolAux,nsim=Nsim,burn=Burn);
+	VFNeuFAux  = (vf= EconSimAux.Simulation[:,6], q = EconSimAux.Simulation[:,7],states= EconSimAux.Simulation[:,2:3]);
+	ϕfun(x)    = log(1+exp(x));
+	mhat_q     = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
+	loss(x,y)  = Flux.mse(mhat_q(x),y);
+	opt        = RADAM();
+	NQChar     = DefaultEconomy.NeuralSettings(mhat_q,loss,opt);
+	VFhatAux   = DefaultEconomy.neuralAprrox(VFNeuF[1],VFNeuF[3]);
+	qhatAux    = DefaultEconomy.neuralAprrox(VFNeuF[2],VFNeuF[3],neuSettings=NQChar,Nepoch = NumEpoch);
+	return VFNeuFAux,VFhatAux, qhatAux;
+end
+=#
 end
