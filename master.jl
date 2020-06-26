@@ -7,7 +7,7 @@
 # Dont hesitate in send any comment
 ###############################################################################
 
-# Including out module
+# Including our module
 using Random, Distributions,Statistics, LinearAlgebra, Plots,StatsBase,Parameters, Flux;
 include("DefaultEconomy.jl");
 
@@ -44,6 +44,7 @@ q1    = qhat.Data[1];
 s1    = qhat.Data[2];
 q1hat = qhat.Yhat;
 
+# ------------------------------------------------------
 # SCATTERS
 theme(:ggplot2)
 scatter(s1[:,1],[q1 q1hat], lab=["actual" "hat"],
@@ -57,7 +58,8 @@ scatter(s1[:,2],[q1 q1hat], lab=["actual" "hat"],
 		xlab ="Output Yₜ", ylab="Debt Price qₜ₊₁");
 savefig(".\\FiguresAdi\\QY.png");
 
-# 3D
+# ------------------------------------------------------
+# 3D SURFACE
 theme(:default)
 surf1 = surface(s1[:,2],s1[:,1],q1,c=:OrRd_9,
 				xlab = "Bₜ", ylab ="yₜ", zlab="Actual Price")

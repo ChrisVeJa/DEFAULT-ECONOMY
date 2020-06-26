@@ -7,24 +7,32 @@
 # Dont hesitate in send any comment
 ###############################################################################
 
-# [0]
+# [0] Including our module
 using Random, Distributions,Statistics, LinearAlgebra, Plots,StatsBase,Parameters, Flux;
 include("DefaultEconomy.jl");
 
-# [1]
+# [1] Solving the model
 EconDef = DefaultEconomy.ModelSettings();
 EconSol = DefaultEconomy.SolveDefEcon(EconDef);
+
+# [2] Simulate a sample with 1e5 observations
 EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=100000,burn=0.05);
-VFNeuF  = (vf= EconSim.Sim[:,6], q = EconSim.Sim[:,7],states= EconSim.Sim[:,2:3]);
-ns      = 2; Q = 16;
-ϕfun(x) = log(1+exp(x));
-mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
-loss(x,y)= Flux.mse(mhat_q(x),y);
-opt     = RADAM();
-NQChar  = DefaultEconomy.NeuralSettings(mhat_q,loss,opt);
-VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
-qhat    = DefaultEconomy.NeuralTraining(VFNeuF[2],VFNeuF[3],neuSettings=NQChar,Nepoch = 10);
+
+# [3] Estimating a Neural network
+    # 3.1 Data for training
+    VFNeuF  = (vf= EconSim.Sim[:,6], q = EconSim.Sim[:,7],states= EconSim.Sim[:,2:3]);
+
+    # 3.2 Neural network for Value Funtion 16 neurons, 1 hidden layer, with softplus
+    VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
+    # 3.3 Neural network for Bond Price  16 neurons, 2 hidden layer, with softplus
+    ns      = 2; Q = 16;
+    ϕfun(x) = log(1+exp(x));
+    mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
+    loss(x,y)= Flux.mse(mhat_q(x),y);
+    opt     = RADAM();
+    NQChar  = DefaultEconomy.NeuralSettings(mhat_q,loss,opt);
+    qhat    = DefaultEconomy.NeuralTraining(VFNeuF[2],VFNeuF[3],neuSettings=NQChar,Nepoch = 10);
 
 
-# [2]
-DefaultEconomy.ConvergeNN(EconSol,VFNeuF,VFhat,qhat);
+# [4] Solving - Simulating - Training
+    DefaultEconomy.ConvergeNN(EconSol,VFNeuF,VFhat,qhat);
