@@ -30,7 +30,7 @@ EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=100000,burn=0.05);
     #mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
     mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
     loss(x,y)= Flux.mse(mhat_q(x),y);
-    opt     = RADAM();
+    opt     = Descent();
     NQChar  = DefaultEconomy.NeuralSettings(mhat_q,loss,opt);
     qhat    = DefaultEconomy.NeuralTraining(VFNeuF[2],VFNeuF[3],neuSettings=NQChar,Nepoch = 10);
 

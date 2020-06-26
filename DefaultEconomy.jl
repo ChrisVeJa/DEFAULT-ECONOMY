@@ -281,7 +281,7 @@ function NeuralSettings(s)
 	ϕfun(x)    = log1p(exp(x));
 	mhat       = Chain(Dense(ns,Q,ϕfun), Dense(Q,1));
 	lossf(x,y) = Flux.mse(mhat(x),y);
-	opt        = RADAM();
+	opt        = Descent();
 	return  NeuralSettings(mhat,lossf,opt);
 end
 
@@ -383,7 +383,7 @@ function UpdateNN(EconSol,VFNeuF,VFhat,qhat;fnorm::Function = mynorm, Nsim=10000
 	loss(x,y)  = Flux.mse(mhat_vf(x),y);
 	data       = Flux.Data.DataLoader(S',Yvf');
 	ps         = Flux.params(mhat_vf);
-	opt        = RADAM();
+	opt        = Descent();
 	if NEpoch > 1
 		Flux.@epochs Nepoch Flux.Optimise.train!(loss, ps, data, opt) ;
 	else
@@ -400,7 +400,7 @@ function UpdateNN(EconSol,VFNeuF,VFhat,qhat;fnorm::Function = mynorm, Nsim=10000
 	lossq(x,y) = Flux.mse(mhat_qf(x),y);
 	dataq      = Flux.Data.DataLoader(S',Yqf');
 	psq        = Flux.params(mhat_qf);
-	opt        = RADAM();
+	opt        = Descent();
 	if NEpoch > 1
 		Flux.@epochs Nepoch Flux.Optimise.train!(lossq, psq, dataq, opt) ;
 	else
