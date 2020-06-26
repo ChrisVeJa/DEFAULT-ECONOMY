@@ -29,7 +29,7 @@ DefaultEconomy.graph_simul(EconSim);
   # Bond Price
 	ns         = 2;
 	Q          = 16;
-	ϕfun(x)    = log(1+exp(x));
+	ϕfun(x)    = log1p(exp(x));
 	mhat       = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
 	loss(x,y)  = Flux.mse(mhat(x),y);
 	opt        = RADAM();

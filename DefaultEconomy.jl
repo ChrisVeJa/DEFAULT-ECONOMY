@@ -278,7 +278,7 @@ end
 function NeuralSettings(s)
 	Q          = 16;
 	n, ns      = size(s);
-	ϕfun(x)    = log(1+exp(x));
+	ϕfun(x)    = log1p(exp(x));
 	mhat       = Chain(Dense(ns,Q,ϕfun), Dense(Q,1));
 	lossf(x,y) = Flux.mse(mhat(x),y);
 	opt        = RADAM();
@@ -333,7 +333,7 @@ function ConvergeNN(EconSol::ModelSolve,VFNeuF,VFhat::NeuralApprox,qhat::NeuralA
 	# ----------------------------------------
 	# 3. Algorithm
 	rep =1
-	while rep < 100
+	while rep <50
 		# ----------------------------------------
 		# 3.1. Training a new NN
 		VFNeuFAux, VFhatAux, qhatAux = UpdateNN(EconSol,VFNeuF,VFhat,qhat)
@@ -341,11 +341,14 @@ function ConvergeNN(EconSol::ModelSolve,VFNeuF,VFhat::NeuralApprox,qhat::NeuralA
 		# 3.2. New parameters
 		Γ1new, re12= Flux.destructure(VFhatAux.Mhat);
 		Γ2new, re22= Flux.destructure(qhatAux.Mhat);
+		#display("Hay nans?")
+		#display(sum(isnan.(Γ1new)));
+		#display(sum(isnan.(Γ2new)))
 		difΓ       = max(maximum(abs.(Γ1new - Γ1old)), maximum(abs.(Γ2new-Γ2old)));
 		# ----------------------------------------
 		# 3.3. Updating of parameters
-		Γ1old      = 0.75*Γ1old .+ 0.25*Γ1new;
-		Γ2old      = 0.75*Γ2old .+ 0.25*Γ2new;
+		Γ1old      = 0.9*Γ1old .+ 0.1*Γ1new;
+		Γ2old      = 0.9*Γ2old .+ 0.1*Γ2new;
 		# ----------------------------------------
 		# 3.1. Updating the NN
 		VFNeuF     = VFNeuFAux;
@@ -354,6 +357,7 @@ function ConvergeNN(EconSol::ModelSolve,VFNeuF,VFhat::NeuralApprox,qhat::NeuralA
 		display("Iteration $rep: -> The maximum difference is $difΓ");
 		rep+=1;
 	end
+	return VFNeuFAux, VFhatAux, qhatAux;
 end
 
 # [5.2] Updating the NN
