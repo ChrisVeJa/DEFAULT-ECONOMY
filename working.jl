@@ -36,7 +36,7 @@ EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=100000,burn=0.05);
 
 
 # [4] Solving - Simulating - Training
-    VFNeuFAux, VFhatAux, qhatAux = DefaultEconomy.ConvergeNN(EconSol,VFNeuF,VFhat,qhat);
+    VFNeuFAux, VFhatAux, qhatAux, DIF= DefaultEconomy.ConvergeNN(EconSol,VFNeuF,VFhat,qhat);
     Γ1old, re11   = Flux.destructure(VFhat.Mhat);
 	Γ2old, re21   = Flux.destructure(qhat.Mhat);
 	Γ1oldA, re11A = Flux.destructure(VFhatAux.Mhat);

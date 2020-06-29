@@ -69,3 +69,5 @@ surf2 = surface(s1[:,2],s1[:,1],q1hat,c=:OrRd_9,
 
 plot(surf1,surf2, layout=(1,2),size = (900,400))
 savefig(".\\FiguresAdi\\surface.png");
+plot(DIF, legend= false)
+lens!([200, 400], [0.1, 0.3], inset = (1, bbox(0.5, 0.0, 0.4, 0.4)))

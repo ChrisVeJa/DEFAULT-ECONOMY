@@ -333,7 +333,8 @@ function ConvergeNN(EconSol::ModelSolve,VFNeuF,VFhat::NeuralApprox,qhat::NeuralA
 	# ----------------------------------------
 	# 3. Algorithm
 	rep =1
-	while rep <50
+	DIF = zeros(400);
+	while rep <401
 		# ----------------------------------------
 		# 3.1. Training a new NN
 		VFNeuFAux, VFhatAux, qhatAux = UpdateNN(EconSol,VFNeuF,VFhat,qhat)
@@ -345,6 +346,7 @@ function ConvergeNN(EconSol::ModelSolve,VFNeuF,VFhat::NeuralApprox,qhat::NeuralA
 		#display(sum(isnan.(Γ1new)));
 		#display(sum(isnan.(Γ2new)))
 		difΓ       = max(maximum(abs.(Γ1new - Γ1old)), maximum(abs.(Γ2new-Γ2old)));
+		DIF[rep]   = difΓ;
 		# ----------------------------------------
 		# 3.3. Updating of parameters
 		Γ1old      = 0.9*Γ1old .+ 0.1*Γ1new;
@@ -357,7 +359,7 @@ function ConvergeNN(EconSol::ModelSolve,VFNeuF,VFhat::NeuralApprox,qhat::NeuralA
 		display("Iteration $rep: -> The maximum difference is $difΓ");
 		rep+=1;
 	end
-	return VFNeuFAux, VFhatAux, qhatAux;
+	return VFNeuFAux, VFhatAux, qhatAux, DIF;
 end
 
 # [5.2] Updating the NN
