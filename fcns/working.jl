@@ -21,11 +21,11 @@ VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
 
 # [4] Solving - Simulating - Training
 q = EconSim.Sim[:,6];
-VFNeuFAux, VFhatAux, qhatAux, d1 = DefaultEconomy.ConvergeNN(EconSol,
-									VFNeuF,VFhat,q, flagq=false, nrep=10000, maxite=2000)
+VFNeuFAux, VFhatAux, qhatAux, d2 = DefaultEconomy.ConvergeNN(EconSol,
+									VFNeuF,VFhat,q, flagq=false, nrep=10000, maxite=4000)
 
 
 
 #d1, seed fixed, descent, 10000 rep, 0.9
-plot(d1, title= "10milFiXedDescent90");
-savefig("graph1.png");
+plot(d2[1000:end], title= "10milFiXedDescent90")
+savefig("graph3.png");

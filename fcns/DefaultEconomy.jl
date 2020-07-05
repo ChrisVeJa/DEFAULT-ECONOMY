@@ -141,7 +141,7 @@ function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05)
 	# 3. Burning and storaging
 	EconSim  = EconSim[end-nsim:end-1,:];
 	modelsim = ModelSim((replications = nsim, burning= burn),modsol,EconSim,orderName);
-	display("Simulation finished");
+	#display("Simulation finished");
 	return modelsim;
 end
 
@@ -401,7 +401,7 @@ function UpdateNN(EconSol, VFNeuF, VFhat,
 		Flux.@epochs Nepoch Flux.Optimise.train!(loss, ps, data, opt) ;
 	else
 		Flux.Optimise.train!(loss, ps, data, opt);
-		@show loss(S',Yvf');
+		#@show loss(S',Yvf');
 	end
 	aux        = mhat_vf(S')';
 	hatvf      = convert(Array{Float64},aux);
