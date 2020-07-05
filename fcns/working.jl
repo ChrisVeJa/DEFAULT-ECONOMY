@@ -14,27 +14,18 @@ include("DefaultEconomy.jl");
 # Setting >> Solving >> Simulating >> Neural Network
 EconDef = DefaultEconomy.ModelSettings();
 EconSol = DefaultEconomy.SolveDefEcon(EconDef);
-EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=100000,burn=0.05);
+EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=10000,burn=0.05);
 VFNeuF  = (vf= EconSim.Sim[:,6], q = EconSim.Sim[:,7],states= EconSim.Sim[:,2:3]);
 VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
 
 
 # [4] Solving - Simulating - Training
 q = EconSim.Sim[:,6];
-VFNeuFAux, VFhatAux, qhatAux, DIF = DefaultEconomy.ConvergeNN(EconSol,VFNeuF,VFhat,q, flagq=false, nrep=100000)
-p3 = plot(DIF)
+VFNeuFAux, VFhatAux, qhatAux, d1 = DefaultEconomy.ConvergeNN(EconSol,
+									VFNeuF,VFhat,q, flagq=false, nrep=10000, maxite=2000)
 
 
 
-
-
-
-
-
-
-Γ1old, re11   = Flux.destructure(VFhat.Mhat);
-Γ2old, re21   = Flux.destructure(qhat.Mhat);
-Γ1oldA, re11A = Flux.destructure(VFhatAux.Mhat);
-Γ2oldA, re21A = Flux.destructure(qhatAux.Mhat);
-plot(DIF, legend= false)
-lens!([200, 400], [0.1, 0.3], inset = (1, bbox(0.5, 0.0, 0.4, 0.4)))
+#d1, seed fixed, descent, 10000 rep, 0.9
+plot(d1, title= "10milFiXedDescent90");
+savefig("graph1.png");

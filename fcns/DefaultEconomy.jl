@@ -184,7 +184,7 @@ end
 ###############################################################################
 
 # [] Convergence algorithm
-function ConvergeNN(EconSol,VFNeuF,VFhat,qhat; flagq = true, nrep = 100000)
+function ConvergeNN(EconSol,VFNeuF,VFhat,qhat; flagq = true, nrep = 100000, maxite=1000)
 	# with flagq = false we dont update the price and just use simulations
 	Γ1old, re11 = Flux.destructure(VFhat.Mhat);
 	VFNeuFAux = nothing;
@@ -199,20 +199,20 @@ function ConvergeNN(EconSol,VFNeuF,VFhat,qhat; flagq = true, nrep = 100000)
 	end
 
 	rep = 1;
-	DIF = zeros(400);
-	while rep <401
+	DIF = zeros(maxite);
+	while rep <maxite+1
 		VFNeuFAux, VFhatAux, qhatAux = UpdateNN(EconSol,VFNeuF,VFhat,qhat, flagq = flagq, Nsim= nrep)
 		Γ1new, re12= Flux.destructure(VFhatAux.Mhat);
 		difΓ       = maximum(abs.(Γ1new - Γ1old));
 		VFNeuF     = VFNeuFAux;
 		VFhat      = VFhatAux;
 		VFhat.Mhat = re12(Γ1old);
-		Γ1old      = 0.8*Γ1old .+ 0.2*Γ1new;
+		Γ1old      = 0.9*Γ1old .+ 0.1*Γ1new;
 		qhat       = qhatAux; # it could be the simulation or an estimation depends on flagq
 		if flagq
 			Γ2new, re22 = Flux.destructure(qhatAux.Mhat);
 			difΓ   = max(difΓ,maximum(abs.(Γ2new - Γ2old)));
-			Γ2old  = 0.8*Γ2old .+ 0.2*Γ2new;
+			Γ2old  = 0.9*Γ2old .+ 0.1*Γ2new;
 			qhat.Mhat  = re22(Γ2old);   # if flagq is true, then we need to update structure
 		end
 		DIF[rep]   = difΓ;
