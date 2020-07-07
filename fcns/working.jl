@@ -12,15 +12,32 @@ using Random, Distributions,Statistics, LinearAlgebra, Plots,StatsBase,Parameter
 include("DefaultEconomy.jl");
 
 # Setting >> Solving >> Simulating >> Neural Network
+totalsim = 10000;
 EconDef = DefaultEconomy.ModelSettings();
 EconSol = DefaultEconomy.SolveDefEcon(EconDef);
-EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=10000000,burn=0.005);
+EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=totalsim,burn=0.05);
 VFNeuF  = (vf= EconSim.Sim[:,6], q = EconSim.Sim[:,7],states= EconSim.Sim[:,2:3]);
 VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
 
 
+opt      = VFhat.Sett.Opti;
+Y        = VFhat.Data[1];
+S        = VFhat.Data[2];
+ps1, aux = Flux.destructure(VFhat.Mhat);
+mhat     = aux(ps1);
+ps       = Flux.Params(mhat);
+mse(S,Y) = mean((Y - mhat(S')') .^ 2);
+gs = gradient(ps) do
+   mse(S,Y)
+end;
+Flux.update!(opt,ps,gs);
 
-# [4] Solving - Simulating - Training
+
+
+
+
+
+#= [4] Solving - Simulating - Training
 q = EconSim.Sim[:,6];
 VFNeuFAux, VFhatAux, qhatAux, d1 = DefaultEconomy.ConvergeNN(EconSol,
 									VFNeuF,VFhat,q, qtype="NoUpdate", nrep=10000, maxite=4000)
@@ -32,3 +49,4 @@ VFNeuFAux, VFhatAux, qhatAux, d2 = DefaultEconomy.ConvergeNN(EconSol,
 
 plot([d1 d2], title= "10milFiXedDescent90")
 savefig("graph3.png");
+=#
