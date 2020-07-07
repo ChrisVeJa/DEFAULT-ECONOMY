@@ -13,24 +13,20 @@ include("DefaultEconomy.jl");
 
 # Setting >> Solving >> Simulating >> Neural Network
 totalsim = 10000;
+totalburn= 0.05;
 EconDef = DefaultEconomy.ModelSettings();
 EconSol = DefaultEconomy.SolveDefEcon(EconDef);
-EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=totalsim,burn=0.05);
+EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=totalsim,burn=totalburn);
 VFNeuF  = (vf= EconSim.Sim[:,6], q = EconSim.Sim[:,7],states= EconSim.Sim[:,2:3]);
 VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
 
 
-opt      = VFhat.Sett.Opti;
-Y        = VFhat.Data[1];
-S        = VFhat.Data[2];
-ps1, aux = Flux.destructure(VFhat.Mhat);
-mhat     = aux(ps1);
-ps       = Flux.Params(mhat);
-mse(S,Y) = mean((Y - mhat(S')') .^ 2);
-gs = gradient(ps) do
-   mse(S,Y)
-end;
-Flux.update!(opt,ps,gs);
+
+
+
+
+   # Updating the old information
+
 
 
 

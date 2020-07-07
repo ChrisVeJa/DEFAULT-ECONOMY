@@ -326,6 +326,58 @@ function NeuralSettings(s)
 	return  NeuralSettings(mhat,lossf,opt);
 end
 
+# [∘] Updating Solution (Policy functions) of the model
+function UpdateModel(EconSol,VFNeuF,VFhat,qhat; choiceq = "NeuralNetwork", NormFun::Function = mynorm , NormInv::Function = mynorminv)
+	# ----------------------------------------
+	# 1. Feautures of the model
+	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = EconSol.Set.Params;
+	bgrid    = EconSol.Sup.Bgrid;
+	ygrid    = EconSol.Sup.Ygrid;
+	pix      = EconSol.Sup.MarkMat;
+	ydef     = EconSol.Sup.Ydef;
+	yb       = bgrid .+ ygrid';
+	BB       = repeat(bgrid,1,nx);
+	posb0    = findmin(abs.(0 .- bgrid))[2];
+	# ----------------------------------------
+	# 2. Utility of Default
+	udef     = EconSol.Set.UtiFun.(ydef,σ);
+	# ----------------------------------------
+	# 3. All possible states in the original grid
+	states   = [repeat(bgrid,length(ygrid),1) repeat(ygrid,inner = (length(bgrid),1))];
+	sta_norm = NormFun(states);
+
+	# ----------------------------------------
+	# 4. Predicted VF and Bond Price | old NN
+
+	# 4.1. Value Function
+	vfpre    = VFhat.Mhat(sta_norm');
+	vfpre    = NormInv(vfpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+
+	# 4.2 Bond Price if flagq = true -> predict, other case use previous solution
+	if choiceq == "NeuralNetwork"
+		qpre = qhat.Mhat(sta_norm');
+		qpre = NormInv(qpre,maximum(VFNeuF.q),minimum(VFNeuF.q));
+		qpre = max.(qpre,0);
+		q    = reshape(qpre,length(bgrid),length(ygrid));
+	else
+		q    = EconSol.Sol.BPrice; # this is the solve price of the previous model
+	end
+	# ----------------------------------------
+	# 5. Initial solutions | old NN
+	VC    = reshape(vfpre,length(bgrid),length(ygrid));
+	vdpre = convert(Array,VFhat.Mhat([zeros(nx) ydef]')');
+	vdpre = NormInv(vdpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+	VD    = repeat(vdpre',ne,1);
+	VO    = max.(VC,VD);
+	D     = 1*(VD.>VC);
+	# ----------------------------------------
+	# 6. Bellman Operator -> New Policy Functions
+	VO1,VC1,VD1,D1,Bprime1,q1 = DefaultEconomy.MaxBellman(EconSol.Set,VO,VC,VD,D,q,pix,posb0,udef,yb,bgrid,BB);
+	if choiceq == "NoUpdate"
+		q1 = q;
+ 	end
+	return ModelSolve(EconSol.Set,PolicyFunction(VO1,VC1,VD1,D1,Bprime1,q1),EconSol.Sup)
+end
 # [∘] Belman Operator -> New Policy Functions
 function  MaxBellman(model,VO,VC,VD,D,q,pix,posb0,udef,yb,b,BB)
 	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = model.Params;
