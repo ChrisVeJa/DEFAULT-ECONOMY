@@ -384,10 +384,10 @@ function UpdateNN(EconSol, VFNeuF, VFhat,
 		)
 	# ----------------------------------------
 	# 1. Updating the solution of the model
-	EconSolAux = DefaultEconomy.UpdateModel(EconSol,VFNeuF,VFhat,qhat,choiceq = qtyp);
+	EconSolAux = UpdateModel(EconSol,VFNeuF,VFhat,qhat,choiceq = qtyp);
 	# ----------------------------------------
 	# 2. Simulating new training sample
-	EconSimAux = DefaultEconomy.ModelSimulate(EconSolAux,nsim=Nsim,burn=Burn);
+	EconSimAux = ModelSimulate(EconSolAux,nsim=Nsim,burn=Burn);
 	# ----------------------------------------
 	# 3. Normalization of the sample
 	VFNeuFAux  = (vf= EconSimAux.Sim[:,6],
@@ -412,7 +412,7 @@ function UpdateNN(EconSol, VFNeuF, VFhat,
 	end
 	aux        = mhat_vf(S')';
 	hatvf      = convert(Array{Float64},aux);
-	VFhatAux   = NeuralApprox((Yvf,S), hatvf, mhat_vf,VFhat.Sett);
+	VFhatAux   = NeuralApprox((Yvf,S),(VFNeuFAux.vf,VFNeuFAux.states), hatvf, mhat_vf,VFhat.Sett);
 
 
 	# 4.2. Training NN for Bond price only if the case of flagq = true
@@ -431,7 +431,7 @@ function UpdateNN(EconSol, VFNeuF, VFhat,
 		end
 		auxq       = mhat_qf(S')';
 		hatqf      = convert(Array{Float64},auxq);
-		qhatAux    = NeuralApprox((Yqf,S), hatqf, mhat_qf, qhat.Sett);
+		qhatAux    = NeuralApprox((Yqf,S),(VFNeuFAux.vf,VFNeuFAux.states), hatqf, mhat_qf, qhat.Sett);
 	else # we pick up from the simulation
 		qhatAux = EconSimAux.Sim[:,6];
 	end
@@ -482,6 +482,8 @@ function UpdateModel(EconSol,VFNeuF,VFhat,qhat; choiceq = "NeuralNetwork", NormF
 	VD    = repeat(vdpre',ne,1);
 	VO    = max.(VC,VD);
 	D     = 1*(VD.>VC);
+	display("The mean of Default is ");
+	display(mean(D));
 	# ----------------------------------------
 	# 6. Bellman Operator -> New Policy Functions
 	VO1,VC1,VD1,D1,Bprime1,q1 = DefaultEconomy.MaxBellman(EconSol.Set,VO,VC,VD,D,q,pix,posb0,udef,yb,bgrid,BB);

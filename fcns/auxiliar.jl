@@ -1,6 +1,6 @@
 function convergNN(EconSol,VFhat, totalburn)
    # This part does not depend on Θ
-   ϕfun(x)    = log1p(exp(x));
+   ϕfun(x)  = log1p(exp(x));
    totalsim = length(VFhat.Yhat);
    bgrid= EconSol.Sup.Bgrid;
    ygrid= EconSol.Sup.Ygrid;
@@ -48,11 +48,17 @@ function convergNN(EconSol,VFhat, totalburn)
    ## New simulated data
    Y = DefaultEconomy.mynorm(EconSimAux.Sim[:,6]);
    S = DefaultEconomy.mynorm(EconSimAux.Sim[:,2:3]);
+   data  = Flux.Data.DataLoader(S',Y');
    lossf(x,y) = Flux.mse(mhat(x),y);
-
-   gs = gradient(ps) do
-            lossf(S',Y')
-         end
-   Flux.update!(opt,ps,gs)
+   for d in data
+      display(d)
+      gs = gradient(ps) do
+               lossf(d...)
+            end
+      Flux.update!(opt,ps,gs)
+   end
+   mhat2  = aux(ps)
    ps2, aux = Flux.destructure(mhat);
 end
+dd = Flux.Params(ps);
+ps2, aux = Flux.destructure(mhat);
