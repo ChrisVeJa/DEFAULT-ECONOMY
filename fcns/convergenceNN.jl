@@ -90,7 +90,7 @@ function convergenceNN(EconSol,VFhat, totalburn)
 
       # --------------------------------------------------------------
       # [1.11]. New Simulation
-      EconSim1 = DefaultEconomy.ModelSimulate(EconSol1,nsim=Tsim,burn=totalburn)
+      EconSim1 = DefaultEconomy.ModelSimulate(EconSol1,nsim=Tsim,burn=totalburn,NoIniPoint=true)
       maximum(EconSim1.Sim[:,2]) - minimum(EconSim1.Sim[:,2])
 
 
