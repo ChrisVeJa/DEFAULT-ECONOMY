@@ -101,10 +101,10 @@ end
 ################################################################################
 
 # [3.1] Simulating the model
-function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05, nseed = 0)
+function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05, nseed = 0, NoIniPoint= false)
 	# -------------------------------------------------------------------------
 	# 0. Settings
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
+	@unpack r,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
 	EconBase = (Va = modsol.Sol.ValFun,
 		VCa  = modsol.Sol.ValNoD,
 		VDa  = modsol.Sol.ValDef,
@@ -135,7 +135,11 @@ function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05, nseed = 0)
 	orderName ="[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]";
 	distϕ     = Bernoulli(θ);
 	EconSim   = Array{Float64,2}(undef,nsim2,7); # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
-	EconSim[1,1:2] = [0 0];							  # Initial point
+	EconSim[1,1:2] = [0 0];						  # Initial point
+	if NoIniPoint
+		posS = 1 + Int(floor(ne/2*rand()))
+		EconSim[1,1:2] = [0 b[posS]];
+	end
 	defchoice = EconBase.Da[posb0,simul_state[1]];
 	if nseed != 0
 		Random.seed!(nseed[2]);			 # To obtain always the same solution
@@ -182,6 +186,53 @@ function NeuralTraining(y,s; neuSettings=nothing ,fnorm = mynorm, Nepoch = 1)
 	hat   = convert(Array{Float64},aux);
 	return  NeuralApprox((Y,S),(y,s), hat, mhat,neuSettings);
 end
+
+###############################################################################
+# <> UPDATING NN-MODEL <>
+###############################################################################
+
+# [] Convergence algorithm
+function ConvergeNN(EconSol,VFNeuF,VFhat,qhat; qtype = "NeuralNetwork", nrep = 100000, maxite=1000)
+	# qtype = "NeuralNetwork" >>>> Use Neural network for updating
+	# qtype = "NoUpdate"      >>>> No update the price in any simulation
+	# qtype , in otherwise will use the actual prices but updating them in each simulation
+	Γ1old, re11 = Flux.destructure(VFhat.Mhat);
+	VFNeuFAux = nothing;
+	VFhatAux  = nothing;
+	Γ1new     = nothing;
+
+	if qtype == "NeuralNetwork"
+		Γ2old, re21 = Flux.destructure(qhat.Mhat)
+		qhatAux   = nothing;
+	else
+		qhatAux   = qhat;
+	end
+
+	rep = 1;
+	DIF = zeros(maxite);
+	while rep <maxite+1
+		VFNeuFAux, VFhatAux, qhatAux = UpdateNN(EconSol,VFNeuF,VFhat,qhat, qtyp = qtype, Nsim= nrep)
+		Γ1new, re12= Flux.destructure(VFhatAux.Mhat);
+		difΓ       = maximum(abs.(Γ1new - Γ1old));
+		VFNeuF     = VFNeuFAux;
+		VFhat      = VFhatAux;
+		VFhat.Mhat = re12(Γ1old);
+		Γ1old      = 0.9*Γ1old .+ 0.1*Γ1new;
+		qhat       = qhatAux; # it could be the simulation or an estimation depends on flagq
+		if qtype == "NeuralNetwork"
+			Γ2new, re22 = Flux.destructure(qhatAux.Mhat);
+			difΓ   = max(difΓ,maximum(abs.(Γ2new - Γ2old)));
+			Γ2old  = 0.9*Γ2old .+ 0.1*Γ2new;
+			qhat.Mhat  = re22(Γ2old);   # if flagq is true, then we need to update structure
+		end
+		DIF[rep]   = difΓ;
+		display("Iteration $rep: -> The maximum difference is $difΓ");
+		rep+=1;
+	end
+	return VFNeuFAux, VFhatAux,qhatAux, DIF;
+end
+
+
 ###############################################################################
 # [] Main supporting codes
 ###############################################################################
@@ -326,6 +377,125 @@ function NeuralSettings(s)
 	return  NeuralSettings(mhat,lossf,opt);
 end
 
+# [∘] Updating the NN
+function UpdateNN(EconSol, VFNeuF, VFhat,
+				qhat;
+				qtyp = "NeuralNetwork",
+				fnorm::Function = mynorm,
+				Nsim  = 100000,
+				Burn  = 0.05,
+				NEpoch= 1,
+		)
+	# ----------------------------------------
+	# 1. Updating the solution of the model
+	EconSolAux = UpdateModel(EconSol,VFNeuF,VFhat,qhat,choiceq = qtyp);
+	# ----------------------------------------
+	# 2. Simulating new training sample
+	EconSimAux = ModelSimulate(EconSolAux,nsim=Nsim,burn=Burn);
+	# ----------------------------------------
+	# 3. Normalization of the sample
+	VFNeuFAux  = (vf= EconSimAux.Sim[:,6],
+				q = EconSimAux.Sim[:,7],
+				states = EconSimAux.Sim[:,2:3],
+	);
+	Yvf        = fnorm(VFNeuFAux.vf);
+	S          = fnorm(VFNeuFAux.states);
+
+	# ----------------------------------------
+	# 4.1. Training NN for Value function
+	mhat_vf    = VFhat.Mhat;
+	loss(x,y)  = Flux.mse(mhat_vf(x),y);
+	data       = Flux.Data.DataLoader(S',Yvf');
+	ps         = Flux.params(mhat_vf);
+	opt        = Descent();
+	if NEpoch > 1
+		Flux.@epochs Nepoch Flux.Optimise.train!(loss, ps, data, opt) ;
+	else
+		Flux.Optimise.train!(loss, ps, data, opt);
+		#@show loss(S',Yvf');
+	end
+	aux        = mhat_vf(S')';
+	hatvf      = convert(Array{Float64},aux);
+	VFhatAux   = NeuralApprox((Yvf,S),(VFNeuFAux.vf,VFNeuFAux.states), hatvf, mhat_vf,VFhat.Sett);
+
+
+	# 4.2. Training NN for Bond price only if the case of flagq = true
+	if qtyp =="NeuralNetwork"
+		Yqf        = fnorm(VFNeuFAux.q);
+		mhat_qf    = qhat.Mhat;
+		lossq(x,y) = Flux.mse(mhat_qf(x),y);
+		dataq      = Flux.Data.DataLoader(S',Yqf');
+		psq        = Flux.params(mhat_qf);
+		opt        = Descent();
+		if NEpoch > 1
+			Flux.@epochs Nepoch Flux.Optimise.train!(lossq, psq, dataq, opt) ;
+		else
+			Flux.Optimise.train!(lossq, psq, dataq, opt);
+			@show loss(S',Yqf')
+		end
+		auxq       = mhat_qf(S')';
+		hatqf      = convert(Array{Float64},auxq);
+		qhatAux    = NeuralApprox((Yqf,S),(VFNeuFAux.vf,VFNeuFAux.states), hatqf, mhat_qf, qhat.Sett);
+	else # we pick up from the simulation
+		qhatAux = EconSimAux.Sim[:,6];
+	end
+	return VFNeuFAux,VFhatAux, qhatAux;
+end
+
+# [∘] Updating Solution (Policy functions) of the model
+function UpdateModel(EconSol,VFNeuF,VFhat,qhat; choiceq = "NeuralNetwork", NormFun::Function = mynorm , NormInv::Function = mynorminv)
+	# ----------------------------------------
+	# 1. Feautures of the model
+	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = EconSol.Set.Params;
+	bgrid    = EconSol.Sup.Bgrid;
+	ygrid    = EconSol.Sup.Ygrid;
+	pix      = EconSol.Sup.MarkMat;
+	ydef     = EconSol.Sup.Ydef;
+	yb       = bgrid .+ ygrid';
+	BB       = repeat(bgrid,1,nx);
+	posb0    = findmin(abs.(0 .- bgrid))[2];
+	# ----------------------------------------
+	# 2. Utility of Default
+	udef     = EconSol.Set.UtiFun.(ydef,σ);
+	# ----------------------------------------
+	# 3. All possible states in the original grid
+	states   = [repeat(bgrid,length(ygrid),1) repeat(ygrid,inner = (length(bgrid),1))];
+	sta_norm = NormFun(states);
+
+	# ----------------------------------------
+	# 4. Predicted VF and Bond Price | old NN
+
+	# 4.1. Value Function
+	vfpre    = VFhat.Mhat(sta_norm');
+	vfpre    = NormInv(vfpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+
+	# 4.2 Bond Price if flagq = true -> predict, other case use previous solution
+	if choiceq == "NeuralNetwork"
+		qpre = qhat.Mhat(sta_norm');
+		qpre = NormInv(qpre,maximum(VFNeuF.q),minimum(VFNeuF.q));
+		qpre = max.(qpre,0);
+		q    = reshape(qpre,length(bgrid),length(ygrid));
+	else
+		q    = EconSol.Sol.BPrice; # this is the solve price of the previous model
+	end
+	# ----------------------------------------
+	# 5. Initial solutions | old NN
+	VC    = reshape(vfpre,length(bgrid),length(ygrid));
+	vdpre = convert(Array,VFhat.Mhat([zeros(nx) ydef]')');
+	vdpre = NormInv(vdpre,maximum(VFNeuF.vf),minimum(VFNeuF.vf));
+	VD    = repeat(vdpre',ne,1);
+	VO    = max.(VC,VD);
+	D     = 1*(VD.>VC);
+	display("The mean of Default is ");
+	display(mean(D));
+	# ----------------------------------------
+	# 6. Bellman Operator -> New Policy Functions
+	VO1,VC1,VD1,D1,Bprime1,q1 = DefaultEconomy.MaxBellman(EconSol.Set,VO,VC,VD,D,q,pix,posb0,udef,yb,bgrid,BB);
+	if choiceq == "NoUpdate"
+		q1 = q;
+ 	end
+	return ModelSolve(EconSol.Set,PolicyFunction(VO1,VC1,VD1,D1,Bprime1,q1),EconSol.Sup)
+end
 # [∘] Belman Operator -> New Policy Functions
 function  MaxBellman(model,VO,VC,VD,D,q,pix,posb0,udef,yb,b,BB)
 	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = model.Params;

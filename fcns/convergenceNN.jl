@@ -30,7 +30,7 @@ function convergenceNN(EconSol,VFhat, totalburn)
    loss(x,y) = Flux.mse(NetWork(x),y);
    difΨ = 1;
    repli =1;
-   while repli<300
+
       # [1.2] Getting the extreme values
       maxV = maximum(DataOri[1]);
       minV = minimum(DataOri[1]);
@@ -87,14 +87,14 @@ function convergenceNN(EconSol,VFhat, totalburn)
       # --------------------------------------------------------------
       # [1.10]. New Solution for the model
       EconSol1 = DefaultEconomy.ModelSolve(EconSol.Set,PolFun1,EconSol.Sup);
-
+      #std(EconSol1.Sol.DebtPF[end,:])
+      #maximum(EconSol1.Sol.DebtPF[end,:])
+      #EconSol1.Sup.Bgrid[end]
       # --------------------------------------------------------------
       # [1.11]. New Simulation
-      EconSim1 = DefaultEconomy.ModelSimulate(EconSol1,nsim=Tsim,burn=totalburn,NoIniPoint=true)
-      maximum(EconSim1.Sim[:,2]) - minimum(EconSim1.Sim[:,2])
+      EconSim1 = DefaultEconomy.ModelSimulate(EconSol1,nsim=Tsim,burn=totalburn);
 
-
-      # [1.12] New data for training
+      #= [1.12] New data for training
       Y = DefaultEconomy.mynorm(EconSim1.Sim[:,6]);
       S = DefaultEconomy.mynorm(EconSim1.Sim[:,2:3]);
       data = Flux.Data.DataLoader(S',Y');
@@ -113,6 +113,6 @@ function convergenceNN(EconSol,VFhat, totalburn)
       difΨ = maximum(abs.(ψ-ψold));
       display(difΨ);
       repli+=1;
-   end
-   return EconSol;
+=#
+   return EconSol1, EconSim1, (vc₀= VC, vd₀= VD);
 end
