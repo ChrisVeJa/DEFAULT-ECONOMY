@@ -101,10 +101,10 @@ end
 ################################################################################
 
 # [3.1] Simulating the model
-function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05, nseed = 0)
+function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05, nseed = 0, NoIniPoint= false)
 	# -------------------------------------------------------------------------
 	# 0. Settings
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
+	@unpack r,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
 	EconBase = (Va = modsol.Sol.ValFun,
 		VCa  = modsol.Sol.ValNoD,
 		VDa  = modsol.Sol.ValDef,
@@ -135,7 +135,11 @@ function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05, nseed = 0)
 	orderName ="[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]";
 	distϕ     = Bernoulli(θ);
 	EconSim   = Array{Float64,2}(undef,nsim2,7); # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
-	EconSim[1,1:2] = [0 0];							  # Initial point
+	EconSim[1,1:2] = [0 0];						  # Initial point
+	if NoIniPoint
+		posS = 1 + Int(floor(ne/2*rand()))
+		EconSim[1,1:2] = [0 b[posS]];
+	end
 	defchoice = EconBase.Da[posb0,simul_state[1]];
 	if nseed != 0
 		Random.seed!(nseed[2]);			 # To obtain always the same solution
