@@ -4,7 +4,7 @@
 function graph_solve(modsol; titles=["BondPrice.png" "Savings.png" "ValFun.png"])
 	# --------------------------------------------------------------
 	# 0. Unpacking
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
+	@unpack r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
 	EconBase = (Va = modsol.Sol.ValFun,
 		VCa = modsol.Sol.ValNoD,
 		VDa = modsol.Sol.ValDef,

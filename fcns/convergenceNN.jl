@@ -3,7 +3,7 @@ function convergenceNN(EconSol,VFhat, totalburn)
    # [0. No dependencies on Θ]
    # ------------------------------------------
    @unpack r,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = EconSol.Set.Params;
-   _σ   = EconSol.Set.Params.σ;
+   σrisk   = EconSol.Set.Params.σrisk;
    ϕfun(x)  = log1p(exp(x));
    Tsim = length(VFhat.Yhat);
    bgrid= EconSol.Sup.Bgrid;
@@ -11,7 +11,7 @@ function convergenceNN(EconSol,VFhat, totalburn)
    nx,ne= (length(ygrid), length(bgrid));
    pix  = EconSol.Sup.MarkMat;
    ydef = EconSol.Sup.Ydef;
-   udef = EconSol.Set.UtiFun.(ydef,_σ);
+   udef = EconSol.Set.UtiFun.(ydef,σrisk);
    yb   = bgrid .+ ygrid';
    BB   = repeat(bgrid,1,nx);
    posb0= findmin(abs.(0 .- bgrid))[2];
@@ -68,7 +68,7 @@ function convergenceNN(EconSol,VFhat, totalburn)
       @inbounds for i in 1:ne
          cc         = yb[i,:]' .- qB;
          cc[cc.<0] .= 0;
-         aux_u      = EconSol.Set.UtiFun.(cc,_σ) + βEV;
+         aux_u      = EconSol.Set.UtiFun.(cc,σrisk) + βEV;
          VC1[i,:],Bindex[i,:] = findmax(aux_u,dims=1);
       end
       B1 = BB[Bindex];

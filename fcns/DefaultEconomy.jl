@@ -15,7 +15,7 @@ using   Random, Distributions, Statistics, LinearAlgebra, Plots, StatsBase,
 
 # [1.1] Setting of the model
 mutable struct ModelSettings
-	Params::NamedTuple;    # (r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite)
+	Params::NamedTuple;    # (r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite)
 	UtiFun::Function;      # Utility Function
 	DefFun::Function;      # Default Loss function
 end
@@ -73,7 +73,7 @@ end
 function SolveDefEcon(Model::ModelSettings)
 	# --------------------------------------------------------------
 	# 0. Unpacking Parameters
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = Model.Params;
+	@unpack r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = Model.Params;
 	# --------------------------------------------------------------
 	# 1. Tauchen discretization of log-output
 	ly, pix = mytauch(μ,ρ,η,nx,m);
@@ -81,7 +81,7 @@ function SolveDefEcon(Model::ModelSettings)
 	# --------------------------------------------------------------
 	# 2. Output in case of default
 	ydef    = Model.DefFun(y,fhat);
-	udef    = Model.UtiFun.(ydef,σ);
+	udef    = Model.UtiFun.(ydef,σrisk);
 	# --------------------------------------------------------------
 	# 3. To calculate the intervals of debt I will consider
 	grid    = (ub-lb)/(ne-1);
@@ -104,7 +104,7 @@ end
 function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05, nseed = 0)
 	# -------------------------------------------------------------------------
 	# 0. Settings
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
+	@unpack r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
 	EconBase = (Va = modsol.Sol.ValFun,
 		VCa  = modsol.Sol.ValNoD,
 		VDa  = modsol.Sol.ValDef,
@@ -140,6 +140,7 @@ function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05, nseed = 0)
 	if nseed != 0
 		Random.seed!(nseed[2]);			 # To obtain always the same solution
 	end
+	#display(EconBase.Da)
 	EconSim = simulation!(EconSim,simul_state,EconBase,y, ydef, b, distϕ, nsim2,posb0)
 	# -------------------------------------------------------------------------
 	# 3. Burning and storaging
@@ -188,7 +189,7 @@ end
 # [] Default settings
 function ModelSettings()
 	Params = (r = 0.017,
-		σ = 2.0,
+		σrisk = 2.0,
 		ρ=0.945,
 		η=0.025,
 		β=0.953,
@@ -203,7 +204,7 @@ function ModelSettings()
 		tol=1e-8,
 		maxite=1e3,
 	);
-	UtiFun = ((x,σ)    -> (x^(1-σ))/(1-σ));
+	UtiFun = ((x,σrisk)    -> (x^(1-σrisk))/(1-σrisk));
 	DefFun = ((y,fhat) -> min.(y,fhat*mean(y)));
 	return modelbase = ModelSettings(Params,UtiFun, DefFun);
 end
@@ -212,14 +213,14 @@ end
 function  FixedPoint(b,y,udef,pix,posb0,model::ModelSettings)
 	# ----------------------------------------
 	# 1. Some initial parameters
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = model.Params;
+	@unpack r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = model.Params;
 	dif  = 1
 	rep  = 0;
 	yb   = b .+ y';
 	# ----------------------------------------
 	# 2. Educated Guess
 	utf  = model.UtiFun;
-	VC   = 1/(1-β)*utf.((r/(1+r))*b.+ y',σ);
+	VC   = 1/(1-β)*utf.((r/(1+r))*b.+ y',σrisk);
 	udef = repeat(udef',ne,1);
 	VD   = 1/(1-β)*udef;
 	VO   = max.(VC,VD);
@@ -231,7 +232,7 @@ function  FixedPoint(b,y,udef,pix,posb0,model::ModelSettings)
 	# 3. Fixed Problem
 	while dif>tol  && rep<maxite
 		VO,VC, VD,D, Bprime,q,dif = value_functions!(VO,VC,VD,D,Bprime,q,dif,b,
-									pix,posb0,yb,udef,β,θ,utf,r,σ);
+									pix,posb0,yb,udef,β,θ,utf,r,σrisk);
 		rep+=1;
 	end
 	if rep==maxite
@@ -244,7 +245,7 @@ function  FixedPoint(b,y,udef,pix,posb0,model::ModelSettings)
 end
 
 # [∘] Updating the value functions
-function value_functions!(VO,VC,VD,D,Bprime,q,dif,b,pix,posb0,yb,udef,β,θ,utf,r,σ)
+function value_functions!(VO,VC,VD,D,Bprime,q,dif,b,pix,posb0,yb,udef,β,θ,utf,r,σrisk)
 	# ----------------------------------------
 	# 1. Saving old information
 	VOold = VO;
@@ -259,7 +260,7 @@ function value_functions!(VO,VC,VD,D,Bprime,q,dif,b,pix,posb0,yb,udef,β,θ,utf,
 	qB  = qold.*b;
 	# --------------------------------------------------------------
 	# 3. Value function of continuation
-	VC, Bprime = updateBellman!(VC, Bprime,yb,qB,βEV,utf,σ,ne,nx);
+	VC, Bprime = updateBellman!(VC, Bprime,yb,qB,βEV,utf,σrisk,ne,nx);
 	# --------------------------------------------------------------
 	# 4. Value function of default
 	βθEVC0= β*θ*EVC[posb0,:];
@@ -275,11 +276,11 @@ function value_functions!(VO,VC,VD,D,Bprime,q,dif,b,pix,posb0,yb,udef,β,θ,utf,
 end
 
 # [∘] Solving the Bellman operator under No Default
-function updateBellman!(VC,Bprime,yb,qB,βEV,utf::Function,σ::Float64,ne::Int64,nx::Int64)
+function updateBellman!(VC,Bprime,yb,qB,βEV,utf::Function,σrisk::Float64,ne::Int64,nx::Int64)
 	@inbounds for i in 1:ne
 		cc         = yb[i,:]' .- qB;
 		cc[cc.<0] .= 0;
-		aux_u      = utf.(cc,σ) + βEV;
+		aux_u      = utf.(cc,σrisk) + βEV;
 		VC[i,:],Bprime[i,:] = findmax(aux_u,dims=1);
 	end
 	return VC, Bprime;
@@ -328,11 +329,11 @@ end
 
 # [∘] Belman Operator -> New Policy Functions
 function  MaxBellman(model,VO,VC,VD,D,q,pix,posb0,udef,yb,b,BB)
-	@unpack r,σ,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = model.Params;
+	@unpack r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol,maxite = model.Params;
 	utf     = model.UtiFun;
 	udef    = repeat(udef',ne,1);
 	Bprime  = Array{CartesianIndex{2},2}(undef,ne,nx);
-	VO1,VC1, VD1,D1, Bprime,q1,dif = value_functions!(VO,VC,VD,D,Bprime,q,1,b,pix,posb0,yb,udef,β,θ,utf,r,σ);
+	VO1,VC1, VD1,D1, Bprime,q1,dif = value_functions!(VO,VC,VD,D,Bprime,q,1,b,pix,posb0,yb,udef,β,θ,utf,r,σrisk);
 	Bprime1 = BB[Bprime];
 	return VO1,VC1,VD1,D1,Bprime1,q1;
 end
@@ -342,23 +343,23 @@ end
 ###############################################################################
 
 # [] Tauchen Approximation
-function mytauch(μ::Float64,ρ::Float64,σ::Float64,N::Int64,m::Int64)
+function mytauch(μ::Float64,ρ::Float64,σrisk::Float64,N::Int64,m::Int64)
 	if (N%2!=1)
 		return "N should be an odd number"
 	end
 	grid  = (2*m)/(N-1);
-	sig_z = σ/sqrt(1-ρ^2);
+	sig_z = σrisk/sqrt(1-ρ^2);
 	Z     = -m:grid:m;
 	Z     = μ.+ Z.*sig_z;
 	d5    = 0.5*(Z[2] - Z[1]);
 	pix   = Array{Float64,2}(undef,N,N);
 	for i in 1:N
 		s        = -(1-ρ)*μ - ρ*Z[i];
-		pix[i,1] =  cdf(Normal(),(Z[1] +d5+s)/σ);
+		pix[i,1] =  cdf(Normal(),(Z[1] +d5+s)/σrisk);
 		for j    in 2:N-1
-			pix[i,j] = cdf(Normal(),(Z[j] + d5+s)/σ) - cdf(Normal(),(Z[j] - d5+s)/σ) ;
+			pix[i,j] = cdf(Normal(),(Z[j] + d5+s)/σrisk) - cdf(Normal(),(Z[j] - d5+s)/σrisk) ;
 		end
-		pix[i,N] =  1 - cdf(Normal(),(Z[N] - d5+s)/σ);
+		pix[i,N] =  1 - cdf(Normal(),(Z[N] - d5+s)/σrisk);
 	end
 	pix = pix ./ sum(pix,dims=2); # Normalization to achieve 1
 	return Z, pix;
