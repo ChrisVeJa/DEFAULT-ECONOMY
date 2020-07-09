@@ -55,21 +55,3 @@ _auxgraph(MatVal1,19:21,".//Figures//CompVC3");
 _auxgraph(MatVal2,1:9,".//Figures//CompVD1");
 _auxgraph(MatVal2,10:18,".//Figures//CompVD2");
 _auxgraph(MatVal2,19:21,".//Figures//CompVD3");
-
-function _auxgraph(Mat,list,name)
-	mycol = [:blue :red :purple];
-	theme(:default)
-	n = length(list);
-	r = Int(floor(sqrt(n)));
-	p = plot(layout=(r,r), tickfontsize = 4);
-	count=1;
-	for i in list
-		if count !=3
-			p = plot!(subplot=count,Mat[:,i,:], label="",c = mycol, w = [0.75 1 1.5],style =[:solid :dash :dot]);
-		else
-			p = plot!(subplot=count,Mat[:,i,:], legend= :bottomright,legendfontsize =[5 5 5], label=["actual" "hat"  "post"],c = mycol, w = [0.75 1 1.5],style =[:solid :dash :dot]);
-		end
-		count+=1;
-	end
-	savefig(name)
-end
