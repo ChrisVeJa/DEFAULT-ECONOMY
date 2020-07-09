@@ -24,7 +24,7 @@ graph_solve(EconSol);
 ############################################################
 #	[Simulation]
 ############################################################
-tsim    = 10000; tburn   = 0.05;
+tsim    = 100000; tburn   = 0.05;
 EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=tsim,burn=tburn);
 graph_simul(EconSim, smpl=1:500);
 
@@ -73,15 +73,3 @@ function _auxgraph(Mat,list,name)
 	end
 	savefig(name)
 end
-
-#=VFNeuFAux, VFhatAux, qhatAux, d1 = DefaultEconomy.ConvergeNN(EconSol,
-#									VFNeuF,VFhat,q, qtype="NoUpdate", nrep=10000, maxite=4000)
-#d1, seed fixed, descent, 10000 rep, 0.9
-
-VFNeuFAux, VFhatAux, qhatAux, d2 = DefaultEconomy.ConvergeNN(EconSol,
-									VFNeuF,VFhat,q, qtype="UpdateActual", nrep=totalsim, maxite=4)
-
-
-plot([d1 d2], title= "10milFiXedDescent90")
-savefig("graph3.png");
-=#

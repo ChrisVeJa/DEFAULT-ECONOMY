@@ -295,7 +295,6 @@ end
 # [∘] Loop for simulation
 function simulation!(EconSim,simul_state,EconBase,y,ydef,b, distϕ, nsim2,posb0)
 	for i in 1:nsim2-1
-		display(EconSim[i,2])
 		bi = findfirst(x -> x==EconSim[i,2],b);
 		j  = simul_state[i];
 		# Choice if there is not previous default
