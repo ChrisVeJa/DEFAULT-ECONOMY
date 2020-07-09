@@ -65,4 +65,5 @@ DefEcon.graph_neural(VDhat,"Value Function Default", ["VDneural.png" "VDSmpl.png
 ############################################################
 # [2] Solving - simulating - training
 ############################################################
-out1, out2 = convergence(VFhat, NseT, Params, Ext, uf, tburn);
+PolFun1, EconSim1= convergence(VNDhat,VDhat, NseT, Params, Ext, uf, tburn);
+VNDhat.
