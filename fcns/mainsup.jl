@@ -24,7 +24,7 @@ function ModelSettings()
 	);
 	UtiFun = ((x,σrisk)    -> (x^(1-σrisk))/(1-σrisk));
 	DefFun = ((y,fhat) -> min.(y,fhat*mean(y)));
-	return Params,UtiFun,DefFun;
+	return Params,DefFun,UtiFun;
 end
 
 # =============================================================================
@@ -114,27 +114,26 @@ end
 # =============================================================================
 function simulation!(EconSim,simul_state,EconBase,y,ydef,b, distϕ, nsim2,posb0)
 	for i in 1:nsim2-1
-		display(EconSim[i,2])
 		bi = findfirst(x -> x==EconSim[i,2],b);
 		j  = simul_state[i];
 		# Choice if there is not previous default
 		if EconSim[i,1] == 0
-			defchoice        = EconBase.Da[bi,j];
+			defchoice        = EconBase.D[bi,j];
 			ysim             = (1-defchoice)*y[j]+ defchoice*ydef[j];
-			bsim             = (1-defchoice)*EconBase.BPa[bi,j];
-			EconSim[i,3:7]   = [ysim bsim defchoice EconBase.Va[bi,j] EconBase.qa[bi,j]];
+			bsim             = (1-defchoice)*EconBase.BP[bi,j];
+			EconSim[i,3:7]   = [ysim bsim defchoice EconBase.VF[bi,j] EconBase.q[bi,j]];
 			EconSim[i+1,1:2] = [defchoice bsim];
 		else
 		# Under previous default, I simulate if the economy could reenter to the market
 			defstat = rand(distϕ);
 			if defstat ==1 # They are in the market
-				defchoice        = EconBase.Da[posb0,j]; 					# default again?
+				defchoice        = EconBase.D[posb0,j]; 					# default again?
 				ysim             = (1-defchoice)*y[j]+ defchoice*ydef[j];	# output | choice
-				bsim             = (1-defchoice)*EconBase.BPa[posb0,j];
-				EconSim[i,3:7]   = [ysim bsim defchoice EconBase.Va[posb0,j] EconBase.qa[posb0,j]];
+				bsim             = (1-defchoice)*EconBase.BP[posb0,j];
+				EconSim[i,3:7]   = [ysim bsim defchoice EconBase.VF[posb0,j] EconBase.q[posb0,j]];
 				EconSim[i+1,1:2] = [defchoice bsim];
 			else # They are out the market
-				EconSim[i,3:7]   = [ydef[j] 0 1 EconBase.Va[posb0,j] EconBase.qa[posb0,j]];
+				EconSim[i,3:7]   = [ydef[j] 0 1 EconBase.VF[posb0,j] EconBase.q[posb0,j]];
 				EconSim[i+1,1:2] = [1 0];
 			end
 		end

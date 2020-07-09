@@ -48,7 +48,7 @@ module DefEcon
 	################################################################################
 
 	# [3.1] Simulating the model
-	function ModelSimulate(Params, PF, Ext; nsim=100000, burn=0.05, nseed = 0)
+	function ModelSim(Params, PF, Ext; nsim=100000, burn=0.05, nseed = 0)
 		# -------------------------------------------------------------------------
 		# 0. Settings
 		@unpack r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = Params;
@@ -79,7 +79,7 @@ module DefEcon
 		orderName ="[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]";
 		distϕ     = Bernoulli(θ);
 		EconSim   = Array{Float64,2}(undef,nsim2,7);      # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
-		if nbpoints == ne
+		if nbp == ne
 			EconSim[1,1:2] = [0 0];							  # Initial point
 		else
 			auxpos = rand(1:nbpoints);
@@ -103,7 +103,7 @@ module DefEcon
 	################################################################################
 
 	# [] Training of the NN
-	function NeuralTraining(y,s, neuSettings , fnorm = mynorm; Nepoch = 1)
+	function NeuTra(y,s, neuSettings ,fnorm; Nepoch = 1)
 		# -------------------------------------------------------------------------
 		# 0. Settings
 		n, ns = size(s);

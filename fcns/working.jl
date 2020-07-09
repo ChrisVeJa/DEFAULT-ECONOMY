@@ -10,29 +10,40 @@ using Random, Distributions,Statistics, LinearAlgebra,
 	Plots,StatsBase,Parameters, Flux;
 include("DefEcon.jl");
 #include("convergence.jl");
-include("graphs.jl");
 
 ############################################################
 #[1] Setting >> Solving
 #	As first step, I will set the model
 #   in its defaults features
 ############################################################
-EconDef = DefaultEconomy.ModelSettings();
-EconSol = DefaultEconomy.SolveDefEcon(EconDef);
-#graph_solve(EconSol);
+Params, hdef, uf = DefEcon.ModelSettings();
+EconDef = DefEcon.SolveR(Params, hdef, uf);
+#DefEcon.graph_solve(EconDef);
 
 ############################################################
 #	[Simulation]
 ############################################################
-tsim    = 10000; tburn   = 0.05;
-EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=tsim,burn=tburn);
-#graph_simul(EconSim, smpl=1:500);
+PF   = EconDef.PolFun;
+Ext  = EconDef.Ext;
+tsim = 10000;
+tburn= 0.5;
+EconSim = DefEcon.ModelSim(Params,PF,Ext,nsim = tsim, burn = tburn)
+#DefEcon.graph_simul(EconSim, smpl=1:500);
 
 ############################################################
 #	[Neural Network]
 ############################################################
-VFNeuF  = (vf= EconSim.Sim[:,6], q = EconSim.Sim[:,7],states= EconSim.Sim[:,2:3]);
-VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
+vf= EconSim.Sim[:,6];
+st= EconSim.Sim[:,2:3];
+Q = 16;
+n, ns= size(st);
+ϕf(x)= log1p(exp(x));
+mhat = Chain(Dense(ns,Q,ϕf), Dense(Q,1));
+Loss(x,y) = Flux.mse(mhat(x),y);
+opt  = Descent();
+NseT = (mhat = mhat, loss = Loss,opt = opt);
+norm = DefEcon.mynorm;
+VFhat= DefEcon.NeuTra(vf,st,NseT,norm, Nepoch = 10);
 #graph_neural(VFhat,"Value Function", ["VFneural.png" "VFSmpl.png"],smpl=1:500);
 
 ############################################################
