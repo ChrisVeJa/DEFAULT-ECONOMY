@@ -149,3 +149,21 @@ function graph_neural(approx, namevar::String, titles; smpl=1:250)
 	)
 	savefig(".\\Figures\\$title");
 end
+
+function _auxgraph(Mat,list,name)
+	mycol = [:blue :red :purple];
+	theme(:default)
+	n = length(list);
+	r = Int(ceil(sqrt(n)));
+	p = plot(layout=(r,r), tickfontsize = 4);
+	count=1;
+	for i in list
+		if count !=3
+			p = plot!(subplot=count,Mat[:,i,:], label="",c = mycol, w = [0.75 1 1.5],style =[:solid :dash :dot]);
+		else
+			p = plot!(subplot=count,Mat[:,i,:], legend= :bottomright,legendfontsize =[5 5 5], label=["actual" "hat"  "post"],c = mycol, w = [0.75 1 1.5],style =[:solid :dash :dot]);
+		end
+		count+=1;
+	end
+	savefig(name)
+end
