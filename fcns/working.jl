@@ -25,7 +25,7 @@ EconDef = DefEcon.SolveR(Params, hdef, uf);
 ############################################################
 PF   = EconDef.PolFun;
 Ext  = EconDef.Ext;
-tsim = 10000;
+tsim = 100000;
 tburn= 0.05;
 EconSim = DefEcon.ModelSim(Params,PF,Ext,nsim = tsim, burn = tburn);
 #DefEcon.graph_simul(EconSim, smpl=1:500);
