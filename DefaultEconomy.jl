@@ -342,9 +342,6 @@ function ConvergeNN(EconSol::ModelSolve,VFNeuF,VFhat::NeuralApprox,qhat::NeuralA
 		# 3.2. New parameters
 		Γ1new, re12= Flux.destructure(VFhatAux.Mhat);
 		Γ2new, re22= Flux.destructure(qhatAux.Mhat);
-		#display("Hay nans?")
-		#display(sum(isnan.(Γ1new)));
-		#display(sum(isnan.(Γ2new)))
 		difΓ       = max(maximum(abs.(Γ1new - Γ1old)), maximum(abs.(Γ2new-Γ2old)));
 		DIF[rep]   = difΓ;
 		# ----------------------------------------

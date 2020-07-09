@@ -87,32 +87,8 @@ function convergenceNN(EconSol,VFhat, totalburn)
       # --------------------------------------------------------------
       # [1.10]. New Solution for the model
       EconSol1 = DefaultEconomy.ModelSolve(EconSol.Set,PolFun1,EconSol.Sup);
-      #std(EconSol1.Sol.DebtPF[end,:])
-      #maximum(EconSol1.Sol.DebtPF[end,:])
-      #EconSol1.Sup.Bgrid[end]
       # --------------------------------------------------------------
       # [1.11]. New Simulation
       EconSim1 = DefaultEconomy.ModelSimulate(EconSol1,nsim=Tsim,burn=totalburn);
-
-      #= [1.12] New data for training
-      Y = DefaultEconomy.mynorm(EconSim1.Sim[:,6]);
-      S = DefaultEconomy.mynorm(EconSim1.Sim[:,2:3]);
-      data = Flux.Data.DataLoader(S',Y');
-
-      # [1.13] New Parameters
-      Flux.Optimise.train!(loss, Ψ, data, Descent()); # Now Ψ is updated
-
-      ψ, mod  = Flux.destructure(NetWork);
-      ψ       = 0.8*ψ + 0.2*ψold;
-      NetWork = mod(ψ);
-      Ψ       = Flux.params(NetWork);
-      loss(x,y) = Flux.mse(NetWork(x),y);
-
-      EconSol = EconSol1;
-      DataOri = (EconSim1.Sim[:,6],EconSim1.Sim[:,2:3]);
-      difΨ = maximum(abs.(ψ-ψold));
-      display(difΨ);
-      repli+=1;
-=#
    return EconSol1, EconSim1, (vc₀= VC, vd₀= VD);
 end
