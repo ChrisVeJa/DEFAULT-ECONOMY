@@ -140,7 +140,8 @@ function _solver(DataOri,mytup, NetWork)
    q1 = (1/(1+r))*(1 .-(D1*pix'));
 
    index  = findall(x -> x > 1e-10,std(B1, dims=2));
-   indexes = [index[i][1] for i in index]
+   Nindex = size(index)[1]
+   indexes = [index[i][1] for i in 1:Nindex]
    VF2= VF1[indexes,:];
    VC2= VC1[indexes,:];
    VD2= VD1[indexes,:];

@@ -140,7 +140,7 @@ function ModelSimulate(modsol::ModelSolve; nsim=100000, burn=0.05, nseed = 0)
 	if nseed != 0
 		Random.seed!(nseed[2]);			 # To obtain always the same solution
 	end
-	#display(EconBase.Da)
+
 	EconSim = simulation!(EconSim,simul_state,EconBase,y, ydef, b, distϕ, nsim2,posb0)
 	# -------------------------------------------------------------------------
 	# 3. Burning and storaging
@@ -291,6 +291,7 @@ function simulation!(EconSim,simul_state,EconBase,y,ydef,b, distϕ, nsim2,posb0)
 	for i in 1:nsim2-1
 		bi = findfirst(x -> x==EconSim[i,2],b);
 		j  = simul_state[i];
+		display("Llego hasta aqui")
 		# Choice if there is not previous default
 		if EconSim[i,1] == 0
 			defchoice        = EconBase.Da[bi,j];
