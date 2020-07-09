@@ -139,14 +139,14 @@ function _solver(DataOri,mytup, NetWork)
    D1 = 1*(VD1.>VC1);
    q1 = (1/(1+r))*(1 .-(D1*pix'));
 
-   indexes  = findall(x -> x > 1e-6,repeat(std(B1, dims=2),1,nx));
-   indexesF  = findall(x -> x > 1e-6,std(B1, dims=2));
-   VF2= VF1[indexes];
-   VC2= VC1[indexes];
-   VD2= VD1[indexes];
-   D2 = D1[indexes];
-   B2 = B1[indexes];
-   q2 = q1[indexes];
+   index  = findall(x -> x > 1e-10,std(B1, dims=2));
+   indexes = [index[i][1] for i in index]
+   VF2= VF1[indexes,:];
+   VC2= VC1[indexes,:];
+   VD2= VD1[indexes,:];
+   D2 = D1[indexes,:];
+   B2 = B1[indexes,:];
+   q2 = q1[indexes,:];
    PolFun1  = DefaultEconomy.PolicyFunction(VF2,VC2,VD2,D2,B2,q2);
-   return PolFun1, indexesF;
+   return PolFun1, indexes;
 end
