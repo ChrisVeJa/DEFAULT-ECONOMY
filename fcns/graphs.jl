@@ -1,20 +1,17 @@
 ###############################################################################
 # [] CODE FOR GRAPHICS
 ###############################################################################
-function graph_solve(modsol; titles=["BondPrice.png" "Savings.png" "ValFun.png"])
+function graph_solve(Params,PF,Ext; titles=["BondPrice.png" "Savings.png" "ValFun.png"])
 	# --------------------------------------------------------------
 	# 0. Unpacking
-	@unpack r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = modsol.Set.Params;
-	EconBase = (Va = modsol.Sol.ValFun,
-		VCa = modsol.Sol.ValNoD,
-		VDa = modsol.Sol.ValDef,
-		Da = modsol.Sol.DefCho,
-		BPa = modsol.Sol.DebtPF,
-		qa = modsol.Sol.BPrice,
-	);
-	b     = modsol.Sup.Bgrid
-	y     = modsol.Sup.Ygrid;
-	ydef  = modsol.Sup.Ydef;
+	@unpack r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = Params;
+	EconBase = (Va = PF.VF, VCa  = PF.VC, VDa  = PF.VD,
+				Da  = PF.D, BPa  = PF.BP, qa  = PF.Price,
+				);
+
+	b     = Ext.bgrid;
+	y     = Ext.ygrid;
+	ydef  = Ext.ydef;
 	posb0 = findmin(abs.(0 .- b))[2];
 	# --------------------------------------------------------------
 	# 1. Data for figures
@@ -108,7 +105,7 @@ function graph_neural(approx, namevar::String, titles; smpl=1:250)
 	# --------------------------------------------------------------
 	# Data
 	# --------------------------------------------------------------
-	datplot = [approx.Data[1] approx.Yhat];
+	datplot = [approx.DataNorm[1] approx.hat];
 	nsim    =  size(datplot)[1];
 	if smpl[end] > nsim
 		display("Sample size is longer than whole data");

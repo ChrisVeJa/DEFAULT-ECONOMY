@@ -1,4 +1,4 @@
-function convergenceN(EconSol,VFhat, tburn)
+function convergence(EconSol,VFhat, tburn)
    # --------------------------------------------------------------------------
    # [0. No dependencies on Θ]
    # --------------------------------------------------------------------------
