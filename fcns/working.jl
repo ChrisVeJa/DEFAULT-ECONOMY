@@ -25,7 +25,7 @@ EconDef = DefEcon.SolveR(Params, hdef, uf);
 ############################################################
 PF   = EconDef.PolFun;
 Ext  = EconDef.Ext;
-tsim = 100000;
+tsim = 10000;
 tburn= 0.05;
 EconSim = DefEcon.ModelSim(Params,PF,Ext,nsim = tsim, burn = tburn);
 #DefEcon.graph_simul(EconSim, smpl=1:500);
@@ -49,4 +49,4 @@ VFhat= DefEcon.NeuTra(vf,st,NseT,norm, Nepoch = 10);
 ############################################################
 # [2] Solving - simulating - training
 ############################################################
-out1, out2= convergence(VFhat, NseT, Params, Ext, uf, tburn);
+out1, out2 = convergence(VFhat, NseT, Params, Ext, uf, tburn);

@@ -18,6 +18,7 @@ function convergence(VFhat,NseT, Params, Ext, uf, tburn)
    repli = 1
    PolFun1=  nothing;
    Ext1    = Ext;
+   Econsim1 = nothing;
    # --------------------------------------------------------------------------
    # [Displaying the Loop]
    # --------------------------------------------------------------------------
@@ -59,7 +60,7 @@ function convergence(VFhat,NseT, Params, Ext, uf, tburn)
       # ----------------------------------------------------------------------
       # [2.4] Updating for new round
       ψ, mod  = Flux.destructure(NetWork);
-      ψ       = 0.9*ψ + 0.1*ψold;
+      ψ       = 0.5*ψ + 0.5*ψold;
       NetWork = mod(ψ);
       Ψ       = Flux.params(NetWork);
       loss(x,y) = Flux.mse(NetWork(x),y);
