@@ -1,51 +1,56 @@
-function convergence(EconSol,VFhat, tburn)
+function convergence(VFhat,NseT, Params, Ext, uf, tburn)
    # --------------------------------------------------------------------------
    # [0. No dependencies on Θ]
    # --------------------------------------------------------------------------
-   ϕfun(x) = log1p(exp(x));
-   opt   = VFhat.Sett.Opti;
-   mytup = _unpack(EconSol);
-   # --------------------------------------------------------------------------
-   # [1. Setting the Loop]
-   # --------------------------------------------------------------------------
-
-   # [1.1] Neural Network of the model
-   DataOri = VFhat.DataOri;
+   # Settings
+   mytup = _unpack(Params, Ext, uf);
+   # Simulation
+   tsim = length(VFhat.Hat);
+   # Neural Network
+   Data = VFhat.Data;
+   ϕf(x)= log1p(exp(x));
+   opt  = Descent();
    ψ, mod  = Flux.destructure(VFhat.Mhat);
    ψold    = ψ;
    NetWork = mod(ψ);
    Ψ       = Flux.params(NetWork);
    loss(x,y) = Flux.mse(NetWork(x),y);
    repli = 1
-
+   PolFun1=  nothing;
+   Ext1    = Ext;
    # --------------------------------------------------------------------------
-   # [2. Displaying the Loop]
+   # [Displaying the Loop]
    # --------------------------------------------------------------------------
-   while repli < 400
+   while repli<401
       # ----------------------------------------------------------------------
       # [2.1]. New Solution for the model
-      PolFun1 = _solver(DataOri,mytup, NetWork);
-      val1    = minimum(PolFun1.DebtPF[end,:]);
-      val2    = maximum(PolFun1.DebtPF[end,:]);
-      EconSol = DefaultEconomy.da()
+      PolFun1 = _solver(Data,mytup, NetWork);
+      val1    = minimum(PolFun1.BP[end,:]);
+      val2    = maximum(PolFun1.BP[end,:]);
+      mytup1  = mytup;
 
-
-
-
-      Support  = DefaultEconomy.Supporting(EconSol.Sup.Bgrid[indexes],
-                  EconSol.Sup.Ygrid,EconSol.Sup.Ydef,EconSol.Sup.MarkMat);
-      EconSol1 = DefaultEconomy.ModelSolve(EconSol.Set,PolFun1,Support);
-
+      while val1 == val2
+         # We need to change the grid for B both
+         # in value as in points of grid
+         Ext1 = (ygrid = Ext1.ygrid, bgrid= Ext1.bgrid[1:end-1], ydef= Ext1.ydef, P= Ext1.P);
+         mytup1 = _unpack(Params, Ext1, uf);
+         PolFun1 = _solver(Data,mytup1, NetWork);
+         val1    = minimum(PolFun1.BP[end,:]);
+         val2    = maximum(PolFun1.BP[end,:]);
+      end
+      if length(Ext1.bgrid) <= 1
+         return display("Please, try with another initial simulation");
+      end
       # ----------------------------------------------------------------------
       # [2.2]. New Simulation >> could have reduce grid
-      EconSim1 = DefaultEconomy.ModelSimulate(EconSol1,nsim=tsim,burn=tburn);
+      EconSim1 = DefEcon.ModelSim(Params,PolFun1,Ext1,nsim=tsim,burn=tburn);
 
       # ----------------------------------------------------------------------
       # [2.3] Updating of the Neural Network
 
       # [2.3.1] New Data for Training
-      Y = DefaultEconomy.mynorm(EconSim1.Sim[:,6]);
-      S = DefaultEconomy.mynorm(EconSim1.Sim[:,2:3]);
+      Y = DefEcon.mynorm(EconSim1.Sim[:,6]);
+      S = DefEcon.mynorm(EconSim1.Sim[:,2:3]);
       data = Flux.Data.DataLoader(S',Y');
 
       # [2.3.2] New Parameters
@@ -54,51 +59,44 @@ function convergence(EconSol,VFhat, tburn)
       # ----------------------------------------------------------------------
       # [2.4] Updating for new round
       ψ, mod  = Flux.destructure(NetWork);
-      ψ       = 0.8*ψ + 0.2*ψold;
+      ψ       = 0.9*ψ + 0.1*ψold;
       NetWork = mod(ψ);
       Ψ       = Flux.params(NetWork);
       loss(x,y) = Flux.mse(NetWork(x),y);
-      DataOri = (EconSim1.Sim[:,6],EconSim1.Sim[:,2:3]);
+      Data = (EconSim1.Sim[:,6],EconSim1.Sim[:,2:3]);
       difΨ = maximum(abs.(ψ-ψold));
       display(difΨ);
       repli+=1;
    end
-   #return EconSol1, EconSim1, (vc₀= VC, vd₀= VD);
+   return PolFun1, EconSim1;
 end
 
-function _unpack(EconSol)
-   r    = EconSol.Set.Params.r;
-   β    = EconSol.Set.Params.β;
-   θ    = EconSol.Set.Params.θ;
-   σrisk= EconSol.Set.Params.σrisk;
-   tsim = length(VFhat.Yhat);
-   bgrid= EconSol.Sup.Bgrid;
-   ygrid= EconSol.Sup.Ygrid;
-   nx,ne= (length(ygrid), length(bgrid));
-   pix  = EconSol.Sup.MarkMat;
-   ydef = EconSol.Sup.Ydef;
-   udef = EconSol.Set.UtiFun.(ydef,σrisk);
-   yb   = bgrid .+ ygrid';
-   BB   = repeat(bgrid,1,nx);
-   posb0= findmin(abs.(0 .- bgrid))[2];
+function _unpack(Params, Ext, uf)
+   @unpack r, β, θ, σrisk = Params;
+   @unpack bgrid, ygrid, ydef, P = Ext;
+   nx = length(ygrid);
+   ne = length(bgrid);
+   yb = bgrid .+ ygrid';
+   BB = repeat(bgrid,1,nx);
+   p0 = findmin(abs.(0 .- bgrid))[2];
    state= [repeat(bgrid,nx,1) repeat(ygrid,inner = (ne,1))];
-
+   udef = uf.(ydef,σrisk);
    mytup = (
-      r=r, β= β,θ= θ, σrisk= σrisk,  tsim= tsim, bgrid= bgrid, ygrid= ygrid,
-      nx= nx, ne= ne, pix= pix, ydef= ydef, udef= udef, yb= yb, BB= BB,
-      posb0= posb0, state= state, utf = EconSol.Set.UtiFun,
+      r=r, β= β,θ= θ, σrisk= σrisk, bgrid= bgrid, ygrid= ygrid,
+      nx= nx, ne= ne, P= P, ydef= ydef, udef= udef, yb= yb, BB= BB,
+      p0= p0, state= state, utf = uf,
    )
    return mytup;
 end
 
-function _solver(DataOri,mytup, NetWork)
-   @unpack σrisk, tsim,bgrid, ygrid, nx, ne, pix, ydef, udef, yb, BB, posb0,
+function _solver(Data,mytup, NetWork)
+   @unpack σrisk,bgrid, ygrid, nx, ne, P, ydef, udef, yb, BB, p0,
       state, utf, β,r , θ= mytup;
 
-   maxV = maximum(DataOri[1]);
-   minV = minimum(DataOri[1]);
-   maxs = maximum(DataOri[2], dims=1);
-   mins = minimum(DataOri[2], dims=1);
+   maxV = maximum(Data[1]);
+   minV = minimum(Data[1]);
+   maxs = maximum(Data[2], dims=1);
+   mins = minimum(Data[2], dims=1);
 
    # [1.3] Normalization of states
    staN  = (state .- 0.5* (maxs+mins))./(0.5*(maxs-mins));
@@ -109,19 +107,19 @@ function _solver(DataOri,mytup, NetWork)
    vcpre = NetWork(staN');
    vcpre = (0.5*(maxV-minV) * vcpre) .+ 0.5*(maxV+minV);
    VC    = reshape(vcpre,ne,nx);
-   EVC   = VC*pix';
+   EVC   = VC*P';
 
    # [1.5] Expected Value of Default:
    #        hat >> inverse normalization >> matrix form >> E[]
    vdpre = convert(Array,NetWork(staDN'));
    vdpre = (0.5*(maxV-minV) * vdpre) .+ 0.5*(maxV+minV);
    VD    = repeat(vdpre,ne,1);
-   EVD   = VD*pix';
+   EVD   = VD*P';
 
    # [1.6] Income by issuing bonds
    #q  = EconSol.Sol.BPrice;
    D  = 1*(VD.>VC);
-   q  = (1/(1+r))*(1 .-(D*pix'));
+   q  = (1/(1+r))*(1 .-(D*P'));
    qB = q.*bgrid;
 
    # [1.7] Policy function for bonds under continuation
@@ -137,14 +135,14 @@ function _solver(DataOri,mytup, NetWork)
    B1 = BB[Bindex];
 
    # [1.8] Value function of default
-   βθEVC0 = β*θ*EVC[posb0,:];
+   βθEVC0 = β*θ*EVC[p0,:];
    VD1    = βθEVC0'.+ (udef'.+ β*(1-θ)*EVD);
 
    # --------------------------------------------------------------
    # [1.9]. New Continuation Value, Default choice, price
    VF1= max.(VC1,VD1);
    D1 = 1*(VD1.>VC1);
-   q1 = (1/(1+r))*(1 .-(D1*pix'));
-   PolFun1  = DefaultEconomy.PolicyFunction(VF1,VC1,VD1,D1,B1,q1);
+   q1 = (1/(1+r))*(1 .-(D1*P'));
+   PolFun1  = (VF = VF1, VC =VC1, VD =VD1, D= D1, BP= B1, Price = q1);
    return PolFun1;
 end

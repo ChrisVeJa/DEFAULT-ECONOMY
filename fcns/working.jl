@@ -9,7 +9,7 @@
 using Random, Distributions,Statistics, LinearAlgebra,
 	Plots,StatsBase,Parameters, Flux;
 include("DefEcon.jl");
-#include("convergence.jl");
+include("convergence.jl");
 
 ############################################################
 #[1] Setting >> Solving
@@ -25,9 +25,9 @@ EconDef = DefEcon.SolveR(Params, hdef, uf);
 ############################################################
 PF   = EconDef.PolFun;
 Ext  = EconDef.Ext;
-tsim = 10000;
-tburn= 0.5;
-EconSim = DefEcon.ModelSim(Params,PF,Ext,nsim = tsim, burn = tburn)
+tsim = 100000;
+tburn= 0.05;
+EconSim = DefEcon.ModelSim(Params,PF,Ext,nsim = tsim, burn = tburn);
 #DefEcon.graph_simul(EconSim, smpl=1:500);
 
 ############################################################
@@ -49,4 +49,4 @@ VFhat= DefEcon.NeuTra(vf,st,NseT,norm, Nepoch = 10);
 ############################################################
 # [2] Solving - simulating - training
 ############################################################
-convergenceNN(EconSol,VFhat, tburn);
+out1, out2= convergence(VFhat, NseT, Params, Ext, uf, tburn);

@@ -19,7 +19,7 @@ module DefEcon
 		@unpack r,σrisk,ρ,η,β,θ,nx,m,μ,fhat,ne,ub,lb,tol = Params;
 		# --------------------------------------------------------------
 		# 1. Tauchen discretization of log-output
-		ly, pix = mytauch(μ,ρ,η,nx,m);
+		ly, P = mytauch(μ,ρ,η,nx,m);
 		y       = exp.(ly);
 		# --------------------------------------------------------------
 		# 2. Output in case of default
@@ -27,17 +27,17 @@ module DefEcon
 		udef    = UtiFun.(ydef,σrisk);
 		# --------------------------------------------------------------
 		# 3. To calculate the intervals of debt I will consider
-		grid    = (ub-lb)/(ne-1);
-		b       = [lb+(i-1)*grid for i in 1:ne];
-		posb0   = findmin(abs.(0 .- b))[2];
-		b[posb0]= 0;
+		grid = (ub-lb)/(ne-1);
+		b    = [lb+(i-1)*grid for i in 1:ne];
+		p0   = findmin(abs.(0 .- b))[2];
+		b[p0]= 0;
 		# --------------------------------------------------------------
 		# 4. Solving the fixed point problem
-		V,VC,VD,D,BP,q = FixedPoint(b,y,udef,pix,posb0,Params, UtiFun);
+		V,VC,VD,D,BP,q = FixedPoint(b,y,udef,P,p0,Params, UtiFun);
 		PolFun  = (VF = V, VC = VC, VD = VD,D = D, BP = BP, Price =q);
 		ModelSolve = (Mod = (Θ = Params, h = DefFun, uf = UtiFun) ,
 						PolFun = PolFun,
-						Ext = (bgrid= b, ygrid = y, ydef=ydef, P = pix),
+						Ext = (bgrid= b, ygrid = y, ydef=ydef, P = P),
 					)
 		display("Model solved, please see your results");
 		return ModelSolve;
@@ -61,7 +61,7 @@ module DefEcon
 		nbp  = length(b);
 		y    = Ext.ygrid;
 		ydef = Ext.ydef;
-		posb0= findmin(abs.(0 .- b))[2];
+		p0= findmin(abs.(0 .- b))[2];
 		nsim2= Int(floor(nsim*(1+burn)));
 		# -------------------------------------------------------------------------
 		# 1. State simulation
@@ -82,15 +82,15 @@ module DefEcon
 		if nbp == ne
 			EconSim[1,1:2] = [0 0];							  # Initial point
 		else
-			auxpos = rand(1:nbpoints);
+			auxpos = rand(1:nbp);
 			EconSim[1,1:2] = [0 b[auxpos]];
 		end
-		defchoice = EconBase.D[posb0,simul_state[1]];
+		defchoice = EconBase.D[p0,simul_state[1]];
 		if nseed != 0
 			Random.seed!(nseed[2]);			 # To obtain always the same solution
 		end
 
-		EconSim = simulation!(EconSim,simul_state,EconBase,y, ydef, b, distϕ, nsim2,posb0)
+		EconSim = simulation!(EconSim,simul_state,EconBase,y, ydef, b, distϕ, nsim2,p0)
 		# -------------------------------------------------------------------------
 		# 3. Burning and storaging
 		EconSim  = EconSim[end-nsim:end-1,:];
@@ -126,6 +126,6 @@ module DefEcon
 		# 3. Predicting
 		aux   = mhat(S')';
 		hat   = convert(Array{Float64},aux);
-		return  NeuralApprox = (DataNorm = (Y,S), Data = (y,s), Hat = hat);
+		return  NeuralApprox = (DataNorm = (Y,S), Data = (y,s), Hat = hat, Mhat = mhat);
 	end
 end
