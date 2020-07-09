@@ -4,7 +4,7 @@
 # of a basic Arellano-type economy with default
 
 # Written by: Christian Velasquez (velasqcb@bc.edu)
-# Dont hesitate in send any comment
+# Dont hesitate to send comments
 ###############################################################################
 
 # Including our module
