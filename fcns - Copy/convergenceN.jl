@@ -1,4 +1,4 @@
-function convergenceNN(EconSol,VFhat, tburn)
+function convergenceN(EconSol,VFhat, tburn)
    # --------------------------------------------------------------------------
    # [0. No dependencies on Θ]
    # --------------------------------------------------------------------------
@@ -24,7 +24,14 @@ function convergenceNN(EconSol,VFhat, tburn)
    while repli < 400
       # ----------------------------------------------------------------------
       # [2.1]. New Solution for the model
-      PolFun1, indexes  = _solver(DataOri,mytup, NetWork);
+      PolFun1 = _solver(DataOri,mytup, NetWork);
+      val1    = minimum(PolFun1.DebtPF[end,:]);
+      val2    = maximum(PolFun1.DebtPF[end,:]);
+      EconSol = DefaultEconomy.da()
+
+
+
+
       Support  = DefaultEconomy.Supporting(EconSol.Sup.Bgrid[indexes],
                   EconSol.Sup.Ygrid,EconSol.Sup.Ydef,EconSol.Sup.MarkMat);
       EconSol1 = DefaultEconomy.ModelSolve(EconSol.Set,PolFun1,Support);
@@ -138,16 +145,6 @@ function _solver(DataOri,mytup, NetWork)
    VF1= max.(VC1,VD1);
    D1 = 1*(VD1.>VC1);
    q1 = (1/(1+r))*(1 .-(D1*pix'));
-
-   index  = findall(x -> x > 1e-10,std(B1, dims=2));
-   Nindex = size(index)[1]
-   indexes = [index[i][1] for i in 1:Nindex]
-   VF2= VF1[indexes,:];
-   VC2= VC1[indexes,:];
-   VD2= VD1[indexes,:];
-   D2 = D1[indexes,:];
-   B2 = B1[indexes,:];
-   q2 = q1[indexes,:];
-   PolFun1  = DefaultEconomy.PolicyFunction(VF2,VC2,VD2,D2,B2,q2);
-   return PolFun1, indexes;
+   PolFun1  = DefaultEconomy.PolicyFunction(VF1,VC1,VD1,D1,B1,q1);
+   return PolFun1;
 end
