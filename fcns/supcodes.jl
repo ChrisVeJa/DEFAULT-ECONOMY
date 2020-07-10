@@ -1,9 +1,11 @@
 ###############################################################################
-# [] ADDITIONAL SUPPORTING CODES
+# [-] ADDITIONAL SUPPORTING CODES
 ###############################################################################
 
-# [] Tauchen Approximation
 function mytauch(μ::Float64, ρ::Float64, σrisk::Float64, N::Int64, m::Int64)
+    #= -----------------------------------------------------
+    Tauchen discretization
+    ----------------------------------------------------- =#
     if (N % 2 != 1)
         return "N should be an odd number"
     end
@@ -27,16 +29,28 @@ function mytauch(μ::Float64, ρ::Float64, σrisk::Float64, N::Int64, m::Int64)
     return Z, pix
 end
 
-# [] Normalization to [-1:1] interval
 function mynorm(x)
+    #= -----------------------------------------------------
+    This code calculates the following normalization to
+    have x in the interval [-1; 1]
+
+     ̃x = [x - 1/2 (max(x) + min(x))]/(1/2 (max(x)-min(x)))
+    ----------------------------------------------------- =#
     fmax = maximum(x, dims = 1)
     fmin = minimum(x, dims = 1)
-    frange = 0.5 * (fmax - fmin)
-    normx = (x .- 0.5 * (fmin + fmax)) ./ frange
+    fran = 0.5 * (fmax - fmin)
+    normx = (x .- 0.5 * (fmin + fmax)) ./ fran
     return normx
 end
-# [] Inverse of the Normalization
+
+
 function mynorminv(x, xmax, xmin)
+    #= -----------------------------------------------------
+    This code in the inverse function from the normalization
+    previously showed
+
+     x = ((1/2 (max(x)-min(x)))) ̃x + 1/2 (max(x) + min(x))
+    ----------------------------------------------------- =#
     xorig = (x * 0.5 * (xmax - xmin)) .+ 0.5 * (xmax + xmin)
     return xorig
 end

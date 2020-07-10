@@ -1,18 +1,46 @@
-##############################################################################
-# 			APPROXIMATING DEFAULT ECONOMIES WITH NEURAL NETWORKS
-# The following module has all the functions used in the master.jl
-# Written by: Christian Velasquez (velasqcb@bc.edu)
-# Dont hesitate in send any comment
-##############################################################################
+#= #############################################################################
+ 			APPROXIMATING DEFAULT ECONOMIES WITH NEURAL NETWORKS
+The following module has all the main functions used in the master.jl These are:
+
+    1. SolveR: It solves a Default Economy, its output are:
+        * ModelSolve: A NamedTuple with the following fields:
+            ** Mod : A namedtuple with the parameters Θ, the h() function
+                for default, and the utility function uf()
+            ** PolFun: A NamedTuple with the policy functions and the values
+                functions. Its components are:
+                - VF: value function
+                - VC: Value of continuation under no default
+                - VD: valuye of default
+                - D: Default choices
+                - BP: Policy function for Bₜ₊₁
+                - Price: qₜ₊₁
+            ** Ext: SOme extra feautures of the model as the grids for bonds
+                outputs, the output level under default, and the markovmatrix P
+    2. ModelSim: It simulates the economy, the output is modelsim which has two
+        fields: a) Sim, a matrix with the simulation, and b) order,a  string
+        matrix with the name of the columns in Sim.
+
+    3. NeuTra : It trains a neural network with softplus activation function,
+        returning:
+            * DataNorm: The normalized input data
+            * Data: The raw data
+            * Hat: The predicted
+            * Mhat: Neural Network structure in a chain-type format
+
+Written by: Christian Velasquez (velasqcb@bc.edu)
+Dont hesitate in send any comment
+############################################################################# =#
+
 module DefEcon
 using Random,
     Distributions, Statistics, LinearAlgebra, Plots, StatsBase, Parameters, Flux
 include("supcodes.jl")
 include("mainsup.jl")
 include("graphs.jl")
-################################################################################
+
+# ==============================================================================
 # [1] SOLUTION OF THE MODEL
-################################################################################
+# ==============================================================================
 function SolveR(Params, DefFun, UtiFun)
     # --------------------------------------------------------------
     # 0. Unpacking Parameters
@@ -44,11 +72,9 @@ function SolveR(Params, DefFun, UtiFun)
     return ModelSolve
 end
 
-################################################################################
-# <> SIMULATING THE ECONOMY <>
-################################################################################
-
-# [3.1] Simulating the model
+# ==============================================================================
+# [2] SIMULATING THE ECONOMY
+# ==============================================================================
 function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
     # -------------------------------------------------------------------------
     # 0. Settings
@@ -91,16 +117,7 @@ function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
     end
 
     EconSim = simulation!(
-        EconSim,
-        simul_state,
-        EconBase,
-        y,
-        ydef,
-        b,
-        distϕ,
-        nsim2,
-        p0,
-    )
+        EconSim,simul_state,EconBase,y,ydef,b,distϕ,nsim2,p0)
     # -------------------------------------------------------------------------
     # 3. Burning and storaging
     EconSim = EconSim[end-nsim:end-1, :]
@@ -108,11 +125,9 @@ function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
     return modelsim
 end
 
-################################################################################
-# <> NEURAL NETWORK APPROXIMATION <>
-################################################################################
-
-# [] Training of the NN
+# ==============================================================================
+# [3] NEURAL NETWORK APPROXIMATION
+# ==============================================================================
 function NeuTra(y, s, neuSettings, fnorm; Nepoch = 1)
     # -------------------------------------------------------------------------
     # 0. Settings
@@ -139,4 +154,5 @@ function NeuTra(y, s, neuSettings, fnorm; Nepoch = 1)
     return NeuralApprox =
         (DataNorm = (Y, S), Data = (y, s), Hat = hat, Mhat = mhat)
 end
+# ==============================================================================
 end

@@ -26,12 +26,16 @@ EconDef = DefEcon.SolveR(Params, hdef, uf);
 PF   = EconDef.PolFun;
 Ext  = EconDef.Ext;
 DefEcon.graph_solve(Params,PF,Ext);
+
 ############################################################
 #	[Simulation]
 ############################################################
 tsim = 100000;
 tburn = 0.05;
 EconSim = DefEcon.ModelSim(Params, PF, Ext, nsim = tsim, burn = tburn);
+NDefaults = sum(EconSim.Sim[:,5]);
+PorcDef   = 100*NDefaults / tsim;
+display("Simulation finished, number of default events is $NDefaults with a frequency of $PorcDef")
 DefEcon.graph_simul(EconSim, smpl=1:500);
 
 ############################################################
@@ -66,4 +70,3 @@ DefEcon.graph_neural(VDhat,"Value Function Default", ["VDneural.png" "VDSmpl.png
 # [2] Solving - simulating - training
 ############################################################
 PolFun1, EconSim1= convergence(VNDhat,VDhat, NseT, Params, Ext, uf, tburn);
-VNDhat.

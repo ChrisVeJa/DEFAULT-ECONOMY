@@ -1,71 +1,73 @@
 function convergence(VNDhat,VDhat, NseT, Params, Ext, uf, tburn)
-   # Settings
+   # ===========================================================================
+   # (1) Settings: We unpack some requirements
    mytup = _unpack(Params, Ext, uf);
+   tsim  = length(VNDhat.Hat) + length(VDhat.Hat);
 
-   # Simulation
-   tsim = length(VNDhat.Hat) + length(VDhat.Hat);
-
-   # Neural Networks
+   # ===========================================================================
+   # (2) Defining Neural Networks structure
    ϕf(x) = log1p(exp(x));
 
-   ψnD, modnD = Flux.destructure(VNDhat.Mhat);
-   ψnDold     = ψnD;
-   NetWorkND  = modnd(ψnD);
-   ΨnD        = Flux.params(NetWorkND);
+   # (2.1) No Default events
+   ψnD, modnD   = Flux.destructure(VNDhat.Mhat);
+   ψnDold       = ψnD;
+   NetWorkND    = modnD(ψnD);
+   ΨnD          = Flux.params(NetWorkND);
    LossnD(x, y) = Flux.mse(NetWorkND(x), y);
 
-   ψD, modD = Flux.destructure(VDhat.Mhat);
-   ψDold    = ψD;
-   NetWorkD = modD(ψD);
-   ΨD       = Flux.params(NetWorkD);
+   # (2.1) Default events
+   ψD, modD    = Flux.destructure(VDhat.Mhat);
+   ψDold       = ψD;
+   NetWorkD    = modD(ψD);
+   ΨD          = Flux.params(NetWorkD);
    LossD(x, y) = Flux.mse(NetWorkD(x), y);
 
+   # ===========================================================================
+   # (3) Iteration for convergence
 
-   # --------------------------------------------------------------------------
-   # [Displaying the Loop]
-   # --------------------------------------------------------------------------
-   DataND = VNDhat.Data;
-   DataD  = VDhat.Data;
-   repli  = 1;
+   DataND   = VNDhat.Data;
+   DataD    = VDhat.Data;
+   repli    = 1;
    PolFun1  = nothing;
-   Ext1     = Ext;
    Econsim1 = nothing;
+
    while repli < 401
-      # ----------------------------------------------------------------------
-      # [2.1]. New Solution for the model
+      # ========================================================================
+      # (3.1) New Solution for the model, see function
       PolFun1 = _solver(DataND, NetWorkND, DataD, NetWorkD, mytup);
-      # ----------------------------------------------------------------------
-      # [2.2]. New Simulation >> could have reduce grid
+      # ========================================================================
+      # (3.2) New Simulation >> could have reduce grid
       EconSim1 =
-         DefEcon.ModelSim(Params, PolFun1, Ext1, nsim = tsim, burn = tburn);
+         DefEcon.ModelSim(Params, PolFun1, Ext, nsim = tsim, burn = tburn);
 
-      # ----------------------------------------------------------------------
-      # [2.3] Updating of the Neural Network
+      # ========================================================================
+      # (3.3) Updating of the Neural Network
 
+      # (3.3.1) Raw data
       vf = EconSim1.Sim[:, 6];
       st = EconSim1.Sim[:, 2:3];
       defstatus =  EconSim1.Sim[:, 5];
 
-      # [2.3.1] New Data for Training
+      # (3.3.2) Training No Default Neural Network
       vnd = vf[defstatus .== 0];
       snd = st[defstatus .== 0, :];
       Ynd = DefEcon.mynorm(vnd);
       Snd = DefEcon.mynorm(snd);
       dataND = Flux.Data.DataLoader(Snd', Ynd');
-      Flux.Optimise.train!(LossnD, ΨnD, dataND, Descent()) ;# Now Ψ is updated
+      Flux.Optimise.train!(LossnD, ΨnD, dataND, Descent()); # Now Ψ is updated
 
-
-
+      # (3.3.3) Training Default Neural Network
       vd = vf[defstatus .== 1]
       sd = st[defstatus .== 1, :]
       Yd = DefEcon.mynorm(vd);
       Sd = DefEcon.mynorm(sd);
       dataD = Flux.Data.DataLoader(Sd', Yd');
-      Flux.Optimise.train!(LossD, ΨD, dataD, Descent()) ;# Now Ψ is updated
+      Flux.Optimise.train!(LossD, ΨD, dataD, Descent()); # Now Ψ is updated
 
+      # ========================================================================
+      # (3.4) Updating for new round
 
-      # ----------------------------------------------------------------------
-      # [2.4] Updating for new round
+      # (3.4.1) No Default Neural Network
       ψnD, modnD = Flux.destructure(NetWorkND);
       ψnD = 0.8 * ψnD + 0.2 * ψnDold;
       NetWorkND = modnD(ψ);
@@ -73,7 +75,7 @@ function convergence(VNDhat,VDhat, NseT, Params, Ext, uf, tburn)
       LossnD(x, y) = Flux.mse(NetWorkND(x), y);
       DataND = (vnd, snd);
 
-
+      # (3.4.1) No Default Neural Network
 
       ψD, modD = Flux.destructure(NetWorkD);
       ψD    = 0.8 * ψD + 0.2 * ψDold;
@@ -82,8 +84,13 @@ function convergence(VNDhat,VDhat, NseT, Params, Ext, uf, tburn)
       LossD(x, y) = Flux.mse(NetWorkD(x), y);
       DataD = (vd, sd);
 
-      difΨ = max(maximum(abs.(ψnD - ψnDold)),maximum(abs.(ψD - ψDold)));
-      display(difΨ);
+      # ========================================================================
+      difΨ1 = maximum(abs.(ψnD - ψnDold));
+      difΨ2 = maximum(abs.(ψD - ψDold));
+      difΨ  = max(difΨ1,difΨ1);
+      NDefaults = sum(defstatus);
+      PorcDef = 100*NDefaults / tsim;
+      display("Iteration $repli: with a difference of $difΨ1 for No-Default, $difΨ2 for Default and $NDefaults events");
       repli += 1;
    end
    return PolFun1, EconSim1;
@@ -92,11 +99,26 @@ end
 function _solver(DataND, NetWorkND, DataD, NetWorkD, mytup)
    @unpack σrisk, bgrid, ygrid, nx, ne, P, ydef,
       udef, yb, BB, p0, stateND, stateD, utf, β, r, θ = mytup
+   #=
+   Note: To calculate the the expected value we will follow next steps:
+      1. Let Θₕ be the vector of parameters estimated in the Neural Network
+         for h = {No Default, Default};
+      2. As in every case, I previously normalized them with the formula
+         ̃x = [x - 1/2 (max(x) + min(x))]/(1/2 (max(x) - min(x))),
+         I get the maximum value from each one: states (sₕ), values (vₕ).
+         Let x₀ₕ represents the variable x in for h-choice in the initial
+         normalization
+      3. Then, I apply the same normalization with the states from the grid
+         ̃x₁ₕ =  [x₁ - 1/2 (max(x₀ₕ) + min(x₀ₕ))]/(1/2 (max(x₀ₕ) - min(x₀ₕ)))
+         this allow me to have the grid values in the same scale than the
+         inputs for the neural network
+      4. Later I predict Vₕ in each case conditional on the grid,
+      5. Convert the new prediction ̂y₁ₕ using the extremums in for y₀ₕ
+         and calculate the expected using the markov matrix
+   =#
 
-   # ASk for this
-   #   staDN = ([zeros(nx) ydef] .- 0.5 * (maxs + mins)) ./ (0.5 * (maxs - mins))
-
-   # [1.4] Expected Value of Continuation:
+   # ===========================================================================
+   # [1] Expected Value of Continuation:
    #        hat >> inverse normalization >> matrix form >> E[]
    maxVND, minVND = (maximum(DataND[1]),minimum(DataND[1]));
    maxsND, minsND = (maximum(DataND[2], dims = 1),minimum(DataND[2], dims = 1));
@@ -106,7 +128,8 @@ function _solver(DataND, NetWorkND, DataD, NetWorkD, mytup)
    VC = reshape(vcpre, ne, nx);
    EVC = VC * P';
 
-   # [1.5] Expected Value of Default:
+   # ===========================================================================
+   # [2] Expected Value of Default:
    #        hat >> inverse normalization >> matrix form >> E[]
    maxVD, minVD = (maximum(DataD[1]),minimum(DataD[1]));
    maxsD, minsD = (maximum(DataD[2], dims = 1),minimum(DataD[2], dims = 1));
