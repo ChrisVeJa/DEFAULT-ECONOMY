@@ -1,4 +1,25 @@
-function convergence(VNDhat,VDhat, NseT, Params, Ext, uf, tburn)
+###############################################################################
+# [-] CODES FOR CONVERGENCE MODEL - NN - MODEL
+###############################################################################
+
+function convergence(VNDhat,VDhat, Params, Ext, uf, tburn)
+   #=
+      It is the algorithm to find a convergence between neural networks
+      and a Default Economy. The steps for that are:
+      [1] As we have two set of Θₕ , where h={No Default, Default}
+         the total size for the simulation is the sum of both size
+      [2] Set both neural networks settings
+         * ΨnD -> Parameters in No Default >> NetworkND is the NN
+         * ψD  -> Parameters in Default    >> NetworkD  is the NN
+      [3] Solve the model (see the function SolverCon)
+      [4] Make a new simulation
+      [5] Updating the neural networks
+         *[5.1] Divide the data in No Default and Default
+               >> normalize >> Train
+
+         *[5.2] Update the structure and parameters
+      [Re Do]
+   =#
    # ===========================================================================
    # (1) Settings: We unpack some requirements
    mytup = _unpack(Params, Ext, uf);
@@ -34,7 +55,7 @@ function convergence(VNDhat,VDhat, NseT, Params, Ext, uf, tburn)
    while repli < 401
       # ========================================================================
       # (3.1) New Solution for the model, see function
-      PolFun1 = _solver(DataND, NetWorkND, DataD, NetWorkD, mytup);
+      PolFun1 = SolverCon(DataND, NetWorkND, DataD, NetWorkD, mytup);
       # ========================================================================
       # (3.2) New Simulation >> could have reduce grid
       EconSim1 =
@@ -69,34 +90,36 @@ function convergence(VNDhat,VDhat, NseT, Params, Ext, uf, tburn)
 
       # (3.4.1) No Default Neural Network
       ψnD, modnD = Flux.destructure(NetWorkND);
-      ψnD = 0.8 * ψnD + 0.2 * ψnDold;
-      NetWorkND = modnD(ψ);
-      ΨnD = Flux.params(NetWorkND);
+      #ψnD        = 0.9 * ψnD + 0.1 * ψnDold;
+      NetWorkND  = modnD(ψnD);
+      ΨnD        = Flux.params(NetWorkND);
       LossnD(x, y) = Flux.mse(NetWorkND(x), y);
-      DataND = (vnd, snd);
+      DataND     = (vnd, snd);
 
       # (3.4.1) No Default Neural Network
 
       ψD, modD = Flux.destructure(NetWorkD);
-      ψD    = 0.8 * ψD + 0.2 * ψDold;
+      #ψD       = 0.9 * ψD + 0.1 * ψDold;
       NetWorkD = modD(ψD);
       ΨD       = Flux.params(NetWorkD);
       LossD(x, y) = Flux.mse(NetWorkD(x), y);
-      DataD = (vd, sd);
+      DataD    = (vd, sd);
 
       # ========================================================================
       difΨ1 = maximum(abs.(ψnD - ψnDold));
       difΨ2 = maximum(abs.(ψD - ψDold));
-      difΨ  = max(difΨ1,difΨ1);
+      difΨ  = max(difΨ1,difΨ2);
       NDefaults = sum(defstatus);
       PorcDef = 100*NDefaults / tsim;
-      display("Iteration $repli: with a difference of $difΨ1 for No-Default, $difΨ2 for Default and $NDefaults events");
+      display("Iteration $repli: with a difference of $difΨ")
+      display("with a dif. $difΨ1 for No-Default, $difΨ2 for Default")
+      display("Number of default events: $NDefaults");
       repli += 1;
    end
    return PolFun1, EconSim1;
 end
 
-function _solver(DataND, NetWorkND, DataD, NetWorkD, mytup)
+function SolverCon(DataND, NetWorkND, DataD, NetWorkD, mytup)
    @unpack σrisk, bgrid, ygrid, nx, ne, P, ydef,
       udef, yb, BB, p0, stateND, stateD, utf, β, r, θ = mytup
    #=
@@ -124,8 +147,8 @@ function _solver(DataND, NetWorkND, DataD, NetWorkD, mytup)
    maxsND, minsND = (maximum(DataND[2], dims = 1),minimum(DataND[2], dims = 1));
    staN_nD = (stateND .- 0.5 * (maxsND + minsND)) ./ (0.5 * (maxsND - minsND));
    vc = NetWorkND(staN_nD');
-   vc = (0.5 * (maxVD - minVD) * vc) .+ 0.5 * (maxVD + minVD);
-   VC = reshape(vcpre, ne, nx);
+   vc = (0.5 * (maxVND - minVND) * vc) .+ 0.5 * (maxVND + minVND);
+   VC = reshape(vc, ne, nx);
    EVC = VC * P';
 
    # ===========================================================================
@@ -180,12 +203,13 @@ function _unpack(Params, Ext, uf)
    p0 = findmin(abs.(0 .- bgrid))[2]
    stateND = [repeat(bgrid, nx, 1) repeat(ygrid, inner = (ne, 1))]
    stateD = [repeat(bgrid, nx, 1) repeat(ydef, inner = (ne, 1))]
+   #stateD = [zeros(ne*nx) repeat(ydef, inner = (ne, 1))]
    udef = uf.(ydef, σrisk)
    mytup = (
       r = r, β = β, θ = θ, σrisk = σrisk, bgrid = bgrid,
       ygrid = ygrid, nx = nx,  ne = ne,  P = P, ydef = ydef,
-      udef = udef,  yb = yb, BB = BB, p0 = p0, state = state,
-      utf = uf,
+      udef = udef,  yb = yb, BB = BB, p0 = p0, stateND = stateND,
+      stateD = stateD, utf = uf,
    )
    return mytup;
 end
