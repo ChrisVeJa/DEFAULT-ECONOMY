@@ -62,22 +62,8 @@ function convergence(VNDhat, VDhat, PolFun, Params, Ext, uf, tburn)
 
       # ========================================================================
       # (3.2) New Simulation >> could have reduce grid
-
-      flagcont = true;
-      value = sum(minimum(PolFun1.BP, dims=2) .== maximum(PolFun1.BP, dims=2));
-      if value != 0
-         EconSim1 =
-            DefEcon.ModelSim(Params, PolFun, Ext, nsim = tsim, burn = tburn);
-         flagcont = false;
-         display(value);
-      else
-         EconSim1 =
+      EconSim1 =
             DefEcon.ModelSim(Params, PolFun1, Ext, nsim = tsim, burn = tburn);
-         PolFun   = PolFun1;
-         display("paso")
-      end
-
-
       # ========================================================================
       # (3.3) Updating of the Neural Network
 
@@ -107,12 +93,8 @@ function convergence(VNDhat, VDhat, PolFun, Params, Ext, uf, tburn)
 
       # (3.4.1) No Default Neural Network
       ψnD, modnD = Flux.destructure(NetWorkND);
-      if flagcont
-         ψnD  = 0.9 * ψnD + 0.1 * ψnDold;
-         difΨ1= maximum(abs.(ψnD - ψnDold));
-      else
-         ψnD  = ψnDold;
-      end
+      ψnD  = 0.9 * ψnD + 0.1 * ψnDold;
+      difΨ1= maximum(abs.(ψnD - ψnDold));
       ψnDold    = ψnD;
       NetWorkND = modnD(ψnD);
       ΨnD       = Flux.params(NetWorkND);
@@ -122,12 +104,8 @@ function convergence(VNDhat, VDhat, PolFun, Params, Ext, uf, tburn)
       # (3.4.1) No Default Neural Network
 
       ψD, modD = Flux.destructure(NetWorkD);
-      if flagcont
-         ψD    = 0.9 * ψD + 0.1 * ψDold;
-         difΨ2 = maximum(abs.(ψD - ψDold));
-      else
-         ψD    = ψDold;
-      end
+      ψD    = 0.9 * ψD + 0.1 * ψDold;
+      difΨ2 = maximum(abs.(ψD - ψDold));
       ψDold    = ψD;
       NetWorkD = modD(ψD);
       ΨD       = Flux.params(NetWorkD);
@@ -181,7 +159,7 @@ function SolverCon(DataND, NetWorkND, DataD, NetWorkD, mytup)
    vc = NetWorkND(staN_nD');
    vc = (0.5 * (maxVND - minVND) * vc) .+ 0.5 * (maxVND + minVND);
    VC = reshape(vc, ne, nx);
-   EVC = VC * P';
+   EVC = VC * P';  # Expected value of no defaulting
 
    # ===========================================================================
    # [2] Expected Value of Default:
@@ -192,7 +170,7 @@ function SolverCon(DataND, NetWorkND, DataD, NetWorkD, mytup)
    vd = NetWorkD(staN_D');
    vd = (0.5 * (maxVD - minVD) * vd) .+ 0.5 * (maxVD + minVD);
    VD = reshape(vd, ne, nx);
-   EVD = VD * P';
+   EVD = VD * P'; # expected value of being in default in the next period
 
    # [1.6] Income by issuing bonds
    #q  = EconSol.Sol.BPrice;
@@ -233,7 +211,7 @@ function _unpack(Params, Ext, uf)
    yb = bgrid .+ ygrid'
    BB = repeat(bgrid, 1, nx)
    p0 = findmin(abs.(0 .- bgrid))[2]
-   stateND = [repeat(bgrid, nx, 1) repeat(ygrid, inner = (ne, 1))]
+   stateND= [repeat(bgrid, nx, 1) repeat(ygrid, inner = (ne, 1))]
    stateD = [repeat(bgrid, nx, 1) repeat(ydef, inner = (ne, 1))]
    #stateD = [zeros(ne*nx) repeat(ydef, inner = (ne, 1))]
    udef = uf.(ydef, σrisk)

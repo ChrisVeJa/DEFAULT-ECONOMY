@@ -152,9 +152,9 @@ function NeuTra(y, s, neuSettings, fnorm; Nepoch = 1)
     =#
     # -------------------------------------------------------------------------
     # 0. Settings
-    n, ns = size(s)
-    mhat = neuSettings.mhat
-    loss = neuSettings.loss
+    n,ns= size(s)
+    mhat= neuSettings.mhat
+    loss= neuSettings.loss
     opt = neuSettings.opt
     # -------------------------------------------------------------------------
     # 1. Data and construction of the NN
