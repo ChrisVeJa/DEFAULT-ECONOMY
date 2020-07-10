@@ -42,6 +42,16 @@ include("graphs.jl")
 # [1] SOLUTION OF THE MODEL
 # ==============================================================================
 function SolveR(Params, DefFun, UtiFun)
+    #=
+        This function solvesa standard Default with economy as in Arellano 2008
+        The steps to solve it are:
+            [1] Find the discret points from the tauchen algorithm
+            [2] Calculates h(y) and u(h(y)) where h() is the function for
+                out in default case
+            [3] Calculate the grid for the support of `b`
+            [4] Solve the fixed point problem (see respective code)
+    =#
+
     # --------------------------------------------------------------
     # 0. Unpacking Parameters
     @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = Params
@@ -76,6 +86,18 @@ end
 # [2] SIMULATING THE ECONOMY
 # ==============================================================================
 function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
+    #=
+        This function is setting the initial features to simulate the Economy
+        Its structure is as follow
+            [1] Define some basics value for the simulation
+            [2] Simulates the path of states for output conditional
+                on the markov matrix P, if nseed is different to 0 a seed is
+                put in order to have the same solution always.
+                    ``nseed`` should be a vector with two entrances
+            [3] The initial point is a economy not in default with a
+                debt level of 0
+
+    =#
     # -------------------------------------------------------------------------
     # 0. Settings
     @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = Params
@@ -84,7 +106,6 @@ function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
 
     P = Ext.P
     b = Ext.bgrid
-    nbp = length(b)
     y = Ext.ygrid
     ydef = Ext.ydef
     p0 = findmin(abs.(0 .- b))[2]
@@ -105,12 +126,7 @@ function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
     orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]"
     distϕ = Bernoulli(θ)
     EconSim = Array{Float64,2}(undef, nsim2, 7)      # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
-    if nbp == ne
-        EconSim[1, 1:2] = [0 0]  # Initial point
-    else
-        auxpos = rand(1:nbp)
-        EconSim[1, 1:2] = [0 b[auxpos]]
-    end
+    EconSim[1, 1:2] = [0 0]  # Initial point
     defchoice = EconBase.D[p0, simul_state[1]]
     if nseed != 0
         Random.seed!(nseed[2]) # To obtain always the same solution
@@ -129,6 +145,11 @@ end
 # [3] NEURAL NETWORK APPROXIMATION
 # ==============================================================================
 function NeuTra(y, s, neuSettings, fnorm; Nepoch = 1)
+    #=
+        This function makes a training for a neural network
+        in the field ``mhat``, given a ``loss`` function and the optimizer
+        ``opt``.
+    =#
     # -------------------------------------------------------------------------
     # 0. Settings
     n, ns = size(s)
