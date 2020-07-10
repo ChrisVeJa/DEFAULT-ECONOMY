@@ -30,7 +30,7 @@ DefEcon.graph_solve(Params,PF,Ext);
 ############################################################
 #	[Simulation]
 ############################################################
-tsim = 100000;
+tsim = 30000;
 tburn = 0.05;
 EconSim = DefEcon.ModelSim(Params, PF, Ext, nsim = tsim, burn = tburn);
 NDefaults = sum(EconSim.Sim[:,5]);
@@ -69,4 +69,4 @@ DefEcon.graph_neural(VDhat,"Value Function Default", ["VDneural.png" "VDSmpl.png
 ############################################################
 # [2] Solving - simulating - training
 ############################################################
-PolFun1, EconSim1= convergence(VNDhat,VDhat, Params, Ext, uf, tburn);
+PolFun1, EconSim1= convergence(VNDhat, VDhat, PF, Params, Ext, uf, tburn);

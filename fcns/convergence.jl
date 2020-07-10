@@ -2,7 +2,7 @@
 # [-] CODES FOR CONVERGENCE MODEL - NN - MODEL
 ###############################################################################
 
-function convergence(VNDhat,VDhat, Params, Ext, uf, tburn)
+function convergence(VNDhat, VDhat, PolFun, Params, Ext, uf, tburn)
    #=
       It is the algorithm to find a convergence between neural networks
       and a Default Economy. The steps for that are:
@@ -30,18 +30,18 @@ function convergence(VNDhat,VDhat, Params, Ext, uf, tburn)
    ϕf(x) = log1p(exp(x));
 
    # (2.1) No Default events
-   ψnD, modnD   = Flux.destructure(VNDhat.Mhat);
-   ψnDold       = ψnD;
-   NetWorkND    = modnD(ψnD);
-   ΨnD          = Flux.params(NetWorkND);
-   LossnD(x, y) = Flux.mse(NetWorkND(x), y);
+   ψnD, modnD= Flux.destructure(VNDhat.Mhat);
+   ψnDold    = ψnD;
+   NetWorkND = modnD(ψnD);
+   ΨnD       = Flux.params(NetWorkND);
+   Lnd(x, y) = Flux.mse(NetWorkND(x), y);
 
    # (2.1) Default events
-   ψD, modD    = Flux.destructure(VDhat.Mhat);
-   ψDold       = ψD;
-   NetWorkD    = modD(ψD);
-   ΨD          = Flux.params(NetWorkD);
-   LossD(x, y) = Flux.mse(NetWorkD(x), y);
+   ψD, modD = Flux.destructure(VDhat.Mhat);
+   ψDold    = ψD;
+   NetWorkD = modD(ψD);
+   ΨD       = Flux.params(NetWorkD);
+   Ld(x, y) = Flux.mse(NetWorkD(x), y);
 
    # ===========================================================================
    # (3) Iteration for convergence
@@ -50,16 +50,33 @@ function convergence(VNDhat,VDhat, Params, Ext, uf, tburn)
    DataD    = VDhat.Data;
    repli    = 1;
    PolFun1  = nothing;
-   Econsim1 = nothing;
-
-   while repli < 401
+   EconSim1 = nothing;
+   difΨ     = 1;
+   difΨ1    = 1;
+   difΨ2    = 1;
+   value    = 0
+   while difΨ > 1e-8 && repli < 400
       # ========================================================================
       # (3.1) New Solution for the model, see function
       PolFun1 = SolverCon(DataND, NetWorkND, DataD, NetWorkD, mytup);
+
       # ========================================================================
       # (3.2) New Simulation >> could have reduce grid
-      EconSim1 =
-         DefEcon.ModelSim(Params, PolFun1, Ext, nsim = tsim, burn = tburn);
+
+      flagcont = true;
+      value = sum(minimum(PolFun1.BP, dims=2) .== maximum(PolFun1.BP, dims=2));
+      if value != 0
+         EconSim1 =
+            DefEcon.ModelSim(Params, PolFun, Ext, nsim = tsim, burn = tburn);
+         flagcont = false;
+         display(value);
+      else
+         EconSim1 =
+            DefEcon.ModelSim(Params, PolFun1, Ext, nsim = tsim, burn = tburn);
+         PolFun   = PolFun1;
+         display("paso")
+      end
+
 
       # ========================================================================
       # (3.3) Updating of the Neural Network
@@ -75,7 +92,7 @@ function convergence(VNDhat,VDhat, Params, Ext, uf, tburn)
       Ynd = DefEcon.mynorm(vnd);
       Snd = DefEcon.mynorm(snd);
       dataND = Flux.Data.DataLoader(Snd', Ynd');
-      Flux.Optimise.train!(LossnD, ΨnD, dataND, Descent()); # Now Ψ is updated
+      Flux.Optimise.train!(Lnd, ΨnD, dataND, Descent()); # Now Ψ is updated
 
       # (3.3.3) Training Default Neural Network
       vd = vf[defstatus .== 1]
@@ -83,38 +100,53 @@ function convergence(VNDhat,VDhat, Params, Ext, uf, tburn)
       Yd = DefEcon.mynorm(vd);
       Sd = DefEcon.mynorm(sd);
       dataD = Flux.Data.DataLoader(Sd', Yd');
-      Flux.Optimise.train!(LossD, ΨD, dataD, Descent()); # Now Ψ is updated
+      Flux.Optimise.train!(Ld, ΨD, dataD, Descent()); # Now Ψ is updated
 
       # ========================================================================
       # (3.4) Updating for new round
 
       # (3.4.1) No Default Neural Network
       ψnD, modnD = Flux.destructure(NetWorkND);
-      #ψnD        = 0.9 * ψnD + 0.1 * ψnDold;
-      NetWorkND  = modnD(ψnD);
-      ΨnD        = Flux.params(NetWorkND);
-      LossnD(x, y) = Flux.mse(NetWorkND(x), y);
-      DataND     = (vnd, snd);
+      if flagcont
+         ψnD  = 0.9 * ψnD + 0.1 * ψnDold;
+         difΨ1= maximum(abs.(ψnD - ψnDold));
+      else
+         ψnD  = ψnDold;
+      end
+      ψnDold    = ψnD;
+      NetWorkND = modnD(ψnD);
+      ΨnD       = Flux.params(NetWorkND);
+      Lnd(x, y) = Flux.mse(NetWorkND(x), y);
+      DataND    = (vnd, snd);
 
       # (3.4.1) No Default Neural Network
 
       ψD, modD = Flux.destructure(NetWorkD);
-      #ψD       = 0.9 * ψD + 0.1 * ψDold;
+      if flagcont
+         ψD    = 0.9 * ψD + 0.1 * ψDold;
+         difΨ2 = maximum(abs.(ψD - ψDold));
+      else
+         ψD    = ψDold;
+      end
+      ψDold    = ψD;
       NetWorkD = modD(ψD);
       ΨD       = Flux.params(NetWorkD);
-      LossD(x, y) = Flux.mse(NetWorkD(x), y);
+      Ld(x, y) = Flux.mse(NetWorkD(x), y);
       DataD    = (vd, sd);
 
       # ========================================================================
-      difΨ1 = maximum(abs.(ψnD - ψnDold));
-      difΨ2 = maximum(abs.(ψD - ψDold));
-      difΨ  = max(difΨ1,difΨ2);
-      NDefaults = sum(defstatus);
-      PorcDef = 100*NDefaults / tsim;
-      display("Iteration $repli: with a difference of $difΨ")
-      display("with a dif. $difΨ1 for No-Default, $difΨ2 for Default")
-      display("Number of default events: $NDefaults");
+      if flagcont
+         difΨ  = max(difΨ1,difΨ2);
+         NDefaults = sum(defstatus);
+         PorcDef = 100*NDefaults / tsim;
+         display("Iteration $repli: with a difference of $difΨ")
+         display("with a dif. $difΨ1 for No-Default, $difΨ2 for Default")
+         display("Number of default events: $NDefaults");
+      end
       repli += 1;
+   end
+   if difΨ>1e-8
+      display("Convergence not achieved")
    end
    return PolFun1, EconSim1;
 end
