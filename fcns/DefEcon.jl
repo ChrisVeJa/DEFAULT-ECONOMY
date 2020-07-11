@@ -37,7 +37,7 @@ using Random,
 include("supcodes.jl")
 include("mainsup.jl")
 include("graphs.jl")
-
+include("adiCodes.jl")
 # ==============================================================================
 # [1] SOLUTION OF THE MODEL
 # ==============================================================================
