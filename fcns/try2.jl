@@ -1,5 +1,7 @@
 function try2(PolFun,NetWorkNDold, NetWorkDold, Params, ExtFea, uf, tsim, tburn)
     mytup = DefEcon._unpack(Params, ExtFea, uf)
+    ψnDold, x1x = Flux.destructure(NetWorkNDold)
+    ψDold, x2x = Flux.destructure(NetWorkDold)
     NetWorkND = nothing
     NetWorkD = nothing
     PolFun1 = nothing
@@ -25,8 +27,11 @@ function try2(PolFun,NetWorkNDold, NetWorkDold, Params, ExtFea, uf, tsim, tburn)
         # New Simulation
         #   We know that this Policy Function gives us a stable simulation
         # ======================================================================
+        @label dosim
         EconSim1 =
             DefEcon.ModelSim(Params, PolFun, ExtFea, nsim = tsim, burn = tburn)
+
+
         # ======================================================================
         # Taking the simulation to train our model again
         #   We are training the parameters and model define at @label newsimul
@@ -34,6 +39,15 @@ function try2(PolFun,NetWorkNDold, NetWorkDold, Params, ExtFea, uf, tsim, tburn)
         vf = EconSim1.Sim[:, 6]
         st = EconSim1.Sim[:, 2:3]
         dfs = EconSim1.Sim[:, 5]
+        NDef = sum(dfs)
+        Porc = round(100 * NDef/ tsim, digits=2)
+        display("% of default events: $Porc")
+        if Porc == 0.0
+            @goto dosim
+        end
+
+
+
         vnd = vf[dfs.==0]
         snd = st[dfs.==0, :]
         Ynd = DefEcon.mynorm(vnd)
@@ -59,7 +73,7 @@ function try2(PolFun,NetWorkNDold, NetWorkDold, Params, ExtFea, uf, tsim, tburn)
 
         # [] non Default Neural Network
         ψnD, modnD = Flux.destructure(NetWorkND)
-        ψnD = 0.9 * ψnD + 0.1 * ψnDold
+        ψnD = 0.1 * ψnD + 0.9 * ψnDold
         difΨ1 = maximum(abs.(ψnD - ψnDold))
         NetWorkND = modnD(ψnD)
         ΨnD = Flux.params(NetWorkND)
@@ -68,7 +82,7 @@ function try2(PolFun,NetWorkNDold, NetWorkDold, Params, ExtFea, uf, tsim, tburn)
 
         # [] Default Neural Network
         ψD, modD = Flux.destructure(NetWorkD)
-        ψD = 0.9 * ψD + 0.1 * ψDold
+        ψD = 0.1 * ψD + 0.9 * ψDold
         difΨ2 = maximum(abs.(ψD - ψDold))
         NetWorkD = modD(ψD)
         ΨD = Flux.params(NetWorkD)
@@ -83,6 +97,7 @@ function try2(PolFun,NetWorkNDold, NetWorkDold, Params, ExtFea, uf, tsim, tburn)
         PolFun1 = DefEcon.SolverCon(DataND, NetWorkND, DataD, NetWorkD, mytup)
         value =
             sum(minimum(PolFun1.BP, dims = 2) .== maximum(PolFun1.BP, dims = 2))
+        display(value)
         if value != 0
             @goto newsimul
         end
@@ -90,20 +105,18 @@ function try2(PolFun,NetWorkNDold, NetWorkDold, Params, ExtFea, uf, tsim, tburn)
         # ======================================================================
         # Updating for next round
         # ======================================================================
+        PolFun = PolFun1;
         ψnDold = ψnD
         ψDold = ψD
         NetWorkNDold = NetWorkND
         NetWorkDold = NetWorkD
         difΨ = max(difΨ1, difΨ2)
-        NDef = sum(dfs)
-        Porc = round(100 * NDef/ tsim, digits=2)
         display("Iteration $repli: with a difference of $difΨ")
         display("with a dif. $difΨ1 for No-Default, $difΨ2 for Default")
-        display("Number of default events: $NDefaults")
         repli += 1
     end
     if difΨ > 1e-8
         display("Convergence not achieved")
     end
-    # return NetWorkND, NetWorkD;
+    return PolFun1,NetWorkND, NetWorkD;
 end

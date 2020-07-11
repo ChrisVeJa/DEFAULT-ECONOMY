@@ -1,7 +1,7 @@
 ###############################################################################
 # [-] CODES FOR CONVERGENCE MODEL - NN - MODEL
 ###############################################################################
-function (Params, EconDef; tsim = 10000, tburn = 0.5)
+function try1(Params, EconDef; tsim = 10000, tburn = 0.5)
 
    PolFun = EconDef.PolFun;
    ExtFea = EconDef.Ext;
@@ -50,8 +50,9 @@ function (Params, EconDef; tsim = 10000, tburn = 0.5)
    mytup = DefEcon._unpack(Params, ExtFea, uf);
    DataND= VNDhat.Data;
    DataD = VDhat.Data;
-   PolFun1= DefEcon.SolverCon(DataND, NetWorkNDold, DataD, NetWorkDold, mytup);
+   PolFun1= DefEcon.SolverCon(DataND, NetWorkND, DataD, NetWorkD, mytup);
    value = sum(minimum(PolFun1.BP, dims=2) .== maximum(PolFun1.BP, dims=2));
+   display(value);
    if value != 0
        @goto simul_start
    end
