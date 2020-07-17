@@ -10,6 +10,8 @@ using Random,
     Distributions, Statistics, LinearAlgebra, Plots, StatsBase, Parameters, Flux;
 include("DefEcon.jl");
 include("graphs.jl");
+include("try1.jl");
+include("try2.jl");
 ############################################################
 #[1] Setting >> Solving
 ############################################################
@@ -28,28 +30,62 @@ PDef    = round(100*NDef/ tsim; digits = 2);
 display("Simulation finished, with $NDef defaults event and a frequency of $PDef")
 
 
-ϕf(x)= log1p(exp(x));
-opt  = Descent();
-Q    = 16;
-ns   = 2;
-norm = DefEcon.mynorm;
-vf   = EconSim.Sim[:, 6];
-st   = EconSim.Sim[:, 2:3];
+#= +++++++++++++++++++++++++++++++++
+ Training the neural network
++++++++++++++++++++++++++++++++++ =#
+# [DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) j]
+vf = EconSim.Sim[:, 6];
+st = EconSim.Sim[:, 2:3];
 defstatus = EconSim.Sim[:, 5];
-
 vnd = vf[defstatus .== 0]
-snd = st[defstatus .== 0, :]
-NetWorkND = Chain(Dense(ns, Q, ϕf), Dense(Q, 1));
-Lnd(x, y) = Flux.mse(NetWorkND(x), y);
-NseTnD = (mhat = NetWorkND, loss = Lnd, opt = opt);
-VNDhat = DefEcon.NeuTra(vnd, snd, NseTnD, normi, Nepoch = 10);
-graph_neural(VNDhat, "ValueNoDefault", ["VNDneural.png" "VNDNeuralSmpl.png"])
-
-
-vd = vf[defstatus .== 1];
+snd = st[defstatus .== 0, :];
+vd = vf[defstatus .== 1]
 sd = st[defstatus .== 1, :];
-NetWorkD = Chain(Dense(ns, Q, ϕf), Dense(Q, 1));
-Ld(x, y) = Flux.mse(NetWorkD(x), y);
-NseTD = (mhat = NetWorkD, loss = Ld, opt = opt);
-VDhat = DefEcon.NeuTra(vd, sd, NseTD, normi, Nepoch = 10);
-graph_neural(VDhat, "ValueDefault", ["VDneural.png" "VDNeuralSmpl.png"])
+ϕf(x)= log1p(exp(x)) ;
+Q  = 16; ns = 2;
+
+
+myrun(typ,v,s) = begin
+    anim = @animate for rolh in 1:20
+        if typ == 1
+            v1 = v; s1 = s;
+        elseif typ ==2
+            v1 = vd; s1 = DefEcon.mynorm(s);
+        else
+            v1 = DefEcon.mynorm(v);
+            s1 = DefEcon.mynorm(s);
+        end
+        NetWork = Chain(Dense(ns, Q, ϕf), Dense(Q, 1));
+        Ld(x, y) = Flux.mse(NetWorkD(x), y);
+        dataD = Flux.Data.DataLoader(s1', v1')
+        ps = Flux.params(NetWork)
+        Flux.@epochs 10 Flux.Optimise.train!(Ld, ps, dataD, Descent());
+        v1hat = NetWork(s1');
+        v1hat = convert(Array{Float64}, v1hat);
+        dplot = [v1 v1hat'];
+        plot(dplot[1:500,:], legend= :topleft, label =["actual" "hat"],
+            fg_legend=:transparent, legendfontsize = 6, c =[:blue :red],
+            w = [0.75 0.5], style= [:solid :dash])
+    end
+    return anim
+end
+
+anim1 = myanim(1,vnd,snd);
+anim2 = myanim(2,vnd,snd);
+anim3 = myanim(3,vnd,snd);
+anim4 = myanim(1,vd,sd);
+anim5 = myanim(2,vd,sd);
+anim6 = myanim(3,vd,sd);
+
+
+
+gif(anim1, "gif1.gif", fps = 5);
+gif(anim2, "gif2.gif", fps = 5);
+gif(anim3, "gif3.gif", fps = 5);
+
+
+
+
+# This gives us a reason why we need to use both f(x), x normalized
+PolFun1,NeuralNDold, NeuralDoldf = try1(Params, EconDef);
+PolFunEnd,NeuralNDEnd, NeuralDEnd = try2(PolFun1,NeuralNDold, NeuralDoldf, Params, EconDef.Ext, uf, tsim, tburn)

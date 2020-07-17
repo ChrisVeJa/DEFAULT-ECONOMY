@@ -5,7 +5,7 @@ function try2(PolFun,NetWorkNDold, NetWorkDold, Params, ExtFea, uf, tsim, tburn)
     NetWorkND = nothing
     NetWorkD = nothing
     PolFun1 = nothing
-    difΨ = 1
+    difΨ  = 1
     difΨ1 = 1
     difΨ2 = 1
     value = 1

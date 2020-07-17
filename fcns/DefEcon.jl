@@ -123,9 +123,9 @@ function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
     end
     # -------------------------------------------------------------------------
     # 2. Simulation of the Economy
-    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]"
+    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) j]"
     distϕ = Bernoulli(θ)
-    EconSim = Array{Float64,2}(undef, nsim2, 7)      # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
+    EconSim = Array{Float64,2}(undef, nsim2, 8)      # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
     EconSim[1, 1:2] = [0 0]  # Initial point
     defchoice = EconBase.D[p0, simul_state[1]]
     if nseed != 0

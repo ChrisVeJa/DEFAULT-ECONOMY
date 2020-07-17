@@ -1,8 +1,7 @@
 ###############################################################################
 # [-] CODES FOR CONVERGENCE MODEL - NN - MODEL
 ###############################################################################
-function try1(Params, EconDef; tsim = 10000, tburn = 0.5)
-
+function try1(Params, EconDef; tsim = 100000, tburn = 0.05)
    PolFun = EconDef.PolFun;
    ExtFea = EconDef.Ext;
    ############################################################

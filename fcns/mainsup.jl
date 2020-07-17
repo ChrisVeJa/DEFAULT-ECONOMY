@@ -113,6 +113,7 @@ function FixedPoint(b, y, udef, P, p0, Params, utf)
         print("Convergence achieve after $rep replications \n")
         BP = BB[BP]
     end
+    BP = (1 .-D) .* BP # change 1: if country defaults thge optimal policy is 0
     return VF, VC, VD, D, BP, q
 end
 
@@ -198,6 +199,7 @@ function simulation!(Sim, simul_state, EconBase, y, ydef, b,distϕ, nsim2, p0)
                         * Bₜ₊₁ = 0 , Dₜ = 1, and VF = VF(0,j), q = q(0,j)
                     * If they re enter to the market
                         * Country makes 1.3 again.
+    "[DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]"
     =#
     for i = 1:nsim2-1
         bi = findfirst(x -> x == Sim[i, 2], b)
@@ -207,22 +209,23 @@ function simulation!(Sim, simul_state, EconBase, y, ydef, b,distϕ, nsim2, p0)
             defchoice = EconBase.D[bi, j]
             ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]
             bsim = (1 - defchoice) * EconBase.BP[bi, j]
-            Sim[i, 3:7] =
-                [ysim bsim defchoice EconBase.VF[bi, j] EconBase.q[bi, j]]
+            Sim[i, 3:8] =
+                [ysim bsim defchoice EconBase.VF[bi, j] EconBase.q[bi, j] j]
             Sim[i+1, 1:2] = [defchoice bsim]
         else
             # Under previous default, I simulate if the economy could reenter to the market
             defstat = rand(distϕ)
             if defstat == 1 # They are in the market
+                Sim[i, 1] == 0
                 defchoice = EconBase.D[p0, j] # default again?
                 ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]# output | choice
                 bsim = (1 - defchoice) * EconBase.BP[p0, j]
-                Sim[i, 3:7] =
-                    [ysim bsim defchoice EconBase.VF[p0, j] EconBase.q[p0,j]]
+                Sim[i, 3:8] =
+                    [ysim bsim defchoice EconBase.VF[p0, j] EconBase.q[p0,j] j]
                 Sim[i+1, 1:2] = [defchoice bsim]
             else # They are out the market
-                Sim[i, 3:7] =
-                    [ydef[j] 0 1 EconBase.VF[p0, j] EconBase.q[p0, j]]
+                Sim[i, 3:8] =
+                    [ydef[j] 0 1 EconBase.VD[p0, j] EconBase.q[p0, j] j] #second change
                 Sim[i+1, 1:2] = [1 0]
             end
         end
