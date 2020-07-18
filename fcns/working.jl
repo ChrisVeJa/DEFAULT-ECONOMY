@@ -23,7 +23,7 @@ Params = ( r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
 
 EconDef = DefEcon.SolveR(Params, hdef, uf);
 tsim    = 100000;
-tburn   = 0.05;
+tburn   = 0.5;
 EconSim = DefEcon.ModelSim(Params, EconDef.PolFun, EconDef.Ext, nsim = tsim, burn = tburn);
 NDef    = sum(EconSim.Sim[:,5]);
 PDef    = round(100*NDef/ tsim; digits = 2);
@@ -44,48 +44,49 @@ sd = st[defstatus .== 1, :];
 ϕf(x)= log1p(exp(x)) ;
 Q  = 16; ns = 2;
 
-
+#=
 myrun(typ,v,s) = begin
-    anim = @animate for rolh in 1:20
+    anim = @animate for rolh in 1:40
         if typ == 1
             v1 = v; s1 = s;
         elseif typ ==2
-            v1 = vd; s1 = DefEcon.mynorm(s);
+            v1 = v; s1 = DefEcon.mynorm(s);
         else
             v1 = DefEcon.mynorm(v);
             s1 = DefEcon.mynorm(s);
         end
         NetWork = Chain(Dense(ns, Q, ϕf), Dense(Q, 1));
-        Ld(x, y) = Flux.mse(NetWorkD(x), y);
+        Ld(x, y) = Flux.mse(NetWork(x), y);
         dataD = Flux.Data.DataLoader(s1', v1')
         ps = Flux.params(NetWork)
         Flux.@epochs 10 Flux.Optimise.train!(Ld, ps, dataD, Descent());
         v1hat = NetWork(s1');
         v1hat = convert(Array{Float64}, v1hat);
         dplot = [v1 v1hat'];
-        plot(dplot[1:500,:], legend= :topleft, label =["actual" "hat"],
+        plot(dplot[1:200,:], legend= :topleft, label =["actual" "hat"],
             fg_legend=:transparent, legendfontsize = 6, c =[:blue :red],
             w = [0.75 0.5], style= [:solid :dash])
     end
     return anim
 end
 
-anim1 = myanim(1,vnd,snd);
-anim2 = myanim(2,vnd,snd);
-anim3 = myanim(3,vnd,snd);
-anim4 = myanim(1,vd,sd);
-anim5 = myanim(2,vd,sd);
-anim6 = myanim(3,vd,sd);
+anim1 = myrun(1,vnd,snd);
+anim2 = myrun(2,vnd,snd);
+anim3 = myrun(3,vnd,snd);
+anim4 = myrun(1,vd,sd);
+anim5 = myrun(2,vd,sd);
+anim6 = myrun(3,vd,sd);
 
 
 
 gif(anim1, "gif1.gif", fps = 5);
 gif(anim2, "gif2.gif", fps = 5);
 gif(anim3, "gif3.gif", fps = 5);
-
-
-
+gif(anim4, "gif4.gif", fps = 5);
+gif(anim5, "gif5.gif", fps = 5);
+gif(anim6, "gif6.gif", fps = 5);
 
 # This gives us a reason why we need to use both f(x), x normalized
-PolFun1,NeuralNDold, NeuralDoldf = try1(Params, EconDef);
+=#
+PolFun1,NeuralNDold, NeuralDoldf  = try1(Params, EconDef);
 PolFunEnd,NeuralNDEnd, NeuralDEnd = try2(PolFun1,NeuralNDold, NeuralDoldf, Params, EconDef.Ext, uf, tsim, tburn)
