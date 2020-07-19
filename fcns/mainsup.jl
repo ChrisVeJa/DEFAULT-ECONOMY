@@ -153,6 +153,7 @@ function value_functions!( VF, VC, VD, D, BP, q, dif, b, P, p0, yb, udef,
     # --------------------------------------------------------------
     # 6.  Divergence respect the initial point
     dif = maximum(abs.(VF - VFold))
+#    display(D[end,:])
     return VF, VC, VD, D, BP, q, dif
 end
 

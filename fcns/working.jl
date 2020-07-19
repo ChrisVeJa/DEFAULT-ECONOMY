@@ -44,6 +44,45 @@ normi(x) = begin
    xnor = (x .- 0.5 * (xmax + xmin)) ./ (0.5 * (xmax - xmin))
    return xnor, xmax, xmin
 end
+training(EconSim, normi; Ψnd = 0 , Ψd = 0, nepoch = 10) = begin
+   ϕf(x) = log1p(exp(x))
+   Q = 16
+   ns = 2
+   #+++++++++++++++++++++++++++++++++
+   #  Data + normalization
+   vf = EconSim.Sim[:, 6]
+   st = EconSim.Sim[:, 2:3]
+   dst = EconSim.Sim[:, 5]
+   v, vmax, vmin = normi(vf)
+   s, smax, smin = normi(st)
+   vnd = v[dst.==0]
+   snd = s[dst.==0, :]
+   vd = v[dst.==1]
+   sd = s[dst.==1, :]
+
+   #+++++++++++++++++++++++++++++++++
+   #  Neural Network for No default
+   NetWorkND = Chain(Dense(ns, Q, ϕf), Dense(Q, 1))
+   Lnd(x, y) = Flux.mse(NetWorkND(x), y)
+   dataND = Flux.Data.DataLoader(snd', vnd')
+   psND = Flux.params(NetWorkND)
+   Flux.@epochs nepoch begin
+      Flux.Optimise.train!(Lnd, psND, dataND, Descent())
+      display(Lnd(snd', vnd'))
+   end
+   #+++++++++++++++++++++++++++++++++
+   #  Neural Network for Default
+   NetWorkD = Chain(Dense(ns, Q, ϕf), Dense(Q, 1))
+   Ld(x, y) = Flux.mse(NetWorkD(x), y)
+   dataD = Flux.Data.DataLoader(sd', vd')
+   psD = Flux.params(NetWorkD)
+   Flux.@epochs nepoch begin
+      Flux.Optimise.train!(Ld, psD, dataD, Descent())
+      display(Ld(sd', vd'))
+   end
+end
+
+
 ϕf(x)= log1p(exp(x)) ;
 Q   = 16; ns = 2;
 
@@ -74,7 +113,7 @@ vndhat = NetWorkND(snd');
 vndhat = convert(Array{Float64}, vndhat);
 dplot = [vnd vndhat'];
 plot(
-   dplot[1:250, :], legend = :topleft, label = ["actual" "hat"],
+   dplot[1:2000, :], legend = :topleft, label = ["actual" "hat"],
    fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
    w = [0.75 0.5], style = [:solid :dash],
    title = "Value function under No Default", titlefontsize = 10,
@@ -94,7 +133,7 @@ vdhat = NetWorkD(sd');
 vdhat = convert(Array{Float64}, vdhat);
 dplot = [vd vdhat'];
 plot(
-   dplot[1:250, :], legend = :topleft, label = ["actual" "hat"],
+   dplot, legend = :topleft, label = ["actual" "hat"],
    fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
    w = [0.75 0.5], style = [:solid :dash],
    title = "Value function under Default", titlefontsize = 10,
@@ -144,7 +183,7 @@ stateND = pm.stateND;
 stateD = pm.stateD;
 stateND = (stateND .- 0.5 * (smax + smin)) ./ (0.5 * (smax-smin));
 stateD  = (stateD .- 0.5 * (smax + smin)) ./ (0.5 * (smax-smin));
-
+pm.ydef
 vc = NetWorkND(stateND');
 vc = (0.5 * (vmax- vmin) * vc) .+ 0.5 * (vmax + vmin);
 VC = reshape(vc, pm.ne, pm.nx);
