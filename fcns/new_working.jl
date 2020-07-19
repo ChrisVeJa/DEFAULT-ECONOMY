@@ -13,25 +13,21 @@ include("DefEcon.jl");
 ############################################################
 #[1] Setting >> Solving
 ############################################################
-Params, hdef, uf = DefEcon.ModelSettings();
-Params = ( r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+params, hdef, uf = DefEcon.ModelSettings();
+params = ( r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
     θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969, ne = 251,
     ub = 0.0, lb = -0.4, tol = 1e-8, maxite = 1e3,
 );
-
-EconDef = DefEcon.SolveR(Params, hdef, uf);
 tsim    = 100000;
 tburn   = 0.5;
-EconSim = DefEcon.ModelSim(
-   Params,
-   EconDef.PolFun,
-   EconDef.Ext,
-   nsim = tsim,
-   burn = tburn,
-);
-NDef = sum(EconSim.Sim[:, 5]);
-PDef = round(100 * NDef / tsim; digits = 2);
-display("Simulation finished, with frequency of $PDef default events")
+
+econdef = DefEcon.SolveR(params, hdef, uf);
+polfun = econdef.PolFun;
+ext = econdef.Ext;
+econsim = DefEcon.ModelSim(params,polfun, ext, nsim = tsim, burn = tburn);
+ndef = sum(econsim.Sim[:, 5]);
+pdef = round(100 * ndef / tsim; digits = 2);
+display("Simulation finished, with frequency of $pdef default events")
 
 
 ############################################################
@@ -44,117 +40,65 @@ normi(x) = begin
    xnor = (x .- 0.5 * (xmax + xmin)) ./ (0.5 * (xmax - xmin))
    return xnor, xmax, xmin
 end
-training(EconSim, normi; Ψnd = 0 , Ψd = 0, nepoch = 10) = begin
-   ϕf(x) = log1p(exp(x))
-   Q1 = 16
-   q2 = 2
-   ns = 2
+simtoneu(econsim,normi) = begin
    #+++++++++++++++++++++++++++++++++
    #  Data + normalization
-   vf = EconSim.Sim[:, 6]
-   st = EconSim.Sim[:, [2,8]]
-   dst = EconSim.Sim[:, 5]
+   vf = econsim.Sim[:, 6]
+   st = econsim.Sim[:, [2,8]]
+   dst = econsim.Sim[:, 5]
    v, vmax, vmin = normi(vf)
    s, smax, smin = normi(st)
    vnd = v[dst.==0]
    snd = s[dst.==0, :]
    vd = v[dst.==1]
    sd = s[dst.==1, :][:,2];
-
+   return (nddata=(vnd,snd),ddata =(vd,sd), limt=((vmax,vmin),(smax,smin)))
+end
+training(data; nepoch = 10) = begin
+   ϕf(x) = log1p(exp(x)); Q1 = 16;  Q2 = 1;
+   @unpack nddata, ddata, limt = data
+   vnd, snd = (nddata[1] , nddata[2])
+   vd, sd = (ddata[1] , ddata[2])
+   length(size(snd)) != 1 ? ns1 = size(snd)[2] : ns1=1
+   length(size(sd)) != 1 ?  ns2 = size(sd)[2]  : ns2=1
    #+++++++++++++++++++++++++++++++++
    #  Neural Network for No default
-   NetWorkND = Chain(Dense(ns, Q1, ϕf), Dense(Q1, 1))
-   Lnd(x, y) = Flux.mse(NetWorkND(x), y)
-   dataND = Flux.Data.DataLoader(snd', vnd')
-   psND = Flux.params(NetWorkND)
+   NetWorkND = Chain(Dense(ns1, Q1, ϕf), Dense(Q1, 1))
+   lnd(x, y) = Flux.mse(NetWorkND(x), y)
+   datand = Flux.Data.DataLoader(snd', vnd')
+   psnd = Flux.params(NetWorkND)
    Flux.@epochs nepoch begin
-      Flux.Optimise.train!(Lnd, psND, dataND, Descent())
-      display(Lnd(snd', vnd'))
+      Flux.Optimise.train!(lnd, psnd, datand, Descent())
+      display(lnd(snd', vnd'))
    end
    #+++++++++++++++++++++++++++++++++
    #  Neural Network for Default
-   NetWorkD = Chain(Dense(1, Q2, ϕf), Dense(Q2, 1))
-   Ld(x, y) = Flux.mse(NetWorkD(x), y)
-   dataD = Flux.Data.DataLoader(sd', vd')
-   psD = Flux.params(NetWorkD)
+   NetWorkD = Chain(Dense(ns2, Q2, ϕf), Dense(Q2, 1))
+   ld(x, y) = Flux.mse(NetWorkD(x), y)
+   datad = Flux.Data.DataLoader(sd', vd')
+   psd = Flux.params(NetWorkD)
    Flux.@epochs nepoch begin
-      Flux.Optimise.train!(Ld, psD, dataD, Descent())
-      display(Ld(sd', vd'))
+      Flux.Optimise.train!(ld, psd, datad, Descent())
+      display(ld(sd', vd'))
    end
+   return NetWorkND, NetWorkD;
 end
-
-
-ϕf(x)= log1p(exp(x)) ;
-Q   = 16; ns = 2;
-
-vf = EconSim.Sim[:, 6];
-st = EconSim.Sim[:, [2,8]];
-dst = EconSim.Sim[:, 5];
-v, vmax, vmin = normi(vf);
-s, smax, smin = normi(st);
-
-vnd = v[dst.==0];
-snd = s[dst.==0, :];
-vd = v[dst.==1];
-sd = s[dst.==1, :][:,2];
-
-#+++++++++++++++++++++++++++++++++
-#  Neural Network for No default
-#+++++++++++++++++++++++++++++++++
-
-NetWorkND = Chain(Dense(ns, Q, ϕf), Dense(Q, 1));
-Lnd(x, y) = Flux.mse(NetWorkND(x), y);
-dataND = Flux.Data.DataLoader(snd', vnd')
-psND = Flux.params(NetWorkND)
-Flux.@epochs 10 begin
-   Flux.Optimise.train!(Lnd, psND, dataND, Descent());
-   display(Lnd(snd',vnd'));
-end
-vndhat = NetWorkND(snd');
-vndhat = convert(Array{Float64}, vndhat);
-dplot = [vnd vndhat'];
-plot(
-   dplot[1:2000, :], legend = :topleft, label = ["actual" "hat"],
-   fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
-   w = [0.75 0.5], style = [:solid :dash],
-   title = "Value function under No Default", titlefontsize = 10,
-)
-#+++++++++++++++++++++++++++++++++
-#  Neural Network for Default
-#+++++++++++++++++++++++++++++++++
-NetWorkD = Chain(Dense(1, 2, ϕf), Dense(2, 1));
-Ld(x, y) = Flux.mse(NetWorkD(x), y);
-dataD = Flux.Data.DataLoader(sd', vd')
-psD = Flux.params(NetWorkD)
-Flux.@epochs 10 begin
-   Flux.Optimise.train!(Ld, psD, dataD, Descent());
-   display(Ld(sd',vd'));
-end
-vdhat = NetWorkD(sd');
-vdhat = convert(Array{Float64}, vdhat);
-dplot = [vd vdhat'];
-plot(
-   dplot[1:200,:], legend = :topleft, label = ["actual" "hat"],
-   fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
-   w = [0.75 0.5], style = [:solid :dash],
-   title = "Value function under Default", titlefontsize = 10,
-)
+neudata = simtoneu(econsim,normi);
+NetWorkND, NetWorkD = training(neudata);
 
 ############################################################
 # Solving the model giving the set of parameters
 ############################################################
-
-
-unpack(Params, Ext, uf) = begin
-   @unpack r, β, θ, σrisk = Params
-   @unpack bgrid, ygrid, ydef, P = Ext
+unpack(params, ext, uf) = begin
+   @unpack r, β, θ, σrisk = params
+   @unpack bgrid, ygrid, ydef, P = ext
    nx = length(ygrid)
    ne = length(bgrid)
    yb = bgrid .+ ygrid'
    BB = repeat(bgrid, 1, nx)
    p0 = findmin(abs.(0 .- bgrid))[2]
-   stateND = [repeat(bgrid, nx, 1) repeat(ygrid, inner = (ne, 1))]
-   stateD = [repeat(bgrid, nx, 1) repeat(ydef, inner = (ne, 1))]
+   states = [repeat(bgrid, nx, 1) repeat(ygrid, inner = (ne, 1))]
+   #stateD = [repeat(bgrid, nx, 1) repeat(ydef, inner = (ne, 1))]
    udef = uf.(ydef, σrisk)
    mytup = (
       r = r,
@@ -171,59 +115,119 @@ unpack(Params, Ext, uf) = begin
       yb = yb,
       BB = BB,
       p0 = p0,
-      stateND = stateND,
-      stateD = stateD,
+      states = states,
       utf = uf,
    )
    return mytup
 end
-
-pm = unpack(Params, EconDef.Ext, uf);
-
-stategrid = pm.stateND;
-stateND = (stategrid .- 0.5 * (smax + smin)) ./ (0.5 * (smax-smin));
-stateD  = stateND[:,2];
-vc = NetWorkND(stateND');
-vc = (0.5 * (vmax- vmin) * vc) .+ 0.5 * (vmax + vmin);
-VC = reshape(vc, pm.ne, pm.nx);
-EVC = VC * pm.P';  # Expected value of no defaulting
-
-vd = NetWorkD(stateD');
-vd = (0.5 * (vmax- vmin) * vd) .+ 0.5 * (vmax + vmin);
-VD = reshape(vd, pm.ne, pm.nx);
-EVD = VD * pm.P'; # expected value of being in default in the next period
-
-# [1.6] Income by issuing bonds
-#q  = EconSol.Sol.BPrice;
-V = max.(VC, VD);
-D = 1 * (VD .> VC);
-q = (1 / (1 + pm.r)) * (1 .- (D * pm.P'));
-#q  = EconDef.PolFun.Price;
-qB = q .* pm.bgrid;
-
-# [1.7] Policy function for bonds under continuation
-βEV = pm.β * EVC;
-VC1 = Array{Float64,2}(undef, pm.ne, pm.nx);
-Bindex = Array{CartesianIndex{2},2}(undef, pm.ne, pm.nx);
-@inbounds for i in 1:pm.ne
-   cc = pm.yb[i, :]' .- qB;
-   cc[cc.<0] .= 0;
-   aux_u = pm.utf.(cc, pm.σrisk) + βEV;
-   VC1[i, :], Bindex[i, :] = findmax(aux_u, dims = 1);
+neutopol(NetWorkND, NetWorkD, pm, neudata) = begin
+   #+++++++++++++++++++++++++++++++++
+   # State normalization
+   smax, smin = neudata.limt[2]
+   vmax, vmin = neudata.limt[1]
+   states = pm.states
+   statend = (states .- 0.5 * (smax + smin)) ./ (0.5 * (smax - smin))
+   stated = statend[:, 2]
+   #+++++++++++++++++++++++++++++++++
+   # Expected Values
+   # [Value under no default]
+   vc = NetWorkND(statend')
+   vc = (0.5 * (vmax - vmin) * vc) .+ 0.5 * (vmax + vmin)
+   VC = reshape(vc, pm.ne, pm.nx)
+   EVC = VC * pm.P'  # Expected value of no defaulting
+   # [Value under default]
+   vd = NetWorkD(stated')
+   vd = (0.5 * (vmax - vmin) * vd) .+ 0.5 * (vmax + vmin)
+   VD = reshape(vd, pm.ne, pm.nx)
+   EVD = VD * pm.P' # expected value of being in default in the next period
+   #+++++++++++++++++++++++++++++++++
+   # Expected price
+   D = 1 * (VD .> VC)
+   q = (1 / (1 + pm.r)) * (1 .- (D * pm.P'))
+   qB = q .* pm.bgrid
+   #+++++++++++++++++++++++++++++++++
+   # UPDATING!
+   # Maximization
+   βEV = pm.β * EVC
+   VCnew = Array{Float64,2}(undef, pm.ne, pm.nx)
+   Bindex = Array{CartesianIndex{2},2}(undef, pm.ne, pm.nx)
+   @inbounds for i = 1:pm.ne
+      cc = pm.yb[i, :]' .- qB
+      cc[cc.<0] .= 0
+      aux_u = pm.utf.(cc, pm.σrisk) + βEV
+      VCnew[i, :], Bindex[i, :] = findmax(aux_u, dims = 1)
+   end
+   #+++++++++++++++++++++++++++++++++
+   # Value of default
+   βθEVC0 = pm.β * pm.θ * EVC[pm.p0, :]
+   VDnew = βθEVC0' .+ (pm.udef' .+ pm.β * (1 - pm.θ) * EVD)
+   #+++++++++++++++++++++++++++++++++
+   # Optimal choice
+   VFnew = max.(VCnew, VDnew)
+   Dnew = 1 * (VDnew .> VCnew)
+   qnew = (1 / (1 + pm.r)) * (1 .- (Dnew * pm.P'))
+   BPnew = pm.BB[Bindex]
+   BPnew = (1 .- Dnew) .* BPnew
+   polfunnew =
+   (VF = VFnew, VC = VCnew, VD = VDnew, D = Dnew, BP = BPnew, Price = qnew)
+   return polfunnew;
 end
-# [1.8] Value function of default
-βθEVC0 = pm.β * pm.θ * EVC[pm.p0, :];
-VD1 = βθEVC0' .+ (pm.udef' .+ pm.β * (1 - pm.θ) * EVD);
-# --------------------------------------------------------------
-# [1.9]. New Continuation Value, Default choice, price
-VF1 = max.(VC1, VD1);
-D1 = 1 * (VD1 .> VC1);
-q1 = (1 / (1 + pm.r)) * (1 .- (D1 * pm.P'));
-BP1 = pm.BB[Bindex];
-BP1 = (1 .- D1) .* BP1;
-PolFun1 = (VF = VF1, VC = VC1, VD = VD1, D = D1, BP = BP1, Price = q1);
+updateneu!(NetWork1,NetWork2,data) = begin
+   #+++++++++++++++++++++++++++++++++
+   set1old = Flux.destructure(NetWork1); # Structure 1
+   set2old = Flux.destructure(NetWork2); # Structure 2
+   #+++++++++++++++++++++++++++++++++
+   @unpack nddata, ddata, limt = data;
+   vnd1, snd1 = (nddata[1] , nddata[2])
+   vd1, sd1 = (ddata[1] , ddata[2])
+   length(size(snd1)) != 1 ? ns1 = size(snd1)[2] : ns1=1;
+   length(size(sd1))  != 1 ?  ns2 = size(sd1)[2]  : ns2=1;
+   #+++++++++++++++++++++++++++++++++
+   lnd(x, y) = Flux.mse(NetWork1(x), y)
+   datand    = (snd1', vnd1');
+   psnd      = Flux.params(NetWork1)
+   gsnd = gradient(psnd) do
+      lnd(datand...)
+   end
+   Flux.Optimise.update!(Descent(), psnd, gsnd) # Updating 1
+   ld(x, y) = Flux.mse(NetWork2(x), y)
+   datad    = (sd1', vd1');
+   psd      = Flux.params(NetWork2)
+   gsd = gradient(psd) do
+      ld(datad...)
+   end
+   Flux.Optimise.update!(Descent(), psd, gsd)   # Updating 2
+   #+++++++++++++++++++++++++++++++++
+   # Updating
+   set1new = Flux.destructure(NetWork1); # Structure 1
+   set2new = Flux.destructure(NetWork2); # Structure 2
+   #ψ1 = 0.8 * set1old[1][:] + 0.2 * set1new[1][:];
+   #ψ2 = 0.8 * set2old[1][:] + 0.2 * set2new[1][:];
+   # --------------------------------
+   # Displaying
+   d1 = maximum(abs.(set1new[1][:] - set1old[1][:]));
+   d2 = maximum(abs.(set2new[1][:] - set2old[1][:]));
+   dif = max(d1,d2);
+   display("The difference is $dif")
+   # --------------------------------
+   #NetWork1 = set1new[2](ψ1);
+   #NetWork2 = set2new[2](ψ2);
+   return NetWork1, NetWork2;
+end
+pm = unpack(params, ext, uf)
+polfunN = neutopol(NetWorkND, NetWorkD, pm, neudata)
+econsimN = DefEcon.ModelSim(params, polfunN, ext, nsim= tsim, burn= tburn)
+ndef = sum(econsimN.Sim[:,5])
+pdef = round(100*ndef/ tsim; digits = 2)
+display("Simulation finished, with a frequency of $pdef % of default events")
+############################################################
+# updating
+############################################################
 
-EconSim = DefEcon.ModelSim(Params, PolFun1, EconDef.Ext, nsim = tsim, burn = tburn);
-NDef    = sum(EconSim.Sim[:,5]);
-PDef    = round(100*NDef/ tsim; digits = 2);
-display("Simulation finished, with $NDef defaults event and a frequency of $PDef")
+neudataN = simtoneu(econsimN,normi)
+NetWorkND,NetWorkD = updateneu!(NetWorkND,NetWorkD,neudataN)
+polfunN = neutopol(NetWorkND, NetWorkD, pm, neudataN)
+econsimN = DefEcon.ModelSim(params, polfunN, ext, nsim= tsim, burn= tburn)
+ndef = sum(econsimN.Sim[:,5])
+pdef = round(100*ndef/ tsim; digits = 2)
+display("Simulation finished, with a frequency of $pdef % of default events")
