@@ -211,7 +211,7 @@ function simulation!(Sim, simul_state, EconBase, y, ydef, b,distϕ, nsim2, p0)
             ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]
             bsim = (1 - defchoice) * EconBase.BP[bi, j]
             Sim[i, 3:8] =
-                [ysim bsim defchoice EconBase.VF[bi, j] EconBase.q[bi, j] j]
+                [ysim bsim defchoice EconBase.VF[bi, j] EconBase.q[bi, j] y[j]]
             Sim[i+1, 1:2] = [defchoice bsim]
         else
             # Under previous default, I simulate if the economy could reenter to the market
@@ -222,11 +222,11 @@ function simulation!(Sim, simul_state, EconBase, y, ydef, b,distϕ, nsim2, p0)
                 ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]# output | choice
                 bsim = (1 - defchoice) * EconBase.BP[p0, j]
                 Sim[i, 3:8] =
-                    [ysim bsim defchoice EconBase.VF[p0, j] EconBase.q[p0,j] j]
+                    [ysim bsim defchoice EconBase.VF[p0, j] EconBase.q[p0,j] y[j]]
                 Sim[i+1, 1:2] = [defchoice bsim]
             else # They are out the market
                 Sim[i, 3:8] =
-                    [ydef[j] 0 1 EconBase.VD[p0, j] EconBase.q[p0, j] j] #second change
+                    [ydef[j] 0 1 EconBase.VD[p0, j] EconBase.q[p0, j] y[j]] #second change
                 Sim[i+1, 1:2] = [1 0]
             end
         end
