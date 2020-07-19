@@ -55,7 +55,7 @@ simtoneu(econsim,normi) = begin
    return (nddata=(vnd,snd),ddata =(vd,sd), limt=((vmax,vmin),(smax,smin)))
 end
 training(data; nepoch = 10) = begin
-   ϕf(x) = log1p(exp(x)); Q1 = 16;  Q2 = 1;
+   ϕf(x) = log1p(exp(x)); Q1 = 16;  Q2 = 2;
    @unpack nddata, ddata, limt = data
    vnd, snd = (nddata[1] , nddata[2])
    vd, sd = (ddata[1] , ddata[2])
