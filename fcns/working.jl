@@ -141,23 +141,26 @@ end
 pm = unpack(Params, EconDef.Ext, uf);
 
 stateND = pm.stateND;
-stateD  = pm.stateD;
-#stateND = (stateND .- 0.5 * ([s1ndmax1 s2ndmax1]+ [s1ndmin1 s2ndmin1])) ./ (0.5 * ([s1ndmax1 s2ndmax1] - [s1ndmin1 s2ndmin1]));
-#stateD  = (stateD .- 0.5 * ([s1dmax1 s2dmax1]+ [s1dmin1 s2dmin1])) ./ (0.5 * ([s1dmax1 s2dmax1] - [s1dmin1 s2dmin1]));
+stateD = pm.stateD;
+stateND = (stateND .- 0.5 * (smax + smin)) ./ (0.5 * (smax-smin));
+stateD  = (stateD .- 0.5 * (smax + smin)) ./ (0.5 * (smax-smin));
 
 vc = NetWorkND(stateND');
-vc = (0.5 * (vndmax1- vndmin1) * vc) .+ 0.5 * (vndmax1 + vndmin1);
+vc = (0.5 * (vmax- vmin) * vc) .+ 0.5 * (vmax + vmin);
 VC = reshape(vc, pm.ne, pm.nx);
 EVC = VC * pm.P';  # Expected value of no defaulting
 
 vd = NetWorkD(stateD');
-vd = (0.5 * (vdmax1- vdmin1) * vd) .+ 0.5 * (vdmax1 + vdmin1);
+vd = (0.5 * (vmax- vmin) * vd) .+ 0.5 * (vmax + vmin);
 VD = reshape(vd, pm.ne, pm.nx);
 EVD = VD * pm.P'; # expected value of being in default in the next period
 
 # [1.6] Income by issuing bonds
 #q  = EconSol.Sol.BPrice;
-q  = EconDef.PolFun.Price;
+V = max.(VC, VD);
+D = 1 * (VD .> VC);
+q = (1 / (1 + pm.r)) * (1 .- (D * pm.P'));
+#q  = EconDef.PolFun.Price;
 qB = q .* pm.bgrid;
 
 # [1.7] Policy function for bonds under continuation
