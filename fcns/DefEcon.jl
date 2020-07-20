@@ -85,7 +85,7 @@ end
 # ==============================================================================
 # [2] SIMULATING THE ECONOMY
 # ==============================================================================
-function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
+function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05)
     #=
         This function is setting the initial features to simulate the Economy
         Its structure is as follow
@@ -113,25 +113,20 @@ function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
     # -------------------------------------------------------------------------
     # 1. State simulation
     choices = 1:nx    # Possible states
-    simul_state = Int((nx + 1) / 2) * ones(Int64, nsim2)
-    if nseed != 0
-        Random.seed!(nseed[1]) # To obtain always the same solution
-    end
+    # if nseed != 0 Random.seed!(nseed[1]) end
+    simul_state = zeros(Int64, nsim2);
+    simul_state[1]  = rand(1:nx);
     for i = 2:nsim2
         simul_state[i] =
             sample(view(choices, :, :), Weights(view(P, simul_state[i-1], :)))
     end
+
     # -------------------------------------------------------------------------
     # 2. Simulation of the Economy
     orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) j]"
     distϕ = Bernoulli(θ)
-    EconSim = Array{Float64,2}(undef, nsim2, 8)      # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
-    EconSim[1, 1:2] = [0 0]  # Initial point
-    defchoice = EconBase.D[p0, simul_state[1]]
-    if nseed != 0
-        Random.seed!(nseed[2]) # To obtain always the same solution
-    end
-
+    EconSim = Array{Float64,2}(undef, nsim2, 8)  # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
+    EconSim[1, 1:2] = [0 b[rand(1:ne)]]  # b could be any value in the grid
     EconSim = simulation!(
         EconSim,simul_state,EconBase,y,ydef,b,distϕ,nsim2,p0)
     # -------------------------------------------------------------------------

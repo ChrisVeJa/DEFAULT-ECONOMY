@@ -203,8 +203,8 @@ function simulation!(Sim, simul_state, EconBase, y, ydef, b,distϕ, nsim2, p0)
     "[DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]"
     =#
     for i = 1:nsim2-1
-        bi = findfirst(x -> x == Sim[i, 2], b)
-        j = simul_state[i]
+        bi = findfirst(x -> x == Sim[i, 2], b) # position of B
+        j = simul_state[i]                     # state for y
         # Choice if there is not previous default
         if Sim[i, 1] == 0
             defchoice = EconBase.D[bi, j]

@@ -19,7 +19,7 @@ params = ( r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
     ub = 0.0, lb = -0.4, tol = 1e-8, maxite = 1e3,
 );
 tsim    = 100000;
-tburn   = 0.5;
+tburn   = 0.05;
 
 econdef = DefEcon.SolveR(params, hdef, uf);
 polfun = econdef.PolFun;
@@ -28,12 +28,10 @@ econsim = DefEcon.ModelSim(params,polfun, ext, nsim = tsim, burn = tburn);
 ndef = sum(econsim.Sim[:, 5]);
 pdef = round(100 * ndef / tsim; digits = 2);
 display("Simulation finished, with frequency of $pdef default events")
+jj = econsim.Sim[:,8][econsim.Sim[:,5] .== 1];
+jj = length(unique(jj));
+display("Total # of unique def events are $jj");
 
-
-############################################################
-# Training the neural network
-############################################################
-# [DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) j]
 normi(x) = begin
    xmax = maximum(x, dims = 1)
    xmin = minimum(x, dims = 1)
@@ -83,12 +81,6 @@ training(data; nepoch = 10) = begin
    end
    return NetWorkND, NetWorkD;
 end
-neudata = simtoneu(econsim,normi);
-NetWorkND, NetWorkD = training(neudata);
-
-############################################################
-# Solving the model giving the set of parameters
-############################################################
 unpack(params, ext, uf) = begin
    @unpack r, β, θ, σrisk = params
    @unpack bgrid, ygrid, ydef, P = ext
@@ -214,6 +206,16 @@ updateneu!(NetWork1,NetWork2,data) = begin
    #NetWork2 = set2new[2](ψ2);
    return NetWork1, NetWork2;
 end
+
+############################################################
+# Training the neural network
+############################################################
+# [DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) j]
+neudata = simtoneu(econsim,normi);
+NetWorkND, NetWorkD = training(neudata);
+############################################################
+# Solving the model giving the set of parameters
+############################################################
 pm = unpack(params, ext, uf)
 polfunN = neutopol(NetWorkND, NetWorkD, pm, neudata)
 econsimN = DefEcon.ModelSim(params, polfunN, ext, nsim= tsim, burn= tburn)
@@ -223,11 +225,13 @@ display("Simulation finished, with a frequency of $pdef % of default events")
 ############################################################
 # updating
 ############################################################
-
 neudataN = simtoneu(econsimN,normi)
 NetWorkND,NetWorkD = updateneu!(NetWorkND,NetWorkD,neudataN)
-polfunN = neutopol(NetWorkND, NetWorkD, pm, neudataN)
-econsimN = DefEcon.ModelSim(params, polfunN, ext, nsim= tsim, burn= tburn)
-ndef = sum(econsimN.Sim[:,5])
+polfunN1 = neutopol(NetWorkND, NetWorkD, pm, neudataN)
+econsimN 1= DefEcon.ModelSim(params, polfunN1, ext, nsim= tsim, burn= tburn)
+ndef = sum(econsimN1.Sim[:,5])
 pdef = round(100*ndef/ tsim; digits = 2)
 display("Simulation finished, with a frequency of $pdef % of default events")
+jj = econsimN.Sim[:,8][econsimN1.Sim[:,5] .== 1];
+jj = length(unique(jj));
+display("Total # of unique def events are $jj");
