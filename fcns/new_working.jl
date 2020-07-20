@@ -131,8 +131,8 @@ neutopol(NetWorkND, NetWorkD, pm, neudata) = begin
    VCnew = Array{Float64,2}(undef, pm.ne, pm.nx)
    Bindex = Array{CartesianIndex{2},2}(undef, pm.ne, pm.nx)
    @inbounds for i = 1:pm.ne
-      cc = pm.yb[i, :]' .- qB
-      cc[cc.<0] .= 0
+      cc = pm.yb[i, :]' .- qB;
+      cc[cc.<0] .= 0;
       aux_u = pm.utf.(cc, pm.σrisk) + βEV
       VCnew[i, :], Bindex[i, :] = findmax(aux_u, dims = 1)
    end
@@ -151,7 +151,7 @@ neutopol(NetWorkND, NetWorkD, pm, neudata) = begin
    (VF = VFnew, VC = VCnew, VD = VDnew, D = Dnew, BP = BPnew, Price = qnew, Bindex = Bindex)
    return polfunnew;
 end
-ext.
+
 updateneu!(NetWork1,NetWork2,data) = begin
    #+++++++++++++++++++++++++++++++++
    set1old = Flux.destructure(NetWork1); # Structure 1
