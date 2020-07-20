@@ -23,23 +23,19 @@ end
 simtoneu(econsim,normi) = begin
    #+++++++++++++++++++++++++++++++++
    #  Data + normalization
-   dst = econsim.Sim[:, 5]
    vf = econsim.Sim[:, 6]
-
-   # Value functions
-   vnd = vf[dst.==0]
-   vd  = vf[dst.==1]
-   vnd, vndmax, vndmin = normi(vnd)
-   vd, vdmax, vdmin = normi(vd)
-   # states
    st = econsim.Sim[:, [2,8]]
+   dst = econsim.Sim[:, 5]
+   v, vmax, vmin = normi(vf)
    s, smax, smin = normi(st)
+   vnd = v[dst.==0]
    snd = s[dst.==0, :]
-   sd  = s[dst.==1, :][:,2];
-   return (nddata=(vnd,snd),ddata =(vd,sd), limt=((vndmax,vndmin),(vdmax,vdmin),(smax,smin)))
+   vd = v[dst.==1]
+   sd = s[dst.==1, :][:,2];
+   return (nddata=(vnd,snd),ddata =(vd,sd), limt=((vmax,vmin),(smax,smin)))
 end
 training(data; nepoch = 10) = begin
-   ϕf(x) = log1p(exp(x)); Q1 = 16;  Q2 = 3;
+   ϕf(x) = log1p(exp(x)); Q1 = 16;  Q2 = 2;
    @unpack nddata, ddata, limt = data
    vnd, snd = (nddata[1] , nddata[2])
    vd, sd = (ddata[1] , ddata[2])
@@ -101,9 +97,8 @@ end
 neutopol(NetWorkND, NetWorkD, pm, neudata) = begin
    #+++++++++++++++++++++++++++++++++
    # State normalization
-   smax, smin = neudata.limt[3]
-   vndmax, vndmin = neudata.limt[1]
-   vdmax, vdmin = neudata.limt[2]
+   smax, smin = neudata.limt[2]
+   vmax, vmin = neudata.limt[1]
    states = pm.states
    statend = (states .- 0.5 * (smax + smin)) ./ (0.5 * (smax - smin))
    stated = statend[:, 2]
@@ -111,12 +106,12 @@ neutopol(NetWorkND, NetWorkD, pm, neudata) = begin
    # Expected Values
    # [Value under no default]
    vc = NetWorkND(statend')
-   vc = (0.5 * (vndmax - vndmin) * vc) .+ 0.5 * (vndmax + vndmin)
+   vc = (0.5 * (vmax - vmin) * vc) .+ 0.5 * (vmax + vmin)
    VC = reshape(vc, pm.ne, pm.nx)
    EVC = VC * pm.P'  # Expected value of no defaulting
    # [Value under default]
    vd = NetWorkD(stated')
-   vd = (0.5 * (vdmax - vdmin) * vd) .+ 0.5 * (vdmax + vdmin)
+   vd = (0.5 * (vmax - vmin) * vd) .+ 0.5 * (vmax + vmin)
    VD = reshape(vd, pm.ne, pm.nx)
    EVD = VD * pm.P' # expected value of being in default in the next period
    #+++++++++++++++++++++++++++++++++
@@ -151,7 +146,6 @@ neutopol(NetWorkND, NetWorkD, pm, neudata) = begin
    (VF = VFnew, VC = VCnew, VD = VDnew, D = Dnew, BP = BPnew, Price = qnew, Bindex = Bindex)
    return polfunnew;
 end
-ext.
 updateneu!(NetWork1,NetWork2,data) = begin
    #+++++++++++++++++++++++++++++++++
    set1old = Flux.destructure(NetWork1); # Structure 1
@@ -233,15 +227,7 @@ display("Total # of y point $jj");
 # [DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) j]
 neudata = simtoneu(econsim,normi);
 NetWorkND, NetWorkD = training(neudata);
-vdhat = NetWorkD(neudata.ddata[2]');
-vdhat = convert(Array{Float64}, vdhat);
-dplot = [neudata.ddata[1] vdhat'];
-plot(
-   dplot, legend = :topleft, label = ["actual" "hat"],
-   fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
-   w = [0.75 0.5], style = [:solid :dash],
-   title = "Value function under Default", titlefontsize = 10,
-)
+
 ############################################################
 # Solving the model giving the set of parameters
 ############################################################
