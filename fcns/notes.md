@@ -35,7 +35,7 @@ The following are notes related with the state of the code
 </th>
 <th>
 
-![VD](./Figures/VD.png)
+![VD](./Figures/VD.svg)
 </th>
 </tr>
 </table>
