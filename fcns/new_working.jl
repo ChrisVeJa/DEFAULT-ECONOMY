@@ -20,7 +20,7 @@ normi(x) = begin
    xnor = (x .- 0.5 * (xmax + xmin)) ./ (0.5 * (xmax - xmin))
    return xnor, xmax, xmin
 end
-simtoneu(econsim,normi) = begin
+simtoneu1(econsim,normi) = begin
    #+++++++++++++++++++++++++++++++++
    #  Data + normalization
    dst = econsim.sim[:, 5]
@@ -37,6 +37,24 @@ simtoneu(econsim,normi) = begin
    sr = s[dst.==0, :]
    sd = s[dst.==1, :][:,2];
    return (rdata=(vr,sr),ddata =(vd,sd), limt=((vrmax,vrmin),(vdmax,vdmin),(smax,smin)))
+end
+simtoneu(econsim,normi) = begin
+   #+++++++++++++++++++++++++++++++++
+   #  Data + normalization
+   dst = econsim.sim[:, 5]
+   vf  = econsim.sim[:, 6]
+
+   # Value functions
+   vf, vmax, vmin = normi(vf)
+   # value function
+   vr  = vf[dst.==0]
+   vd  = vf[dst.==1]
+   # states
+   st = econsim.sim[:, [2,8]]
+   s, smax, smin = normi(st)
+   sr = s[dst.==0, :]
+   sd = s[dst.==1, :][:,2];
+   return (rdata=(vr,sr),ddata =(vd,sd), limt=((vmax,vmin),(vmax,vmin),(smax,smin)))
 end
 training(data; nepoch = 10) = begin
    ϕf(x) = log1p(exp(x)); Q1 = 16;  Q2 = 3;
@@ -151,7 +169,9 @@ neutopol(NetWorkR, NetWorkD, pm, neudata) = begin
    #BPnew = (1 .- Dnew) .* BPnew
    polfunnew =
    (vf = vfnew, vr = vrnew, vd = vdnew, D = Dnew, bp = bpnew, q = qnew)
-   return polfunnew;
+   polfunint =
+   (vf = vf, vr = vr, vd = vd, D = D, q = q)
+   return polfunnew, polfunint;
 end
 updateneu!(NetWork1,NetWork2,data) = begin
    #+++++++++++++++++++++++++++++++++
@@ -247,7 +267,7 @@ plot(
 # Solving the model giving the set of parameters
 ############################################################
 pm = unpack(params, ext, uf);
-polfunN = neutopol(NetWorkR, NetWorkD, pm, neudata);
+polfunN, polintN = neutopol(NetWorkR, NetWorkD, pm, neudata);
 econsimN = DefEcon.ModelSim(params, polfunN, ext, nsim= tsim, burn= tburn)
 pdef = round(100*sum(econsimN.sim[:,5])/ tsim; digits = 2)
 display("Simulation finished, with a frequency of $pdef % of default events")
@@ -256,7 +276,56 @@ display("Simulation finished, with a frequency of $pdef % of default events")
 ############################################################
 neudataN = simtoneu(econsimN,normi);
 NetWorkR,NetWorkD = updateneu!(NetWorkR,NetWorkD,neudataN);
-polfunN1 = neutopol(NetWorkR, NetWorkD, pm, neudataN);
+polfunN1, polintN1 = neutopol(NetWorkR, NetWorkD, pm, neudataN);
 econsimN1 = DefEcon.ModelSim(params, polfunN1, ext, nsim= tsim, burn= tburn)
 pdef = round(100*sum(econsimN1.sim[:,5])/ tsim; digits = 2)
 display("Simulation finished, with a frequency of $pdef % of default events")
+econsimN = econsimN1;
+anim = @animate for i in 1:pm.ne
+      plot([polfun.vr[i,:] polfunN.vr[i,:] polfunN1.vr[i,:]],
+      fg_legend = :transparent, legend=:bottomright,
+      label=["actual" "neural network" "updated"],
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash], legendtitle = "Point in grid: $i",
+      legendtitlefontsize = 8)
+   end every 5
+gif(anim, "VR.gif", fps = 5);
+
+anim = @animate for i in 1:pm.nx
+      plot(pm.bgrid,[polfun.bp[:,i] polfunN.bp[:,i] polfunN1.bp[:,i]],
+      fg_legend = :transparent, legend=:bottomright,
+      label=["actual" "neural network" "updated"],
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash], legendtitle = "state: $i",
+      legendtitlefontsize = 8)
+   end
+gif(anim, "Bp.gif", fps = 1);
+
+anim = @animate for i in 1:pm.nx
+      plot(pm.bgrid,[polfun.q[:,i] polfunN.q[:,i] polfunN1.q[:,i]],
+      fg_legend = :transparent, legend=:topleft,
+      label=["actual" "neural network" "updated"],
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash], legendtitle = "state: $i",
+      legendtitlefontsize = 8)
+   end
+gif(anim, "q.gif", fps = 1);
+
+anim = @animate for i in 1:pm.nx
+      a2 = polfunN.D[:,i].+ 0.01
+      a3 = polfunN1.D[:,i].+0.02
+      scatter(pm.bgrid,[polfun.D[:,i]  a2  a3],
+      fg_legend = :transparent, legend=:bottomleft, markersize = 4,
+      label=["actual" "neural network" "updated"], markerstrokewidth = 0.1,
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash], legendtitle = "state: $i",
+      legendtitlefontsize = 6, legendfontsize= 6)
+   end
+gif(anim, "D.gif", fps = 1);
+
+plot([polfun.vd[end,:] polfunN.vd[end,:] polfunN1.vd[end,:]],
+      fg_legend = :transparent, legend=:bottomright,
+      label=["actual" "neural network" "updated"],
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash])
+savefig("VD.png");
