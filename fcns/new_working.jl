@@ -364,9 +364,9 @@ savefig("./Figures/FitVD2.svg")
 Value of repayment
 +++++++++++++++++++++++++++++ =#
 anim = @animate for i in 1:pm.ne
-      plot([polfun.vr[i,:] polintN.vr[i,:] polintN1.vr[i,:]],
+      plot([polfun.vr[i,:] polintN.vr[i,:] polfunN.vr[i,:]],
       fg_legend = :transparent, legend=:bottomright,
-      label=["actual" "NN1- interm" "NNU- interm"],
+      label=["actual" "NN1- interm" "NN1"],
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash], legendtitle = "Point in grid: $i",
       legendtitlefontsize = 8)
@@ -387,9 +387,9 @@ gif(anim, "./Figures/VR.gif", fps = 5);
 #= +++++++++++++++++++++++++++++
 Value of default
 +++++++++++++++++++++++++++++ =#
-plot([polfun.vd[end,:] polintN.vd[end,:] polintN1.vd[end,:]],
+plot([polfun.vd[end,:] polintN.vd[end,:] polfunN.vd[end,:]],
       fg_legend = :transparent, legend=:bottomright,
-      label=["actual" "NN1- interm" "NNU- interm"],
+      label=["actual" "NN1- interm" "NN1"],
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash])
 savefig("./Figures/VDint.svg");
@@ -420,9 +420,9 @@ gif(anim, "./Figures/Bp.gif", fps = 1);
 Bond price policy
 +++++++++++++++++++++++++++++ =#
 anim = @animate for i in 1:pm.nx
-      plot(pm.bgrid,[polfun.q[:,i] polintN.q[:,i] polintN1.q[:,i]],
+      plot(pm.bgrid,[polfun.q[:,i] polintN.q[:,i] polfunN.q[:,i]],
       fg_legend = :transparent, legend=:topleft,
-      label=["actual" "NN1- interm" "NNU- interm"],
+      label=["actual" "NN1- interm" "NN1"],
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash], legendtitle = "state: $i",
       legendtitlefontsize = 8)
@@ -446,10 +446,10 @@ Default choice policy
 +++++++++++++++++++++++++++++ =#
 anim = @animate for i in 1:pm.nx
       a2 = polintN.D[:,i].+ 0.01
-      a3 = polintN1.D[:,i].+0.02
+      a3 = polfunN.D[:,i].+0.02
       scatter(pm.bgrid,[polfun.D[:,i]  a2  a3],
       fg_legend = :transparent, legend=:bottomleft, markersize = 4,
-      label=["actual" "NN1- interm" "NNU- interm"], markerstrokewidth = 0.1,
+      label=["actual" "NN1- interm" "NN1"], markerstrokewidth = 0.1,
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash], legendtitle = "state: $i",
       legendtitlefontsize = 6, legendfontsize= 6)

@@ -346,7 +346,8 @@ On the other hand, the policies function in these cases are:
 
 ![bp](./Figures/Bp.gif)
 
-The updating function is:
+## UPDATING THE NEURAL NETWORK
+After find the new solution the number of default cases in this running was 2.31 percent. The updating function is:
 ```julia
 updateneu!(NetWork1,NetWork2,data) = begin
    #+++++++++++++++++++++++++++++++++
@@ -379,6 +380,8 @@ end
 this function gives us the following differencial in parameters
 
 ![Update](./Figures/Update.svg)
+
+but after the new solution based on the updated version of the neural network the new simulation has 0 percent of default cases.
 
 Addtionally the intermediate steps in the solution based on neural networks are
 <table>
