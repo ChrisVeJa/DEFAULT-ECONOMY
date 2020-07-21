@@ -90,7 +90,7 @@ This code takes 6.5 seconds in running with 278 iterations until achieve a conve
 <tr>
 <th>
 
-![Price](./Figures/Bondprice.svg)
+![Price](./Figures/BondPrice.svg)
 </th>
 <th>
 
@@ -98,7 +98,7 @@ This code takes 6.5 seconds in running with 278 iterations until achieve a conve
 </th>
 <th>
 
-![VDfit](./Figures/Valfun.svg)
+![VDfit](./Figures/ValFun.svg)
 </th>
 </tr>
 </table>
