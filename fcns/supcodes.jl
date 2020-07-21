@@ -28,29 +28,3 @@ function mytauch(μ::Float64, ρ::Float64, σrisk::Float64, N::Int64, m::Int64)
     pix = pix ./ sum(pix, dims = 2) # Normalization to achieve 1
     return Z, pix
 end
-
-function mynorm(x)
-    #= -----------------------------------------------------
-    This code calculates the following normalization to
-    have x in the interval [-1; 1]
-
-     ̃x = [x - 1/2 (max(x) + min(x))]/(1/2 (max(x)-min(x)))
-    ----------------------------------------------------- =#
-    fmax = maximum(x, dims = 1)
-    fmin = minimum(x, dims = 1)
-    fran = 0.5 * (fmax - fmin)
-    normx = (x .- 0.5 * (fmin + fmax)) ./ fran
-    return normx
-end
-
-
-function mynorminv(x, xmax, xmin)
-    #= -----------------------------------------------------
-    This code in the inverse function from the normalization
-    previously showed
-
-     x = ((1/2 (max(x)-min(x)))) ̃x + 1/2 (max(x) + min(x))
-    ----------------------------------------------------- =#
-    xorig = (x * 0.5 * (xmax - xmin)) .+ 0.5 * (xmax + xmin)
-    return xorig
-end

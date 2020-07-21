@@ -35,7 +35,7 @@
 ############################################################################ =#
 
 function ModelSettings()
-    Params = (
+    params = (
         r = 0.017,
         σrisk = 2.0,
         ρ = 0.945,
@@ -47,17 +47,17 @@ function ModelSettings()
         μ = 0.0,
         fhat = 0.969,
         ne = 251,
-        ub = 0.4,
+        ub = 0,
         lb = -0.4,
         tol = 1e-8,
         maxite = 1e3,
     )
-    UtiFun = ((x, σrisk) -> (x^(1 - σrisk)) / (1 - σrisk))
-    DefFun = ((y, fhat) -> min.(y, fhat * mean(y)))
-    return Params, DefFun, UtiFun
+    utifun = ((x, σrisk) -> (x^(1 - σrisk)) / (1 - σrisk))
+    deffun = ((y, fhat) -> min.(y, fhat * mean(y)))
+    return params, deffun, utifun
 end
 
-function FixedPoint(b, y, udef, P, p0, Params, utf)
+function FixedPoint(b, y, udef, P, p0, params, utf)
     #=
         The inputs for this function are:
             * b: the grid for the bond support
@@ -84,25 +84,28 @@ function FixedPoint(b, y, udef, P, p0, Params, utf)
     # ----------------------------------------
     # 1. Some initial parameters
     @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat,
-        ne, ub, lb, tol, maxite = Params;
+        ne, ub, lb, tol, maxite = params;
     dif= 1
     rep= 0
     yb = b .+ y'
     # ----------------------------------------
-    # 2. Educated Guess
-    VC = 1 / (1 - β) * utf.((r / (1 + r)) * b .+ y', σrisk)
+    # 2. Educated Guess :
+    #    vr: value of repayment
+    #    vd: value of default
+    #    vf: value function
+    vr = 1 / (1 - β) * utf.((r / (1 + r)) * b .+ y', σrisk)
     udef = repeat(udef', ne, 1)
-    VD = 1 / (1 - β) * udef
-    VF = max.(VC, VD)
-    D  = 1 * (VD .> VC)
-    BB = repeat(b, 1, nx)
-    BP = Array{CartesianIndex{2},2}(undef, ne, nx)
+    vd = 1 / (1 - β) * udef
+    vf = max.(vr, vd)
+    D   = 1 * (vd .> vr)
+    bb = repeat(b, 1, nx)
+    bp = Array{CartesianIndex{2},2}(undef, ne, nx)
     q  = Array{Float64,2}(undef, ne, nx)
     # ----------------------------------------
     # 3. Fixed Point Problem
     while dif > tol && rep < maxite
-        VF, VC, VD, D, BP, q, dif = value_functions!(
-            VF, VC, VD, D, BP, q, dif, b, P, p0,
+        vf, vr, vd, D, bp, q, dif = value_functions!(
+            vf, vr, vd, D, bp, dif, b, P, p0,
             yb, udef, β, θ, utf, r, σrisk
         )
         rep += 1
@@ -111,13 +114,13 @@ function FixedPoint(b, y, udef, P, p0, Params, utf)
         display("The maximization has not achieved convergence!!!!!!!!")
     else
         print("Convergence achieve after $rep replications \n")
-        BP = BB[BP]
+        bp = bb[bp]
     end
-    BP = (1 .-D) .* BP # change 1: if country defaults thge optimal policy is 0
-    return VF, VC, VD, D, BP, q
+    #bp = (1 .- D) .* bp # change 1: if country defaults thge optimal policy is 0
+    return vf, vr, vd, D, bp, q
 end
 
-function value_functions!( VF, VC, VD, D, BP, q, dif, b, P, p0, yb, udef,
+function value_functions!( vf, vr, vd, D, bp, dif, b, P, p0, yb, udef,
             β, θ, utf, r, σrisk)
     #=
         The structure of the function is:
@@ -129,35 +132,33 @@ function value_functions!( VF, VC, VD, D, BP, q, dif, b, P, p0, yb, udef,
     =#
     # ----------------------------------------
     # 1. Saving old information
-    VFold = VF
-    ne,nx = size(VF)
+    vf_old = vf;
+    ne,nx = size(vf)
     # ----------------------------------------
     # 2. Expected future Value Function
-    EVC = VC * P'
-    EδD = D * P'
-    EVD = VD * P'
-    βEV = β * EVC
-    qold = (1 / (1 + r)) * (1 .- EδD)
-    qB = qold .* b
+    βevf = β * (vf * P')    # today' value of expected value function
+    eδD  = D  * P'          # probability of default in the next period
+    evd  = vd * P'          #  expected value of default
+    qold = (1 / (1 + r)) * (1 .- eδD) # price
+    qb   = qold .* b
     # --------------------------------------------------------------
     # 3. Value function of continuation
-    VC, BP = updateBellman!(VC, BP, yb, qB, βEV, utf, σrisk, ne, nx)
+    vr, bp = updateBellman!(vr, bp, yb, qb, βevf, utf, σrisk, ne, nx)
     # --------------------------------------------------------------
     # 4. Value function of default
-    βθEVC0 = β * θ * EVC[p0, :]
-    VD = βθEVC0' .+ (udef + β * (1 - θ) * EVD)
+    βθevf = θ * βevf[p0, :]   # expected vf with b=0, in present val
+    vd    = βθevf' .+ (udef + β * (1 - θ) * evd)
     # --------------------------------------------------------------
     # 5. Continuation Value and Default choice
-    VF, D = (max.(VC, VD), 1 * (VD .> VC))
+    vf, D = (max.(vr, vd), 1 * (vd .> vr))
     q = (1 / (1 + r)) * (1 .- (D * P'))
     # --------------------------------------------------------------
     # 6.  Divergence respect the initial point
-    dif = maximum(abs.(VF - VFold))
-#    display(D[end,:])
-    return VF, VC, VD, D, BP, q, dif
+    dif = maximum(abs.(vf - vf_old))
+    return vf, vr, vd, D, bp, q, dif
 end
 
-function updateBellman!(VC, BP, yb, qB, βEV, utf, σrisk, ne, nx )
+function updateBellman!(vr, bp, yb, qb, βevf, utf, σrisk, ne, nx )
     #=
         This function find the value of Bₜ₊₁ that maximizes the expected
         value function. The algorithm is:
@@ -166,18 +167,21 @@ function updateBellman!(VC, BP, yb, qB, βEV, utf, σrisk, ne, nx )
                 [1.2] if c<0 we put c==0
                 [1.3] for each possible new debt level calculate u(c) + βE[V]
                 [1.4] Find the level of new debt with maximum current value
-
+    note: There is not a problem of update directly since yb, βevf, and
+        qb are determined outside this function and they are not updating
+        in each iteration
     =#
+    # note:
     @inbounds for i = 1:ne
-        cc = yb[i, :]' .- qB
+        cc = yb[i, :]' .- qb
         cc[cc.<0] .= 0
-        aux_u = utf.(cc, σrisk) + βEV
-        VC[i, :], BP[i, :] = findmax(aux_u, dims = 1)
+        aux_u = utf.(cc, σrisk) + βevf
+        vr[i, :], bp[i, :] = findmax(aux_u, dims = 1)
     end
-    return VC, BP
+    return vr, bp
 end
 
-function simulation!(Sim, simul_state, EconBase, y, ydef, b,distϕ, nsim2, p0)
+function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
     #=
         The next code simulates a economy recursively conditional in a
         predetermined states for the output level (simul_state)
@@ -202,34 +206,35 @@ function simulation!(Sim, simul_state, EconBase, y, ydef, b,distϕ, nsim2, p0)
                         * Country makes 1.3 again.
     "[DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]"
     =#
+    @unpack D, bp, vf , q, vd = PolFun;
     for i = 1:nsim2-1
-        bi = findfirst(x -> x == Sim[i, 2], b) # position of B
+        bi = findfirst(x -> x == sim[i, 2], b) # position of B
         j = simul_state[i]                     # state for y
         # Choice if there is not previous default
-        if Sim[i, 1] == 0
-            defchoice = EconBase.D[bi, j]
+        if sim[i, 1] == 0
+            defchoice = D[bi, j]
             ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]
-            bsim = (1 - defchoice) * EconBase.BP[bi, j]
-            Sim[i, 3:8] =
-                [ysim bsim defchoice EconBase.VF[bi, j] EconBase.q[bi, j] y[j]]
-            Sim[i+1, 1:2] = [defchoice bsim]
+            bsim = (1 - defchoice) * bp[bi, j]
+            sim[i, 3:8] =
+                [ysim bsim defchoice vf[bi, j] q[bi, j] y[j]]
+            sim[i+1, 1:2] = [defchoice bsim]
         else
             # Under previous default, I simulate if the economy could reenter to the market
             defstat = rand(distϕ)
             if defstat == 1 # They are in the market
-                Sim[i, 1] == 0
-                defchoice = EconBase.D[p0, j] # default again?
+                sim[i, 1] == 0
+                defchoice = D[p0, j] # default again?
                 ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]# output | choice
-                bsim = (1 - defchoice) * EconBase.BP[p0, j]
-                Sim[i, 3:8] =
-                    [ysim bsim defchoice EconBase.VF[p0, j] EconBase.q[p0,j] y[j]]
-                Sim[i+1, 1:2] = [defchoice bsim]
+                bsim = (1 - defchoice) * bp[p0, j]
+                sim[i, 3:8] =
+                    [ysim bsim defchoice vf[p0, j] q[p0,j] y[j]]
+                sim[i+1, 1:2] = [defchoice bsim]
             else # They are out the market
-                Sim[i, 3:8] =
-                    [ydef[j] 0 1 EconBase.VD[p0, j] EconBase.q[p0, j] y[j]] #second change
-                Sim[i+1, 1:2] = [1 0]
+                sim[i, 3:8] =
+                    [ydef[j] 0 1 vd[p0, j] q[p0, j] y[j]] #second change
+                sim[i+1, 1:2] = [1 0]
             end
         end
     end
-    return Sim
+    return sim
 end

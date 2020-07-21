@@ -35,17 +35,18 @@ display("Simulation finished, with $NDef defaults event and a frequency of $PDef
 +++++++++++++++++++++++++++++++++ =#
 # [DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) j]
 vf  = EconSim.Sim[:, 6];
-st  = EconSim.Sim[:, 2:3];
+st  = EconSim.Sim[:, [2,8]];
 defstatus = EconSim.Sim[:, 5];
 vnd = vf[defstatus .== 0]
 snd = st[defstatus .== 0, :];
 vd  = vf[defstatus .== 1]
 sd  = st[defstatus .== 1, :];
+sd  = sd[:,2];
 ϕf(x)= log1p(exp(x)) ;
 Q   = 16; ns = 2;
 
-#=
-myrun(typ,v,s) = begin
+
+myrun(typ,v,s,Q,ns) = begin
     anim = @animate for rolh in 1:40
         if typ == 1
             v1 = v; s1 = s;
@@ -70,26 +71,23 @@ myrun(typ,v,s) = begin
     return anim
 end
 
-anim1 = myrun(1,vnd,snd);
-anim2 = myrun(2,vnd,snd);
-anim3 = myrun(3,vnd,snd);
-anim4 = myrun(1,vd,sd);
-anim5 = myrun(2,vd,sd);
-anim6 = myrun(3,vd,sd);
+#anim1 = myrun(1,vnd,snd);
+#anim2 = myrun(2,vnd,snd);
+#anim3 = myrun(3,vnd,snd);
+anim4 = myrun(1,vd,sd,3,1);
+anim5 = myrun(2,vd,sd,3,1);
+anim6 = myrun(3,vd,sd,3,1);
 
 
 
-gif(anim1, "gif1.gif", fps = 5);
-gif(anim2, "gif2.gif", fps = 5);
-gif(anim3, "gif3.gif", fps = 5);
-gif(anim4, "gif4.gif", fps = 5);
-gif(anim5, "gif5.gif", fps = 5);
-gif(anim6, "gif6.gif", fps = 5);
+#gif(anim1, "gif1.gif", fps = 5);
+#gif(anim2, "gif2.gif", fps = 5);
+#gif(anim3, "gif3.gif", fps = 5);
+gif(anim4, "gif4a.gif", fps = 5);
+gif(anim5, "gif5a.gif", fps = 5);
+gif(anim6, "gif6a.gif", fps = 5);
 
-# This gives us a reason why we need to use both f(x), x normalized
-=#
-
-
+#= This gives us a reason why we need to use both f(x), x normalized
 normi(x) = begin
     xmax = maximum(x)
     xmin = minimum(x)
@@ -190,3 +188,4 @@ EconSim = DefEcon.ModelSim(Params, PolFun1, EconDef.Ext, nsim = tsim, burn = tbu
 NDef    = sum(EconSim.Sim[:,5]);
 PDef    = round(100*NDef/ tsim; digits = 2);
 display("Simulation finished, with $NDef defaults event and a frequency of $PDef")
+=#
