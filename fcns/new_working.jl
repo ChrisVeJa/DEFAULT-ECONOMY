@@ -254,15 +254,43 @@ display("Simulation finished, with frequency of $pdef default events");
 # [DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) j]
 neudata = simtoneu(econsim,normi);
 NetWorkR, NetWorkD = training(neudata);
+
+#=
+ Graphics for fit
+=#
+
+# Repayment
+dst = econsim.sim[:, 5]
+vf = econsim.sim[:, 6]
+vr    = vf[dst.==0]
+vrhat = NetWorkR(neudata.rdata[2]');
+vrhat = convert(Array{Float64}, vrhat);
+vrmax, vrmin = neudata.limt[1]
+vrhat = (0.5 * (vrmax - vrmin) * vrhat) .+ 0.5 * (vrmax + vrmin)
+
+dplot = [vr vrhat'];
+pj0 = plot(dplot[1:2000,:], legend = :topleft, label = ["actual" "hat"],
+   fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
+   w = [0.75 0.5], style = [:solid :dash],
+   title = "Value function under repayment", titlefontsize = 10,
+)
+savefig("./Figures/FitVR1.png")
+
+# Default
+vd    = vf[dst.==1]
 vdhat = NetWorkD(neudata.ddata[2]');
 vdhat = convert(Array{Float64}, vdhat);
-dplot = [neudata.ddata[1] vdhat'];
-plot(
-   dplot, legend = :topleft, label = ["actual" "hat"],
+vdmax, vdmin = neudata.limt[2]
+vdhat = (0.5 * (vdmax - vdmin) * vdhat) .+ 0.5 * (vdmax + vdmin)
+dplot = [vd vdhat'];
+pj1 = plot(dplot, legend = :topleft, label = ["actual" "hat"],
    fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
    w = [0.75 0.5], style = [:solid :dash],
    title = "Value function under Default", titlefontsize = 10,
 )
+savefig("./Figures/FitVD1.png")
+
+
 ############################################################
 # Solving the model giving the set of parameters
 ############################################################
@@ -271,61 +299,171 @@ polfunN, polintN = neutopol(NetWorkR, NetWorkD, pm, neudata);
 econsimN = DefEcon.ModelSim(params, polfunN, ext, nsim= tsim, burn= tburn)
 pdef = round(100*sum(econsimN.sim[:,5])/ tsim; digits = 2)
 display("Simulation finished, with a frequency of $pdef % of default events")
+
+
+
 ############################################################
 # updating
 ############################################################
 neudataN = simtoneu(econsimN,normi);
+Ψ1r, chunk = Flux.destructure(NetWorkR);
+Ψ1d, chunk = Flux.destructure(NetWorkD);
+Ψ1 = [Ψ1r ; Ψ1d];
 NetWorkR,NetWorkD = updateneu!(NetWorkR,NetWorkD,neudataN);
+Ψ2r, chunk = Flux.destructure(NetWorkR);
+Ψ2d, chunk = Flux.destructure(NetWorkD);
+Ψ2 = [Ψ2r ; Ψ2d];
 polfunN1, polintN1 = neutopol(NetWorkR, NetWorkD, pm, neudataN);
 econsimN1 = DefEcon.ModelSim(params, polfunN1, ext, nsim= tsim, burn= tburn)
 pdef = round(100*sum(econsimN1.sim[:,5])/ tsim; digits = 2)
 display("Simulation finished, with a frequency of $pdef % of default events")
-econsimN = econsimN1;
+
+scatter([1:75], Ψ1 -Ψ2,framestyle=:zerolines,fg_legend = :transparent,
+   markersize = 4, label= "Ψ differences", markerstrokewidth = 0.1,
+   bg_legend = :transparent, c= :red, legendfontsize= 6);
+savefig("./Figures/Update.png")
+#=
+ Graphics for fit updated neural network
+=#
+
+# Repayment
+vrhat = NetWorkR(neudata.rdata[2]');
+vrhat = convert(Array{Float64}, vrhat);
+vrhat = (0.5 * (vrmax - vrmin) * vrhat) .+ 0.5 * (vrmax + vrmin)
+dplot = [vr vrhat'];
+pj0 = plot(dplot[1:2000,:], legend = :topleft, label = ["actual" "hat"],
+   fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
+   w = [0.75 0.5], style = [:solid :dash],
+   title = "Value function under repayment", titlefontsize = 10,
+)
+savefig("./Figures/FitVR2.png")
+
+# Default
+vdhat = NetWorkD(neudata.ddata[2]');
+vdhat = convert(Array{Float64}, vdhat);
+vdmax, vdmin = neudata.limt[2]
+vdhat = (0.5 * (vdmax - vdmin) * vdhat) .+ 0.5 * (vdmax + vdmin)
+dplot = [vd vdhat'];
+pj1 = plot(dplot, legend = :topleft, label = ["actual" "hat"],
+   fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
+   w = [0.75 0.5], style = [:solid :dash],
+   title = "Value function under Default", titlefontsize = 10,
+)
+savefig("./Figures/FitVD2.png")
+
+
+
+#econsimN = econsimN1;
+
+
+############################################################
+# Graphs and GIFs
+############################################################
+
+#= +++++++++++++++++++++++++++++
+Value of repayment
++++++++++++++++++++++++++++++ =#
 anim = @animate for i in 1:pm.ne
-      plot([polfun.vr[i,:] polfunN.vr[i,:] polfunN1.vr[i,:]],
+      plot([polfun.vr[i,:] polintN.vr[i,:] polintN1.vr[i,:]],
       fg_legend = :transparent, legend=:bottomright,
-      label=["actual" "neural network" "updated"],
+      label=["actual" "NN1- interm" "NNU- interm"],
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash], legendtitle = "Point in grid: $i",
       legendtitlefontsize = 8)
    end every 5
-gif(anim, "VR.gif", fps = 5);
+gif(anim, "./Figures/VRint.gif", fps = 5);
 
+
+anim = @animate for i in 1:pm.ne
+      plot([polfun.vr[i,:] polfunN.vr[i,:] polfunN1.vr[i,:]],
+      fg_legend = :transparent, legend=:bottomright,
+      label=["actual" "NN base" "NN updated"],
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash], legendtitle = "Point in grid: $i",
+      legendtitlefontsize = 8)
+   end every 5
+gif(anim, "./Figures/VR.gif", fps = 5);
+
+#= +++++++++++++++++++++++++++++
+Value of default
++++++++++++++++++++++++++++++ =#
+plot([polfun.vd[end,:] polintN.vd[end,:] polintN1.vd[end,:]],
+      fg_legend = :transparent, legend=:bottomright,
+      label=["actual" "NN1- interm" "NNU- interm"],
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash])
+savefig("./Figures/VDint.png");
+
+
+plot([polfun.vd[end,:] polfunN.vd[end,:] polfunN1.vd[end,:]],
+      fg_legend = :transparent, legend=:bottomright,
+      label=["actual" "NN base" "NN updated"],
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash])
+savefig("./Figures/VD.png");
+
+#= +++++++++++++++++++++++++++++
+Bond issuing policy
++++++++++++++++++++++++++++++ =#
 anim = @animate for i in 1:pm.nx
       plot(pm.bgrid,[polfun.bp[:,i] polfunN.bp[:,i] polfunN1.bp[:,i]],
       fg_legend = :transparent, legend=:bottomright,
-      label=["actual" "neural network" "updated"],
+      label=["actual" "NN base" "NN updated"],
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash], legendtitle = "state: $i",
       legendtitlefontsize = 8)
    end
-gif(anim, "Bp.gif", fps = 1);
+gif(anim, "./Figures/Bp.gif", fps = 1);
+
+
+#= +++++++++++++++++++++++++++++
+Bond price policy
++++++++++++++++++++++++++++++ =#
+anim = @animate for i in 1:pm.nx
+      plot(pm.bgrid,[polfun.q[:,i] polintN.q[:,i] polintN1.q[:,i]],
+      fg_legend = :transparent, legend=:topleft,
+      label=["actual" "NN1- interm" "NNU- interm"],
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash], legendtitle = "state: $i",
+      legendtitlefontsize = 8)
+   end
+gif(anim, "./Figures/qint.gif", fps = 1);
+
 
 anim = @animate for i in 1:pm.nx
       plot(pm.bgrid,[polfun.q[:,i] polfunN.q[:,i] polfunN1.q[:,i]],
       fg_legend = :transparent, legend=:topleft,
-      label=["actual" "neural network" "updated"],
+      label=["actual" "NN base" "NN updated"],
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash], legendtitle = "state: $i",
       legendtitlefontsize = 8)
    end
-gif(anim, "q.gif", fps = 1);
+gif(anim, "./Figures/q.gif", fps = 1);
+
+
+#= +++++++++++++++++++++++++++++
+Default choice policy
++++++++++++++++++++++++++++++ =#
+anim = @animate for i in 1:pm.nx
+      a2 = polintN.D[:,i].+ 0.01
+      a3 = polintN1.D[:,i].+0.02
+      scatter(pm.bgrid,[polfun.D[:,i]  a2  a3],
+      fg_legend = :transparent, legend=:bottomleft, markersize = 4,
+      label=["actual" "NN1- interm" "NNU- interm"], markerstrokewidth = 0.1,
+      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
+      style = [:solid :dot :dash], legendtitle = "state: $i",
+      legendtitlefontsize = 6, legendfontsize= 6)
+   end
+gif(anim, "./Figures/Dint.gif", fps = 1);
 
 anim = @animate for i in 1:pm.nx
       a2 = polfunN.D[:,i].+ 0.01
       a3 = polfunN1.D[:,i].+0.02
       scatter(pm.bgrid,[polfun.D[:,i]  a2  a3],
       fg_legend = :transparent, legend=:bottomleft, markersize = 4,
-      label=["actual" "neural network" "updated"], markerstrokewidth = 0.1,
+      label=["actual" "NN base" "NN updated"], markerstrokewidth = 0.1,
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash], legendtitle = "state: $i",
       legendtitlefontsize = 6, legendfontsize= 6)
    end
-gif(anim, "D.gif", fps = 1);
-
-plot([polfun.vd[end,:] polfunN.vd[end,:] polfunN1.vd[end,:]],
-      fg_legend = :transparent, legend=:bottomright,
-      label=["actual" "neural network" "updated"],
-      xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
-      style = [:solid :dot :dash])
-savefig("VD.png");
+gif(anim, "./Figures/D.gif", fps = 1);
