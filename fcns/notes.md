@@ -3,7 +3,7 @@ The following are notes related with the state of the code for solving
 modelos de default with neural networks.
 
 ## Defining the algorithm to solve the economy
-The pseudo code is
+The **pseudo** code is
 ```julia
 function Solver(params, deffun, utifun)
     # --------------------------------------------------------------
@@ -21,105 +21,32 @@ function Solver(params, deffun, utifun)
     vf, vr, vd, D, bp, q = FixedPoint(b, y, udef, P, p0, params, utifun)
 end
 
-
-function ModelSettings()
-    params = (
-        r = 0.017,
-        σrisk = 2.0,
-        ρ = 0.945,
-        η = 0.025,
-        β = 0.953,
-        θ = 0.282,
-        nx = 21,
-        m = 3,
-        μ = 0.0,
-        fhat = 0.969,
-        ne = 251,
-        ub = 0,
-        lb = -0.4,
-        tol = 1e-8,
-        maxite = 1e3,
-    )
-    utifun = ((x, σrisk) -> (x^(1 - σrisk)) / (1 - σrisk))
-    deffun = ((y, fhat) -> min.(y, fhat * mean(y)))
-    return params, deffun, utifun
-end
-
 function FixedPoint(b, y, udef, P, p0, params, utf)
-    #=
-        The inputs for this function are:
-            * b: the grid for the bond support
-            * y: the discretization of y
-            * udef: The utility function for default.
-                It is a vector not a matrix
-            * P: the markov chain matrix
-            * p0: The position for b=0 in the support
-            * Params: A NamedTuple with the parameters
-            * utf: The utility function
-        The function is structured as follow
-            [1] Calculate fixed matrices
-                yb = b .+ y >> Matrix nₑ x nₓ
-                The utility function  u(y + B -qB')
-                has y .+ B (with B being all the possibles)
-                which does not depend on B'
-            [2] The educated guesses:
-                VC₀ = (1-β)⁻¹ u(r/(1+r) * b + y)
-                    never defaulting and receiving the annualities for b
-                VD₀ = (1-β)⁻¹ u(yᵈ)
-                    being in default forever
-            [3] Fixed Point Problem
-    =#
     # ----------------------------------------
-    # 1. Some initial parameters
-    @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat,
-        ne, ub, lb, tol, maxite = params;
-    dif= 1
-    rep= 0
+    # calculate y + B
     yb = b .+ y'
     # ----------------------------------------
     # 2. Educated Guess :
     #    vr: value of repayment
     #    vd: value of default
     #    vf: value function
-    vr = 1 / (1 - β) * utf.((r / (1 + r)) * b .+ y', σrisk)
+    vr   = 1 / (1 - β) * utf.((r / (1 + r)) * b .+ y', σrisk)
     udef = repeat(udef', ne, 1)
-    vd = 1 / (1 - β) * udef
-    vf = max.(vr, vd)
-    D   = 1 * (vd .> vr)
-    bb = repeat(b, 1, nx)
-    bp = Array{CartesianIndex{2},2}(undef, ne, nx)
-    q  = Array{Float64,2}(undef, ne, nx)
+    vd   = 1 / (1 - β) * udef
+    vf   = max.(vr, vd)
+    D     = 1 * (vd .> vr)
     # ----------------------------------------
     # 3. Fixed Point Problem
     while dif > tol && rep < maxite
-        vf, vr, vd, D, bp, q, dif = value_functions!(
-            vf, vr, vd, D, bp, dif, b, P, p0,
-            yb, udef, β, θ, utf, r, σrisk
-        )
+        vf, vr, vd, D, bp, q, dif = value_functions!(...)
         rep += 1
     end
-    if rep == maxite
-        display("The maximization has not achieved convergence!!!!!!!!")
-    else
-        print("Convergence achieve after $rep replications \n")
-        bp = bb[bp]
-    end
-    #bp = (1 .- D) .* bp # change 1: if country defaults thge optimal policy is 0
-    return vf, vr, vd, D, bp, q
 end
 
 function value_functions!( vf, vr, vd, D, bp, dif, b, P, p0, yb, udef,
             β, θ, utf, r, σrisk)
-    #=
-        The structure of the function is:
-            [1] Calculate E[x] where x is the value function
-            [2] Find the optimal issued bond level under no default
-            [3] Update the value of default
-            [4] Update the new value function and default decision
-                as well the consistent prices
-    =#
     # ----------------------------------------
-    # 1. Saving old information
+    # 1. Saving old information (ne = # endogeneous grid, nx states for y)
     vf_old = vf;
     ne,nx = size(vf)
     # ----------------------------------------
@@ -128,10 +55,16 @@ function value_functions!( vf, vr, vd, D, bp, dif, b, P, p0, yb, udef,
     eδD  = D  * P'          # probability of default in the next period
     evd  = vd * P'          #  expected value of default
     qold = (1 / (1 + r)) * (1 .- eδD) # price
-    qb   = qold .* b
+    qb   = qold .* b        # Initial price for each point in the grid
     # --------------------------------------------------------------
     # 3. Value function of continuation
-    vr, bp = updateBellman!(vr, bp, yb, qb, βevf, utf, σrisk, ne, nx)
+    vr, bp :=
+            for i = 1:ne
+                cc = yb[i, :]' .- qb
+                cc[cc.<0] .= 0
+                aux_u = utf.(cc, σrisk) + βevf
+                vr[i, :], bp[i, :] = findmax(aux_u, dims = 1)
+            end
     # --------------------------------------------------------------
     # 4. Value function of default
     βθevf = θ * βevf[p0, :]   # expected vf with b=0, in present val
@@ -143,58 +76,57 @@ function value_functions!( vf, vr, vd, D, bp, dif, b, P, p0, yb, udef,
     # --------------------------------------------------------------
     # 6.  Divergence respect the initial point
     dif = maximum(abs.(vf - vf_old))
-    return vf, vr, vd, D, bp, q, dif
 end
 
-function updateBellman!(vr, bp, yb, qb, βevf, utf, σrisk, ne, nx )
-    #=
-        This function find the value of Bₜ₊₁ that maximizes the expected
-        value function. The algorithm is:
-            [1] For each level of current debt (Bₜ) calculates
-                [1.1] calculates the consumption: c= y + B - qB'
-                [1.2] if c<0 we put c==0
-                [1.3] for each possible new debt level calculate u(c) + βE[V]
-                [1.4] Find the level of new debt with maximum current value
-    note: There is not a problem of update directly since yb, βevf, and
-        qb are determined outside this function and they are not updating
-        in each iteration
-    =#
-    # note:
-    @inbounds for i = 1:ne
-        cc = yb[i, :]' .- qb
-        cc[cc.<0] .= 0
-        aux_u = utf.(cc, σrisk) + βevf
-        vr[i, :], bp[i, :] = findmax(aux_u, dims = 1)
+```
+This code takes 6.5 seconds in running with 278 iterations until achieve a convergence level of 1e-8. Its results are:
+
+<table style= "width:100%">
+<tr>
+<th style="text-align: center"> Bond price </th>
+<th style="text-align: center"> Bond issuing policy function</th>
+<th style="text-align: center"> Value function</th>
+</tr>
+<tr>
+<th>
+
+![Price](./Figures/Bondprice.svg)
+</th>
+<th>
+
+![VDfit](./Figures/Savings.svg)
+</th>
+<th>
+
+![VDfit](./Figures/Valfun.svg)
+</th>
+</tr>
+</table>
+
+## Simulation
+Then I simulate the economy follow the next:
+```julia
+function ModelSim(params, PolFun, ext; nsim = 100000, burn = 0.05)
+    nsim2 = Int(floor(nsim * (1 + burn)))
+    # ----------------------------------------------------------------------
+    # 1. State simulation
+    choices = 1:nx    # Possible states
+    simul_state = zeros(Int64, nsim2);
+    simul_state[1]  = rand(1:nx);
+    for i = 2:nsim2
+        simul_state[i] = sample(view(choices, :, :), Weights(view(P, simul_state[i-1], :)))
     end
-    return vr, bp
+    # -------------------------------------------------------------------------
+    # 2. Simulation of the Economy
+    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) yⱼ"
+    distϕ     = Bernoulli(θ)
+    EconSim[1, 1:2] = [0 b[rand(1:ne)]]  # b could be any value in the grid
+    EconSim = simulation!(...)
+    # -------------------------------------------------------------------------
+    # 3. Burning and storaging
+    EconSim = EconSim[end-nsim:end-1, :]
 end
-
 function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
-    #=
-        The next code simulates a economy recursively conditional in a
-        predetermined states for the output level (simul_state)
-        The algorithm is as follow:
-            [1] For each t from 2 to T
-                [1.1] Let "Bₜ" the initial level of debt, then we find their
-                    position in the grid of b
-                [1.2] Let j be the state for output
-                [1.3] If the economy is not in default at the start:
-                    * Find the default choice Dₜ(Bₜ, jₜ)
-                    * Define the output level of the period
-                        yⱼ if country does not default
-                        yⱼᵈ if does
-                    * Define the optimal new issued debt
-                        Bₜ₊₁(Bₜ,j) if country does not default
-                        0         if does
-                [1.4] If the economy is in default at the start
-                    * Tose a coin with θ prob for reenter
-                    * If they are still out the market:
-                        * Bₜ₊₁ = 0 , Dₜ = 1, and VF = VF(0,j), q = q(0,j)
-                    * If they re enter to the market
-                        * Country makes 1.3 again.
-    "[DefStatus,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]"
-    =#
-    @unpack D, bp, vf , q, vd = PolFun;
     for i = 1:nsim2-1
         bi = findfirst(x -> x == sim[i, 2], b) # position of B
         j = simul_state[i]                     # state for y
@@ -203,11 +135,10 @@ function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
             defchoice = D[bi, j]
             ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]
             bsim = (1 - defchoice) * bp[bi, j]
-            sim[i, 3:8] =
-                [ysim bsim defchoice vf[bi, j] q[bi, j] y[j]]
+            sim[i, 3:8] = [ysim bsim defchoice vf[bi, j] q[bi, j] y[j]]
             sim[i+1, 1:2] = [defchoice bsim]
         else
-            # Under previous default, I simulate if the economy could reenter to the market
+        # Under previous default
             defstat = rand(distϕ)
             if defstat == 1 # They are in the market
                 sim[i, 1] == 0
@@ -224,10 +155,30 @@ function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
             end
         end
     end
-    return sim
 end
 ```
 
+This simulation gives different result each time (we are not defining a seed) and also it starts in any position of the grid, with the economy in the market. This code gives the following results
+
+<table style= "width:100%">
+<tr>
+<th>
+
+![Price](./Figures/FigSim1.svg)
+</th>
+<th>
+
+![VDfit](./Figures/FigSim2.svg)
+</th>
+<th>
+
+![VDfit](./Figures/FigSim3.svg)
+</th>
+</tr>
+</table>
+with ~2.5 probabilities of picking a default event.
+
+## Training of neural networks
 
 
 <table>
