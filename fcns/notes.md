@@ -12,11 +12,11 @@ The following are notes related with the state of the code
 <tr>
 <th>
 
-![VRfit](./Figures/FitVR1.png)
+![VRfit](./Figures/FitVR1.svg)
 </th>
 <th>
 
-![VDfit](./Figures/FitVD1.png)
+![VDfit](./Figures/FitVD1.svg)
 </th>
 </tr>
 </table>
