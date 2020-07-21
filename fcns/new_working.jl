@@ -274,7 +274,7 @@ pj0 = plot(dplot[1:2000,:], legend = :topleft, label = ["actual" "hat"],
    w = [0.75 0.5], style = [:solid :dash],
    title = "Value function under repayment", titlefontsize = 10,
 )
-savefig("./Figures/FitVR1.png")
+savefig("./Figures/FitVR1.svg")
 
 # Default
 vd    = vf[dst.==1]
@@ -288,7 +288,7 @@ pj1 = plot(dplot, legend = :topleft, label = ["actual" "hat"],
    w = [0.75 0.5], style = [:solid :dash],
    title = "Value function under Default", titlefontsize = 10,
 )
-savefig("./Figures/FitVD1.png")
+savefig("./Figures/FitVD1.svg")
 
 
 ############################################################
@@ -321,7 +321,7 @@ display("Simulation finished, with a frequency of $pdef % of default events")
 scatter([1:75], Ψ1 -Ψ2,framestyle=:zerolines,fg_legend = :transparent,
    markersize = 4, label= "Ψ differences", markerstrokewidth = 0.1,
    bg_legend = :transparent, c= :red, legendfontsize= 6);
-savefig("./Figures/Update.png")
+savefig("./Figures/Update.svg")
 #=
  Graphics for fit updated neural network
 =#
@@ -336,7 +336,7 @@ pj0 = plot(dplot[1:2000,:], legend = :topleft, label = ["actual" "hat"],
    w = [0.75 0.5], style = [:solid :dash],
    title = "Value function under repayment", titlefontsize = 10,
 )
-savefig("./Figures/FitVR2.png")
+savefig("./Figures/FitVR2.svg")
 
 # Default
 vdhat = NetWorkD(neudata.ddata[2]');
@@ -349,7 +349,7 @@ pj1 = plot(dplot, legend = :topleft, label = ["actual" "hat"],
    w = [0.75 0.5], style = [:solid :dash],
    title = "Value function under Default", titlefontsize = 10,
 )
-savefig("./Figures/FitVD2.png")
+savefig("./Figures/FitVD2.svg")
 
 
 
@@ -392,7 +392,7 @@ plot([polfun.vd[end,:] polintN.vd[end,:] polintN1.vd[end,:]],
       label=["actual" "NN1- interm" "NNU- interm"],
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash])
-savefig("./Figures/VDint.png");
+savefig("./Figures/VDint.svg");
 
 
 plot([polfun.vd[end,:] polfunN.vd[end,:] polfunN1.vd[end,:]],
@@ -400,7 +400,7 @@ plot([polfun.vd[end,:] polfunN.vd[end,:] polfunN1.vd[end,:]],
       label=["actual" "NN base" "NN updated"],
       xlabel = "y-grid", c= [:blue :purple :red], w = [1.15 1.5 1.15],
       style = [:solid :dot :dash])
-savefig("./Figures/VD.png");
+savefig("./Figures/VD.svg");
 
 #= +++++++++++++++++++++++++++++
 Bond issuing policy

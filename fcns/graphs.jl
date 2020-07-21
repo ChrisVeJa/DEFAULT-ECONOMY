@@ -4,7 +4,7 @@
 function graph_solve(
     PolFun,
     ext;
-    titles = ["BondPrice.png" "Savings.png" "ValFun.png"],
+    titles = ["BondPrice.svg" "Savings.svg" "ValFun.svg"],
     )
     # --------------------------------------------------------------
     # 0. Unpacking
@@ -90,7 +90,7 @@ end
 function graph_simul(
     Sim;
     smpl = 1:500,
-    titles = ["FigSim1.png" "FigSim2.png" "FigSim3.png"],
+    titles = ["FigSim1.svg" "FigSim2.svg" "FigSim3.svg"],
     )
     default = Sim[smpl, 5]
 
