@@ -315,7 +315,7 @@ neutopol(NetWorkR, NetWorkD, pm, neudata) = begin
    return polfunnew, polfunint;
 end
 ```
-after running this implementation we obtain (right panel is a .gif) the following results. The solid blue line is the actual value of the value of repayment/debt for an specific level of debt and through the y-grid (x-axis), the dot line are the value functions obtained after using the result of the initial neural network and after applying the function ``neutopol``, while the dashed red line
+after running this implementation we obtain (right panel is a .gif) the following results. The solid blue line is the actual value of the value of repayment/debt for an specific level of debt and through the y-grid (x-axis), the dot line are the value functions obtained after using the result of the initial neural network and after applying the function ``neutopol``, while the dashed red line.
 <table>
 <tr>
 <th style="text-align: center"> Value of Repayment </th>
@@ -332,20 +332,75 @@ after running this implementation we obtain (right panel is a .gif) the followin
 </th>
 </tr>
 </table>
+On the other hand, the policies function in these cases are:
 
+#### DEFAULT POLICY FUNCTION
+
+![D](./Figures/D.gif)
+
+#### BOND PRICE POLICY FUNCTION
+
+![q](./Figures/q.gif)
+
+#### ISSUING OF DEBT POLICY FUNCTION
+
+![bp](./Figures/Bp.gif)
+
+The updating function is:
+```julia
+updateneu!(NetWork1,NetWork2,data) = begin
+   #+++++++++++++++++++++++++++++++++
+   set1old = Flux.destructure(NetWork1); # Structure 1
+   set2old = Flux.destructure(NetWork2); # Structure 2
+   #+++++++++++++++++++++++++++++++++
+   @unpack rdata, ddata, limt = data;
+   vr1, sr1 := data from the NN base
+   vd1, sd1 := data from the NN base
+   #+++++++++++++++++++++++++++++++++
+   # Updating of Repayment NN
+   lr(x, y) = Flux.mse(NetWork1(x), y)
+   datar    = (sr1', vr1');
+   psr      = Flux.params(NetWork1)
+   gsr = gradient(psr) do
+      lr(datar...)
+   end
+   Flux.Optimise.update!(Descent(), psr, gsr) # Updating 1
+
+   # Updating of Default NN
+   ld(x, y) = Flux.mse(NetWork2(x), y)
+   datad    = (sd1', vd1');
+   psd      = Flux.params(NetWork2)
+   gsd = gradient(psd) do
+      ld(datad...)
+   end
+   Flux.Optimise.update!(Descent(), psd, gsd)   # Updating 2
+end
+```
+this function gives us the following differencial in parameters
+
+![Update](./Figures/Update.svg)
+
+Addtionally the intermediate steps in the solution based on neural networks are
 <table>
+<tr>
+<th style="text-align: center"> Value of Repayment </th>
+<th style="text-align: center"> Value of Default</th>
+</tr>
 <tr>
 <th>
 
-![VR](./Figures/D.gif)
+![VRint](./Figures/VRint.gif)
 </th>
 <th>
 
-![VD](./Figures/q.gif)
-</th>
-<th>
-
-![VD](./Figures/Bp.gif)
+![VDint](./Figures/VDint.svg)
 </th>
 </tr>
 </table>
+#### DEFAULT POLICY FUNCTION
+
+![Dint](./Figures/Dint.gif)
+
+#### BOND PRICE POLICY FUNCTION
+
+![qint](./Figures/qint.gif)
