@@ -179,7 +179,17 @@ This simulation gives different result each time (we are not defining a seed) an
 with ~2.5 probabilities of picking a default event.
 
 ## Training of neural networks
+I estimate two neural networks, using a mean square error as loss function, a softplus activation function, and a descent optimizer. The model for the value function of repayment includes 16 neurons and 2 states ``vr = vr(b, y)`` while the neural network for default considers just 3 neurons and 1 state ``vd = vd(y)``. I normalize the value functions and states before splitted them into the two groups (_see_ _``simtoneu``_ _code_). The normalization is the type:
 
+```math
+̃x =  (x - 0.5(xmax + xmin))/ (0.5(xmax- xmin))
+```
+The psedo code for a julia implementation is:
+```julia
+neudata = simtoneu(econsim,normi);
+NetWorkR, NetWorkD = training(neudata);
+
+```
 ```julia
 simtoneu(econsim,normi) = begin
    dst = econsim.sim[:, 5]
@@ -218,7 +228,7 @@ training(data; nepoch = 10) = begin
    end
 end
 ```
-
+The fit obtained with these models is showed in the graphics
 <table>
 <tr>
 <th style="text-align: center"> Value of Repayment </th>
@@ -237,7 +247,75 @@ end
 </table>
 
 ## Solving given neural networks
+From the training block we have two set of parameters ``Θᴿ, Θᴰ`` that I will use to predict the set of value of repayment and value of default in the grid, then chooing the optimal debt level. The pseudo code is:
+```julia
+pm := Set of parameters;
+polfunN, polintN = neutopol(...);
+econsimN = DefEcon.ModelSim(...)
+```
+```julia
+neutopol(NetWorkR, NetWorkD, pm, neudata) = begin
+   # pm is a ntuple with parameters
+   #+++++++++++++++++++++++++++++++++
+   # State normalization
 
+   smax, smin   := Comming from simtoneu
+   vrmax, vrmin := Comming from simtoneu
+   vdmax, vdmin := Comming from simtoneu
+   # under the normalization process vrmax = vdmax , vrmin = vdmin
+
+   states = [repeat(bgrid, nx, 1) repeat(ygrid, inner = (ne, 1))]
+   stater = (states .- 0.5 * (smax + smin)) ./ (0.5 * (smax - smin))
+   stated = stater[:, 2]
+   #+++++++++++++++++++++++++++++++++
+   # Expected Values
+   # [Value under no default]
+   vr = NetWorkR(stater')
+   vr = (0.5 * (vrmax - vrmin) * vr) .+ 0.5 * (vrmax + vrmin)
+   vr = reshape(vr, pm.ne, pm.nx)
+
+   # [Value under default]
+   vd = NetWorkD(stated')
+   vd = (0.5 * (vdmax - vdmin) * vd) .+ 0.5 * (vdmax + vdmin)
+   vd = reshape(vd, pm.ne, pm.nx)
+
+   # [Value function]
+   vf = max.(vr,vd)
+   D = 1 * (vd .> vr)
+
+   # [Expected Values]
+   evf = vf *pm.P'; # expected value function
+   evd = vd * pm.P' # expected value of being in default in the next period
+   #+++++++++++++++++++++++++++++++++
+   # Expected price
+   q = (1 / (1 + pm.r)) * (1 .- (D * pm.P'))
+   qB = q .* pm.bgrid
+   #+++++++++++++++++++++++++++++++++
+   # UPDATING!
+   # Maximization
+   βevf = pm.β * evf
+   for i = 1:pm.ne
+      cc = pm.yb[i, :]' .- qB;
+      cc[cc.<0] .= 0;
+      aux_u = pm.utf.(cc, pm.σrisk) + βevf;
+      vrnew[i, :], bindex[i, :] = findmax(aux_u, dims = 1)
+   end
+   #+++++++++++++++++++++++++++++++++
+   # Value of default
+   βθevf = pm.β * pm.θ * evf[pm.p0, :]
+   vdnew = βθevf' .+ (pm.udef' .+ pm.β * (1 - pm.θ) * evd)
+   #+++++++++++++++++++++++++++++++++
+   # Optimal choice
+   vfnew = max.(vrnew, vdnew)
+   Dnew = 1 * (vdnew .> vrnew)
+   qnew = (1 / (1 + pm.r)) * (1 .- (Dnew * pm.P'))
+   bpnew = pm.BB[bindex]
+   polfunnew := Updated version of the PolFun after maximization
+   polfunint := ValueFunction that comes from the prediction of NN
+   return polfunnew, polfunint;
+end
+```
+after running this implementation we obtain (right panel is a .gif) the following results. The solid blue line is the actual value of the value of repayment/debt for an specific level of debt and through the y-grid (x-axis), the dot line are the value functions obtained after using the result of the initial neural network and after applying the function ``neutopol``, while the dashed red line
 <table>
 <tr>
 <th style="text-align: center"> Value of Repayment </th>
