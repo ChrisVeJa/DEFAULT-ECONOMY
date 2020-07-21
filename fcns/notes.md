@@ -180,6 +180,44 @@ with ~2.5 probabilities of picking a default event.
 
 ## Training of neural networks
 
+```julia
+simtoneu(econsim,normi) = begin
+   dst = econsim.sim[:, 5]
+   # value function
+   vf  = econsim.sim[:, 6]
+   vf, vmax, vmin = normi(vf) # normalization
+   vr  = vf[dst.==0]
+   vd  = vf[dst.==1]
+   # states
+   st = econsim.sim[:, [2,8]]
+   s, smax, smin = normi(st)
+   sr = s[dst.==0, :]
+   sd = s[dst.==1, :][:,2];
+end
+training(data; nepoch = 10) = begin
+   ϕf(x) = log1p(exp(x));
+   #+++++++++++++++++++++++++++++++++
+   #  Neural Network for No default
+   NetWorkR = Chain(Dense(ns1, Q1, ϕf), Dense(Q1, 1))
+   lr(x, y) = Flux.mse(NetWorkR(x), y)
+   datar = Flux.Data.DataLoader(sr', vr')
+   psr   = Flux.params(NetWorkR)
+   Flux.@epochs nepoch begin
+      Flux.Optimise.train!(lr, psr, datar, Descent())
+      display(lr(sr', vr'))
+   end
+   #+++++++++++++++++++++++++++++++++
+   #  Neural Network for Default
+   NetWorkD = Chain(Dense(ns2, Q2, ϕf), Dense(Q2, 1))
+   ld(x, y) = Flux.mse(NetWorkD(x), y)
+   datad = Flux.Data.DataLoader(sd', vd')
+   psd = Flux.params(NetWorkD)
+   Flux.@epochs nepoch begin
+      Flux.Optimise.train!(ld, psd, datad, Descent())
+      display(ld(sd', vd'))
+   end
+end
+```
 
 <table>
 <tr>
@@ -198,7 +236,7 @@ with ~2.5 probabilities of picking a default event.
 </tr>
 </table>
 
-
+## Solving given neural networks
 
 <table>
 <tr>
@@ -213,6 +251,23 @@ with ~2.5 probabilities of picking a default event.
 <th>
 
 ![VD](./Figures/VD.svg)
+</th>
+</tr>
+</table>
+
+<table>
+<tr>
+<th>
+
+![VR](./Figures/D.gif)
+</th>
+<th>
+
+![VD](./Figures/q.gif)
+</th>
+<th>
+
+![VD](./Figures/Bp.gif)
 </th>
 </tr>
 </table>
