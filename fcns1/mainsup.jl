@@ -52,7 +52,7 @@ function ModelSettings()
         tol = 1e-8,
         maxite = 1e3,
     )
-    utifun = ((x, σrisk) -> (x^(1 - σrisk)-1) / (1 - σrisk))
+    utifun = ((x, σrisk) -> (x^(1 - σrisk)) / (1 - σrisk))
     deffun = ((y, fhat) -> min.(y, fhat * mean(y)))
     return params, deffun, utifun
 end

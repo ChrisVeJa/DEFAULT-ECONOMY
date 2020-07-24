@@ -202,8 +202,8 @@ updateneu!(NetWork1,NetWork2,data) = begin
    # Updating
    set1new = Flux.destructure(NetWork1); # Structure 1
    set2new = Flux.destructure(NetWork2); # Structure 2
-   #ψ1 = 0.8 * set1old[1][:] + 0.2 * set1new[1][:];
-   #ψ2 = 0.8 * set2old[1][:] + 0.2 * set2new[1][:];
+   ψ1 = 0.8 * set1old[1][:] + 0.2 * set1new[1][:];
+   ψ2 = 0.8 * set2old[1][:] + 0.2 * set2new[1][:];
    # --------------------------------
    # Displaying
    d1 = maximum(abs.(set1new[1][:] - set1old[1][:]));
@@ -211,8 +211,8 @@ updateneu!(NetWork1,NetWork2,data) = begin
    dif = max(d1,d2);
    display("The difference is $dif")
    # --------------------------------
-   #NetWork1 = set1new[2](ψ1);
-   #NetWork2 = set2new[2](ψ2);
+   NetWork1 = set1new[2](ψ1);
+   NetWork2 = set2new[2](ψ2);
    return NetWork1, NetWork2;
 end
 ############################################################
