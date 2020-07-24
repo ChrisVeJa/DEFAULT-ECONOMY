@@ -37,11 +37,10 @@ using Random,
 include("supcodes.jl")
 include("mainsup.jl")
 include("graphs.jl")
-include("adiCodes.jl")
 # ==============================================================================
 # [1] SOLUTION OF THE MODEL
 # ==============================================================================
-function SolveR(Params, DefFun, UtiFun)
+function Solver(params, deffun, utifun)
     #=
         This function solvesa standard Default with economy as in Arellano 2008
         The steps to solve it are:
@@ -54,15 +53,15 @@ function SolveR(Params, DefFun, UtiFun)
 
     # --------------------------------------------------------------
     # 0. Unpacking Parameters
-    @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = Params
+    @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = params
     # --------------------------------------------------------------
     # 1. Tauchen discretization of log-output
     ly, P = mytauch(μ, ρ, η, nx, m)
     y = exp.(ly)
     # --------------------------------------------------------------
     # 2. Output in case of default
-    ydef = DefFun(y, fhat)
-    udef = UtiFun.(ydef, σrisk)
+    ydef = deffun(y, fhat)
+    udef = utifun.(ydef, σrisk)
     # --------------------------------------------------------------
     # 3. To calculate the intervals of debt I will consider
     grid = (ub - lb) / (ne - 1)
@@ -71,12 +70,12 @@ function SolveR(Params, DefFun, UtiFun)
     b[p0] = 0
     # --------------------------------------------------------------
     # 4. Solving the fixed point problem
-    V, VC, VD, D, BP, q = FixedPoint(b, y, udef, P, p0, Params, UtiFun)
-    PolFun = (VF = V, VC = VC, VD = VD, D = D, BP = BP, Price = q)
+    vf, vr, vd, D, bp, q = FixedPoint(b, y, udef, P, p0, params, utifun)
+    PolFun = (vf = vf, vr = vr, vd = vd, D = D, bp = bp, q = q)
     ModelSolve = (
-        Mod = (Θ = Params, h = DefFun, uf = UtiFun),
+        Mod = (Θ = params, h = deffun, uf = utifun),
         PolFun = PolFun,
-        Ext = (bgrid = b, ygrid = y, ydef = ydef, P = P),
+        ext = (bgrid = b, ygrid = y, ydef = ydef, P = P),
     )
     display("Model solved, please see your results")
     return ModelSolve
@@ -85,7 +84,7 @@ end
 # ==============================================================================
 # [2] SIMULATING THE ECONOMY
 # ==============================================================================
-function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
+function ModelSim(params, PolFun, ext; nsim = 100000, burn = 0.05)
     #=
         This function is setting the initial features to simulate the Economy
         Its structure is as follow
@@ -100,80 +99,37 @@ function ModelSim(Params, PF, Ext; nsim = 100000, burn = 0.05, nseed = 0)
     =#
     # -------------------------------------------------------------------------
     # 0. Settings
-    @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = Params
-    EconBase =
-        (VF = PF.VF, VC = PF.VC, VD = PF.VD, D = PF.D, BP = PF.BP, q = PF.Price)
-
-    P = Ext.P
-    b = Ext.bgrid
-    y = Ext.ygrid
-    ydef = Ext.ydef
+    @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = params
+    P = ext.P
+    b = ext.bgrid
+    y = ext.ygrid
+    ydef = ext.ydef
     p0 = findmin(abs.(0 .- b))[2]
     nsim2 = Int(floor(nsim * (1 + burn)))
     # -------------------------------------------------------------------------
     # 1. State simulation
     choices = 1:nx    # Possible states
-    simul_state = Int((nx + 1) / 2) * ones(Int64, nsim2)
-    if nseed != 0
-        Random.seed!(nseed[1]) # To obtain always the same solution
-    end
+    # if nseed != 0 Random.seed!(nseed[1]) end
+    simul_state = zeros(Int64, nsim2);
+    simul_state[1]  = rand(1:nx);
     for i = 2:nsim2
         simul_state[i] =
             sample(view(choices, :, :), Weights(view(P, simul_state[i-1], :)))
     end
+
     # -------------------------------------------------------------------------
     # 2. Simulation of the Economy
-    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]"
+    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) yⱼ"
     distϕ = Bernoulli(θ)
-    EconSim = Array{Float64,2}(undef, nsim2, 7)      # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
-    EconSim[1, 1:2] = [0 0]  # Initial point
-    defchoice = EconBase.D[p0, simul_state[1]]
-    if nseed != 0
-        Random.seed!(nseed[2]) # To obtain always the same solution
-    end
-
+    EconSim = Array{Float64,2}(undef, nsim2, 8)  # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
+    EconSim[1, 1:2] = [0 b[rand(1:ne)]]  # b could be any value in the grid
     EconSim = simulation!(
-        EconSim,simul_state,EconBase,y,ydef,b,distϕ,nsim2,p0)
+        EconSim,simul_state,PolFun,y,ydef,b,distϕ,nsim2,p0)
     # -------------------------------------------------------------------------
     # 3. Burning and storaging
     EconSim = EconSim[end-nsim:end-1, :]
-    modelsim = (Sim = EconSim, order = orderName)
+    modelsim = (sim = EconSim, order = orderName)
     return modelsim
-end
-
-# ==============================================================================
-# [3] NEURAL NETWORK APPROXIMATION
-# ==============================================================================
-function NeuTra(y, s, neuSettings, fnorm; Nepoch = 1)
-    #=
-        This function makes a training for a neural network
-        in the field ``mhat``, given a ``loss`` function and the optimizer
-        ``opt``.
-    =#
-    # -------------------------------------------------------------------------
-    # 0. Settings
-    n,ns= size(s)
-    mhat= neuSettings.mhat
-    loss= neuSettings.loss
-    opt = neuSettings.opt
-    # -------------------------------------------------------------------------
-    # 1. Data and construction of the NN
-    Y = fnorm(y)
-    S = fnorm(s)
-    data = Flux.Data.DataLoader(S', Y')
-    ps = Flux.params(mhat)
-    # -------------------------------------------------------------------------
-    # 2. Training
-    Flux.@epochs Nepoch begin
-        Flux.Optimise.train!(loss, ps, data, opt)
-        @show loss(S', Y')
-    end
-    # -------------------------------------------------------------------------
-    # 3. Predicting
-    aux = mhat(S')'
-    hat = convert(Array{Float64}, aux)
-    return NeuralApprox =
-        (DataNorm = (Y, S), Data = (y, s), Hat = hat, Mhat = mhat)
 end
 # ==============================================================================
 end
