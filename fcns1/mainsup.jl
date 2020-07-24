@@ -58,29 +58,6 @@ function ModelSettings()
 end
 
 function FixedPoint(b, y, udef, P, p0, params, utf)
-    #=
-        The inputs for this function are:
-            * b: the grid for the bond support
-            * y: the discretization of y
-            * udef: The utility function for default.
-                It is a vector not a matrix
-            * P: the markov chain matrix
-            * p0: The position for b=0 in the support
-            * Params: A NamedTuple with the parameters
-            * utf: The utility function
-        The function is structured as follow
-            [1] Calculate fixed matrices
-                yb = b .+ y >> Matrix nₑ x nₓ
-                The utility function  u(y + B -qB')
-                has y .+ B (with B being all the possibles)
-                which does not depend on B'
-            [2] The educated guesses:
-                VC₀ = (1-β)⁻¹ u(r/(1+r) * b + y)
-                    never defaulting and receiving the annualities for b
-                VD₀ = (1-β)⁻¹ u(yᵈ)
-                    being in default forever
-            [3] Fixed Point Problem
-    =#
     # ----------------------------------------
     # 1. Some initial parameters
     @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat,
@@ -93,21 +70,22 @@ function FixedPoint(b, y, udef, P, p0, params, utf)
     #    vr: value of repayment
     #    vd: value of default
     #    vf: value function
-    vr = 1 / (1 - β) * utf.((r / (1 + r)) * b .+ y', σrisk)
+    vr   = 1 / (1 - β) * utf.((r / (1 + r)) * b .+ y', σrisk)
     udef = repeat(udef', ne, 1)
-    vd = 1 / (1 - β) * udef
-    vf = max.(vr, vd)
-    D   = 1 * (vd .> vr)
-    bb = repeat(b, 1, nx)
-    bp = Array{CartesianIndex{2},2}(undef, ne, nx)
-    q  = Array{Float64,2}(undef, ne, nx)
+    vd   = 1 / (1 - β) * udef
+    vf   = max.(vr, vd)
+    D    = 1 * (vd .> vr)
+    bb   = repeat(b, 1, nx)
+    bp   = Array{CartesianIndex{2},2}(undef, ne, nx)
+    q    = Array{Float64,2}(undef, ne, nx)
     # ----------------------------------------
     # 3. Fixed Point Problem
     while dif > tol && rep < maxite
-        vf, vr, vd, D, bp, q, dif = value_functions!(
-            vf, vr, vd, D, bp, dif, b, P, p0,
-            yb, udef, β, θ, utf, r, σrisk
-        )
+        vf1, vr1, vd1, D1, bp, q=
+        value_functions(vf, vr, vd, D, b, P, p0, yb, udef,β, θ, utf, r, σrisk)
+        dif = [vf1 vr1 vd1 D1] - [vf vr vd D]
+        dif = maximum(abs.(dif))
+        vf, vr, vd,D = (vf1,vr1,vd1,D)
         rep += 1
     end
     if rep == maxite
@@ -120,19 +98,9 @@ function FixedPoint(b, y, udef, P, p0, params, utf)
     return vf, vr, vd, D, bp, q
 end
 
-function value_functions!( vf, vr, vd, D, bp, dif, b, P, p0, yb, udef,
-            β, θ, utf, r, σrisk)
-    #=
-        The structure of the function is:
-            [1] Calculate E[x] where x is the value function
-            [2] Find the optimal issued bond level under no default
-            [3] Update the value of default
-            [4] Update the new value function and default decision
-                as well the consistent prices
-    =#
+function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,β, θ, utf, r, σrisk)
     # ----------------------------------------
     # 1. Saving old information
-    vf_old = vf;
     ne,nx = size(vf)
     # ----------------------------------------
     # 2. Expected future Value Function
@@ -143,42 +111,22 @@ function value_functions!( vf, vr, vd, D, bp, dif, b, P, p0, yb, udef,
     qb   = qold .* b
     # --------------------------------------------------------------
     # 3. Value function of continuation
-    vr, bp = updateBellman!(vr, bp, yb, qb, βevf, utf, σrisk, ne, nx)
-    # --------------------------------------------------------------
-    # 4. Value function of default
-    βθevf = θ * βevf[p0, :]   # expected vf with b=0, in present val
-    vd    = βθevf' .+ (udef + β * (1 - θ) * evd)
-    # --------------------------------------------------------------
-    # 5. Continuation Value and Default choice
-    vf, D = (max.(vr, vd), 1 * (vd .> vr))
-    q = (1 / (1 + r)) * (1 .- (D * P'))
-    # --------------------------------------------------------------
-    # 6.  Divergence respect the initial point
-    dif = maximum(abs.(vf - vf_old))
-    return vf, vr, vd, D, bp, q, dif
-end
-
-function updateBellman!(vr, bp, yb, qb, βevf, utf, σrisk, ne, nx )
-    #=
-        This function find the value of Bₜ₊₁ that maximizes the expected
-        value function. The algorithm is:
-            [1] For each level of current debt (Bₜ) calculates
-                [1.1] calculates the consumption: c= y + B - qB'
-                [1.2] if c<0 we put c==0
-                [1.3] for each possible new debt level calculate u(c) + βE[V]
-                [1.4] Find the level of new debt with maximum current value
-    note: There is not a problem of update directly since yb, βevf, and
-        qb are determined outside this function and they are not updating
-        in each iteration
-    =#
-    # note:
+    vrnew = Array{Float64,2}(undef,ne,nx)
+    bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
     @inbounds for i = 1:ne
         cc = yb[i, :]' .- qb
         cc[cc.<0] .= 0
         aux_u = utf.(cc, σrisk) + βevf
-        vr[i, :], bp[i, :] = findmax(aux_u, dims = 1)
+        vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
     end
-    return vr, bp
+    # --------------------------------------------------------------
+    # 4. Value function of default
+    βθevf = θ * βevf[p0, :]   # expected vf with b=0, in present val
+    vdnew    = βθevf' .+ (udef + β * (1 - θ) * evd)
+    # --------------------------------------------------------------
+    # 5. Continuation Value and Default choice
+    vfnew, Dnew = (max.(vrnew, vdnew), 1 * (vdnew .> vrnew))
+    return vfnew, vrnew, vdnew, Dnew, bpnew, qold
 end
 
 function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
