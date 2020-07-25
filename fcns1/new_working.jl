@@ -119,7 +119,8 @@ end
 
 
 polfun, settings = Solver(params, hf, uf);
-
+heat1 = heatmap(settings.y, settings.b, polfun.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+savefig("./Figures/heatmap.svg")
 ############################################################
 # Simulation
 ############################################################
@@ -197,7 +198,22 @@ econsim = ModelSim(params,polfun, settings,hf);
 pdef = round(100 * sum(econsim.sim[:, 5])/ 100000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 
-
+DD  = -ones(params.ne,params.nx)
+sts =  econsim.sim[:,2:3]
+stuple = [(sts[i,1], sts[i,2])  for i in 1:size(sts)[1] ];
+for i in 1:params.ne
+    bi = settings.b[i]
+    for j in 1:params.nx
+        yj = settings.y[j]
+        pos = findfirst(x -> x==(bi,yj), stuple)
+        if ~isnothing(pos)
+            DD[i,j] = econsim.sim[pos, 5]
+        end
+    end
+end
+heat2 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+compheat = plot(heat1,heat2,layout=(2,1),size =(800,1000));
+savefig("./Figures/compheat.svg")
 ############################################################
 # Training
 ############################################################
@@ -225,10 +241,36 @@ dplot = [bb NNB(ss')'];
 plot(dplot[1:500,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
     c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:bottomright, grid=:false)
 
+dd = econsim.sim[:,5];
+Q1 = 16
+NND = Chain(Dense(2,Q1,softplus), Dense(Q1,1,sigmoid));
+lossd(x::Array,y::Array) = begin
+     x1 = NND(x)
+     logll = log.(x1 .+ 0.00001).*y + log.(1.00001 .- x1) .* (1 .-y)
+     logll = sum(logll)
+     return -logll
+end
+ss1   = Array{Float32}(ss')
+dd1   = Array{Float32}(dd')
+datad = Flux.Data.DataLoader(ss1,dd1)
+psd   = Flux.params(NND);
+Flux.@epochs 10 begin
+   Flux.Optimise.train!(lossd, psd, datad, ADAM())
+   display(lossd(ss1, dd1))
+end
+lik = NND(ss')';
+ddhat = lik
+dplot = [dd ddhat];
+plot(dplot[1:2000,:])
+
+
+
+
 pp(x,b) = begin
     xb = x * b'
     return (1 .+ exp.(-xb)) .^ (-1)
 end
+
 function lllog(b,x,y)
     xb = x * b'
     fxb = (1 .+ exp.(-xb)) .^ (-1)
@@ -246,7 +288,6 @@ plot(dplot[1:2000,:])
 #=
  Graphics for fit
 =#
-heatmap(settings.y, settings.b, polfun.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" )
 
 
 
