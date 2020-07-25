@@ -6,8 +6,8 @@
 # [0] Including our module
 ############################################################
 
-using Random,
-    Distributions, Statistics, LinearAlgebra, Plots, StatsBase, Parameters, Flux
+using Random, Optim, Distributions, Statistics, LinearAlgebra, Plots,
+    StatsBase, Parameters, Flux
 include("supcodes.jl")
 ############################################################
 # []  Functions
@@ -225,20 +225,17 @@ dplot = [bb NNB(ss')'];
 plot(dplot[1:500,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
     c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:bottomright, grid=:false)
 
-def = econsim.sim[:,5];
-NND =
-lossD = 
-datad = Flux.Data.DataLoader(ss', def')
-psd  = Flux.params(NND)
-Flux.@epochs 10 begin
-   Flux.Optimise.train!(lossd, psd, datad, Descent())
-   display(lossd(ss', def'))
+
+function lllog(b,x,y)
+    xb = x .* b
+    fxb = (1 .+ exp.(-xb)) .^ (-1)
+    LL  = y .* log.(fxb)  + (1 .- y) .* log.(1 .- fxb)
+    return -sum(LL)
 end
-dplot = [def NND(ss')'];
-plot(dplot[1:1000,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
-    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:bottomright, grid=:false)
-
-
+def = econsim.sim[:,5];
+mylln(beta) = lllog(beta,ss,def);
+betas  = [0.0 0.0];
+result = optimize(mylln, betas, BFGS())
 
 plot(def[1:2000])
 #=
