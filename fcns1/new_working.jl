@@ -225,9 +225,12 @@ dplot = [bb NNB(ss')'];
 plot(dplot[1:500,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
     c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:bottomright, grid=:false)
 
-
+pp(x,b) = begin
+    xb = x * b'
+    return (1 .+ exp.(-xb)) .^ (-1)
+end
 function lllog(b,x,y)
-    xb = x .* b
+    xb = x * b'
     fxb = (1 .+ exp.(-xb)) .^ (-1)
     LL  = y .* log.(fxb)  + (1 .- y) .* log.(1 .- fxb)
     return -sum(LL)
@@ -236,8 +239,10 @@ def = econsim.sim[:,5];
 mylln(beta) = lllog(beta,ss,def);
 betas  = [0.0 0.0];
 result = optimize(mylln, betas, BFGS())
-
-plot(def[1:2000])
+predict = pp(ss, result.minimizer)
+yhat = 1 * (predict .> 0.2)
+dplot = [def yhat]
+plot(dplot[1:2000,:])
 #=
  Graphics for fit
 =#
