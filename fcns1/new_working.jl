@@ -201,93 +201,50 @@ display("Simulation finished, with frequency of $pdef default events");
 ############################################################
 # Training
 ############################################################
-
-
-
-
-
-
-training(data; nepoch = 10) = begin
-   ϕf(x) = log1p(exp(x)); Q1 = 16;  Q2 = 3;
-   @unpack rdata, ddata, limt = data
-   vr, sr = (rdata[1] , rdata[2])
-   vd, sd = (ddata[1] , ddata[2])
-   length(size(sr)) != 1 ? ns1 = size(sr)[2] :   ns1=1
-   length(size(sd)) != 1 ?  ns2 = size(sd)[2]  : ns2=1
-   #+++++++++++++++++++++++++++++++++
-   #  Neural Network for No default
-   NetWorkR = Chain(Dense(ns1, Q1, ϕf), Dense(Q1, 1))
-   lr(x, y) = Flux.mse(NetWorkR(x), y)
-   datar = Flux.Data.DataLoader(sr', vr')
-   psr   = Flux.params(NetWorkR)
-   Flux.@epochs nepoch begin
-      Flux.Optimise.train!(lr, psr, datar, Descent())
-      display(lr(sr', vr'))
-   end
-   #+++++++++++++++++++++++++++++++++
-   #  Neural Network for Default
-   NetWorkD = Chain(Dense(ns2, Q2, ϕf), Dense(Q2, 1))
-   ld(x, y) = Flux.mse(NetWorkD(x), y)
-   datad = Flux.Data.DataLoader(sd', vd')
-   psd = Flux.params(NetWorkD)
-   Flux.@epochs nepoch begin
-      Flux.Optimise.train!(ld, psd, datad, Descent())
-      display(ld(sd', vd'))
-   end
-   return NetWorkR, NetWorkD;
+mynorm(x) = begin
+    ux = maximum(x, dims=1)
+    lx = minimum(x, dims=1)
+    nx = (x .- 0.5(ux+lx)) ./ (0.5*(ux-lx))
+    return nx, ux, lx
 end
-neudata = simtoneu(econsim,normi);
-NetWorkR, NetWorkD = training(neudata);
+y  = econsim.sim[:,8];
+ys, uys, lys = mynorm(y);
+bs = econsim.sim[:,2];
+ss = [bs ys]
+bb = econsim.sim[:,4];
+Q1    = 16
+NNB   = Chain(Dense(2, Q1, softplus), Dense(Q1, 1))
+lossb(x, y) = Flux.mse(NNB(x), y)
+datab = Flux.Data.DataLoader(ss', bb')
+psb   = Flux.params(NNB)
+Flux.@epochs 10 begin
+   Flux.Optimise.train!(lossb, psb, datab, Descent())
+   display(lossb(ss', bb'))
+end
+dplot = [bb NNB(ss')'];
+plot(dplot[1:500,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
+    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:bottomright, grid=:false)
 
+def = econsim.sim[:,5];
+NND =
+lossD = 
+datad = Flux.Data.DataLoader(ss', def')
+psd  = Flux.params(NND)
+Flux.@epochs 10 begin
+   Flux.Optimise.train!(lossd, psd, datad, Descent())
+   display(lossd(ss', def'))
+end
+dplot = [def NND(ss')'];
+plot(dplot[1:1000,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
+    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:bottomright, grid=:false)
+
+
+
+plot(def[1:2000])
 #=
  Graphics for fit
 =#
-
-
-
-
-
-
-
-
-
-# Repayment
-dst = econsim.sim[:, 5]
-vf = econsim.sim[:, 6]
-vr    = vf[dst.==0]
-vrhat = NetWorkR(neudata.rdata[2]');
-vrhat = convert(Array{Float64}, vrhat);
-vrmax, vrmin = neudata.limt[1]
-vrhat = (0.5 * (vrmax - vrmin) * vrhat) .+ 0.5 * (vrmax + vrmin)
-
-dplot = [vr vrhat'];
-pj0 = plot(dplot[1:2000,:], legend = :topleft, label = ["actual" "hat"],
-   fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
-   w = [0.75 0.5], style = [:solid :dash],
-   title = "Value function under repayment", titlefontsize = 10,
-)
-savefig("./Figures/FitVR1.svg")
-
-# Default
-vd    = vf[dst.==1]
-vdhat = NetWorkD(neudata.ddata[2]');
-vdhat = convert(Array{Float64}, vdhat);
-vdmax, vdmin = neudata.limt[2]
-vdhat = (0.5 * (vdmax - vdmin) * vdhat) .+ 0.5 * (vdmax + vdmin)
-dplot = [vd vdhat'];
-pj1 = plot(dplot, legend = :topleft, label = ["actual" "hat"],
-   fg_legend = :transparent, legendfontsize = 6, c = [:blue :red],
-   w = [0.75 0.5], style = [:solid :dash],
-   title = "Value function under Default", titlefontsize = 10,
-)
-savefig("./Figures/FitVD1.svg")
-
-
-
-
-
-
-
+heatmap(settings.y, settings.b, polfun.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" )
 
 
 
