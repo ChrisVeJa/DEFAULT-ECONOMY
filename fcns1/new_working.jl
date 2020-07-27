@@ -18,7 +18,7 @@ include("supcodes.jl")
 #params1 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
 #          θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
 #          ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 251);
-params2 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
         θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
         ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 501);
 #params3 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
@@ -27,7 +27,7 @@ params2 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
 #params4 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
 #        θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
 #        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 2001);
-uf(x, σrisk)= x^(1 - σrisk) / (1 - σrisk)
+uf(x)= x^(1 - params.σrisk) / (1 - params.σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
 
 ############################################################
@@ -36,14 +36,14 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 function Solver(params, hf, uf)
     # --------------------------------------------------------------
     # 0. Unpacking Parameters
-    @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = params
+    @unpack r, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = params
     # --------------------------------------------------------------
     # 1. Tauchen discretization of log-output
     ly, P = mytauch(μ, ρ, η, nx, m)
     y = exp.(ly)
     # --------------------------------------------------------------
     # 2. Output in case of default
-    udef = uf.(hf(y, fhat), σrisk)
+    udef = uf.(hf(y, fhat))
     # --------------------------------------------------------------
     # 3. To calculate the intervals of debt I will consider
     grid = (ub - lb) / (ne - 1)
@@ -52,8 +52,8 @@ function Solver(params, hf, uf)
     b[p0] = 0
     # --------------------------------------------------------------
     # 4. Solving the fixed point problem vf, vr, vd, D, bp, q
-    vf, vr, vd, D, bb, q, CC, bp = FixedPoint(b, y, udef, P, p0, params, uf)
-    PolFun = (vf = vf, vr = vr, vd = vd, D = D, bb = bb, q = q, CC = CC, bp = bp)
+    vf, vr, vd, D, bb, q, bp = FixedPoint(b, y, udef, P, p0, params, uf)
+    PolFun = (vf = vf, vr = vr, vd = vd, D = D, bb = bb, q = q,bp = bp)
     settings = (P = P, y = y, b= b, udef= udef)
     return PolFun, settings
 end
@@ -61,12 +61,12 @@ end
 function FixedPoint(b, y, udef, P, p0, params, uf)
     # ----------------------------------------
     # 1. Some initial parameters
-    @unpack r, σrisk,β, θ, nx, ne, tol, maxite = params;
+    @unpack r,β, θ, nx, ne, tol, maxite = params;
     dif= 1
     rep= 0
     yb = b .+ y'
     # ----------------------------------------
-    vr   = 1 / (1 - β) * uf.((r / (1 + r)) * b .+ y', σrisk)
+    vr   = 1 / (1 - β) * uf.((r / (1 + r)) * b .+ y')
     udef = repeat(udef', ne, 1)
     vd   = 1 / (1 - β) * udef
     vf   = max.(vr, vd)
@@ -76,7 +76,7 @@ function FixedPoint(b, y, udef, P, p0, params, uf)
     q    = Array{Float64,2}(undef, ne, nx)
     CC   = Array{Float64,2}(undef, ne, nx)
     while dif > tol && rep < maxite
-        vf1, vr1, vd1, D1, bp, q, CC = value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
+        vf1, vr1, vd1, D1, bp, q = value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
         dif = [vf1 vr1 vd1 D1] - [vf vr vd D]
         dif = maximum(abs.(dif))
         vf, vr, vd, D = (vf1, vr1, vd1, D1)
@@ -89,11 +89,11 @@ function FixedPoint(b, y, udef, P, p0, params, uf)
         print("Convergence achieve after $rep replications \n")
         bb = bb[bp]
     end
-    return vf, vr, vd, D, bb, q, CC, bp
+    return vf, vr, vd, D, bb, q, bp
 end
 
 function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
-    @unpack β, θ, r, σrisk, ne, nx = params
+    @unpack β, θ, r, ne, nx = params
     # ----------------------------------------
     # 1. Expected future Value Function
     evf = vf * P'    # today' value of expected value function
@@ -101,38 +101,43 @@ function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
     evd = vd * P'    #  expected value of default
     q   = (1 / (1 + r)) * (1 .- eδD) # price
     qb  = q .* b
+    βevf= β*evf
     # --------------------------------------------------------------
     # 3. Value function of continuation
     vrnew = Array{Float64,2}(undef,ne,nx)
-    cnew = Array{Float64,2}(undef,ne,nx)
     bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
-    @inbounds for i = 1:ne
-        cc = yb[i, :]' .- qb
-        cc[cc.<0] .= 0
-        aux_u = uf.(cc, σrisk) + β*evf
-        vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
-        cnew[i, :] = cc[bpnew[i, :]]
-    end
+    mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne)
     # --------------------------------------------------------------
     # 4. Value function of default
     evaux = θ * evf[p0, :]' .+  (1 - θ) * evd
     vdnew = udef + β*evaux
+
     # --------------------------------------------------------------
     # 5. Continuation Value and Default choice
     vfnew = max.(vrnew, vdnew)
     Dnew = 1 * (vdnew .> vrnew)
     eδD  = Dnew  * P'
     qnew = (1 / (1 + r)) * (1 .- eδD)
-    return vfnew, vrnew, vdnew, Dnew, bpnew, qnew, cnew
+    return vfnew, vrnew, vdnew, Dnew, bpnew, qnew
 end
-
+function mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne)
+    @inbounds for i = 1:ne
+    cc = yb[i, :]' .- qb
+    cc = max.(cc,0)
+    #aux_u = uf.(cc, σrisk) + βevf
+    aux_u = uf.(cc)  + βevf
+    vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
+    end
+    return vrnew, bpnew
+end
 
 #@time polfun1, settings1 = Solver(params1, hf, uf);
 @time polfun2, settings2 = Solver(params2, hf, uf);
 #@time polfun3, settings3 = Solver(params3, hf, uf);
 #@time polfun4, settings4 = Solver(params4, hf, uf);
 #heat1 = heatmap(settings1.y, settings1.b, polfun1.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-heat2 = heatmap(settings2.y, settings2.b, polfun2.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+heat2 = heatmap(settings2.y, settings2.b, polfun2.D',
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
 #heat3 = heatmap(settings3.y, settings3.b, polfun3.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
 #heat4 = heatmap(settings4.y, settings4.b, polfun4.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
 #plot(heat1,heat2,heat3,heat4, layout=(2,2))
