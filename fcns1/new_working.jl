@@ -28,6 +28,7 @@ params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
 #        θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
 #        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 2001);
 uf(x)= x^(1 - params.σrisk) / (1 - params.σrisk)
+uf(x) = -1/x
 hf(y, fhat) = min.(y, fhat * mean(y))
 
 ############################################################
@@ -132,7 +133,7 @@ function mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne)
 end
 
 #@time polfun1, settings1 = Solver(params1, hf, uf);
-@time polfun2, settings2 = Solver(params2, hf, uf);
+@time polfun2, settings2 = Solver(params, hf, uf);
 #@time polfun3, settings3 = Solver(params3, hf, uf);
 #@time polfun4, settings4 = Solver(params4, hf, uf);
 #heat1 = heatmap(settings1.y, settings1.b, polfun1.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
