@@ -12,39 +12,17 @@ include("supcodes.jl")
 ############################################################
 # []  Functions
 ############################################################
-############################################################
-# SETTING
-############################################################
-#params1 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
-#          θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
-#          ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 251);
-params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
-        θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
-        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 501);
-#params3 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
-#          θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
-#          ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 1001);
-#params4 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
-#        θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
-#        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 2001);
-uf(x)= x^(1 - params.σrisk) / (1 - params.σrisk)
-uf(x) = -1/x
-hf(y, fhat) = min.(y, fhat * mean(y))
-
-############################################################
-# Solving
-############################################################
 function Solver(params, hf, uf)
     # --------------------------------------------------------------
     # 0. Unpacking Parameters
-    @unpack r, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = params
+    @unpack r, ρ, η, β, θ, σrisk, nx, m, μ, fhat, ne, ub, lb, tol = params
     # --------------------------------------------------------------
     # 1. Tauchen discretization of log-output
     ly, P = mytauch(μ, ρ, η, nx, m)
     y = exp.(ly)
     # --------------------------------------------------------------
     # 2. Output in case of default
-    udef = uf.(hf(y, fhat))
+    udef = uf.(hf(y, fhat), σrisk)
     # --------------------------------------------------------------
     # 3. To calculate the intervals of debt I will consider
     grid = (ub - lb) / (ne - 1)
@@ -58,16 +36,15 @@ function Solver(params, hf, uf)
     settings = (P = P, y = y, b= b, udef= udef)
     return PolFun, settings
 end
-
 function FixedPoint(b, y, udef, P, p0, params, uf)
     # ----------------------------------------
     # 1. Some initial parameters
-    @unpack r,β, θ, nx, ne, tol, maxite = params;
+    @unpack r,β, θ, σrisk, nx, ne, tol, maxite = params;
     dif= 1
     rep= 0
     yb = b .+ y'
     # ----------------------------------------
-    vr   = 1 / (1 - β) * uf.((r / (1 + r)) * b .+ y')
+    vr   = 1 / (1 - β) * uf.((r / (1 + r)) * b .+ y', σrisk)
     udef = repeat(udef', ne, 1)
     vd   = 1 / (1 - β) * udef
     vf   = max.(vr, vd)
@@ -92,9 +69,8 @@ function FixedPoint(b, y, udef, P, p0, params, uf)
     end
     return vf, vr, vd, D, bb, q, bp
 end
-
 function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
-    @unpack β, θ, r, ne, nx = params
+    @unpack β, θ, r, ne, nx, σrisk = params
     # ----------------------------------------
     # 1. Expected future Value Function
     evf = vf * P'    # today' value of expected value function
@@ -107,7 +83,7 @@ function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
     # 3. Value function of continuation
     vrnew = Array{Float64,2}(undef,ne,nx)
     bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
-    mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne)
+    mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne, σrisk)
     # --------------------------------------------------------------
     # 4. Value function of default
     evaux = θ * evf[p0, :]' .+  (1 - θ) * evd
@@ -121,31 +97,15 @@ function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
     qnew = (1 / (1 + r)) * (1 .- eδD)
     return vfnew, vrnew, vdnew, Dnew, bpnew, qnew
 end
-function mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne)
+function mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne, σrisk)
     @inbounds for i = 1:ne
     cc = yb[i, :]' .- qb
     cc = max.(cc,0)
-    #aux_u = uf.(cc, σrisk) + βevf
-    aux_u = uf.(cc)  + βevf
+    aux_u = uf.(cc, σrisk) + βevf
     vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
     end
     return vrnew, bpnew
 end
-
-#@time polfun1, settings1 = Solver(params1, hf, uf);
-@time polfun2, settings2 = Solver(params, hf, uf);
-#@time polfun3, settings3 = Solver(params3, hf, uf);
-#@time polfun4, settings4 = Solver(params4, hf, uf);
-#heat1 = heatmap(settings1.y, settings1.b, polfun1.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-heat2 = heatmap(settings2.y, settings2.b, polfun2.D',
-        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-#heat3 = heatmap(settings3.y, settings3.b, polfun3.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-#heat4 = heatmap(settings4.y, settings4.b, polfun4.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-#plot(heat1,heat2,heat3,heat4, layout=(2,2))
-#savefig("./Figures/heatmap.svg")
-############################################################
-# Simulation
-############################################################
 function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05)
     # -------------------------------------------------------------------------
     # 0. Settings
@@ -181,7 +141,6 @@ function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05)
     modelsim = (sim = EconSim, order = orderName)
     return modelsim
 end
-
 function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
     @unpack D, bb, vf , q, vd = PolFun;
     for i = 1:nsim2-1
@@ -215,7 +174,26 @@ function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
     end
     return sim
 end
+############################################################
+# SETTING
+############################################################
+params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+        θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
+        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 501);
+uf(x, σrisk)= x^(1 - σrisk) / (1 - σrisk)
+hf(y, fhat) = min.(y, fhat * mean(y))
 
+############################################################
+# Solving
+############################################################
+polfun, settings = Solver(params, hf, uf);
+heat = heatmap(settings.y, settings.b, polfun.D',
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+plot(heat)
+savefig("./Figures/heatmap_base.svg")
+############################################################
+# Simulation
+############################################################
 econsim = ModelSim(params,polfun, settings,hf);
 pdef = round(100 * sum(econsim.sim[:, 5])/ 100000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
@@ -235,7 +213,7 @@ for i in 1:params.ne
 end
 heat2 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
 compheat = plot(heat1,heat2,layout=(2,1),size =(800,1000));
-savefig("./Figures/compheat.svg")
+savefig("./Figures/compheat_sim.svg")
 ############################################################
 # Training
 ############################################################
