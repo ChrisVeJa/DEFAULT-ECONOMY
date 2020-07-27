@@ -15,9 +15,18 @@ include("supcodes.jl")
 ############################################################
 # SETTING
 ############################################################
-params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
-          θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969, ne = 251,
-          ub = 0, lb = -0.4, tol = 1e-8, maxite = 500);
+#params1 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+#          θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
+#          ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 251);
+params2 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+        θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
+        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 501);
+#params3 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+#          θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
+#          ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 1001);
+#params4 = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+#        θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
+#        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 2001);
 uf(x, σrisk)= x^(1 - σrisk) / (1 - σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
 
@@ -118,9 +127,16 @@ function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
 end
 
 
-polfun, settings = Solver(params, hf, uf);
-heat1 = heatmap(settings.y, settings.b, polfun.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-savefig("./Figures/heatmap.svg")
+#@time polfun1, settings1 = Solver(params1, hf, uf);
+@time polfun2, settings2 = Solver(params2, hf, uf);
+#@time polfun3, settings3 = Solver(params3, hf, uf);
+#@time polfun4, settings4 = Solver(params4, hf, uf);
+#heat1 = heatmap(settings1.y, settings1.b, polfun1.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+heat2 = heatmap(settings2.y, settings2.b, polfun2.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+#heat3 = heatmap(settings3.y, settings3.b, polfun3.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+#heat4 = heatmap(settings4.y, settings4.b, polfun4.D', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+#plot(heat1,heat2,heat3,heat4, layout=(2,2))
+#savefig("./Figures/heatmap.svg")
 ############################################################
 # Simulation
 ############################################################
@@ -226,10 +242,10 @@ end
 y  = econsim.sim[:,8];
 ys, uys, lys = mynorm(y);
 bs = econsim.sim[:,2];
-ss = [bs ys]
-bb = econsim.sim[:,4];
+ss = [-bs ys]
+bb = -econsim.sim[:,4];
 Q1    = 16
-NNB   = Chain(Dense(2, Q1, softplus), Dense(Q1, 1))
+NNB   = Chain(Dense(2, Q1, softplus), Dense(Q1, 1, sigmoid))
 lossb(x, y) = Flux.mse(NNB(x), y)
 datab = Flux.Data.DataLoader(ss', bb')
 psb   = Flux.params(NNB)
@@ -239,15 +255,16 @@ Flux.@epochs 10 begin
 end
 dplot = [bb NNB(ss')'];
 plot(dplot[1:500,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
-    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:bottomright, grid=:false)
+    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:topright, grid=:false)
 
+#=
 dd = econsim.sim[:,5];
-Q1 = 16
+Q1 = 8
 NND = Chain(Dense(2,Q1,softplus), Dense(Q1,1,sigmoid));
 lossd(x::Array,y::Array) = begin
      x1 = NND(x)
-     logll = log.(x1 .+ 0.00001).*y + log.(1.00001 .- x1) .* (1 .-y)
-     logll = sum(logll)
+     logll = log.(x1 .+ 0.0000001).*y + log.(1.0000001 .- x1) .* (1 .-y)
+     logll = mean(logll)
      return -logll
 end
 ss1   = Array{Float32}(ss')
@@ -259,10 +276,9 @@ Flux.@epochs 10 begin
    display(lossd(ss1, dd1))
 end
 lik = NND(ss')';
-ddhat = lik
-dplot = [dd ddhat];
-plot(dplot[1:2000,:])
-
+cgrid = maximum(lik)/100
+td = size(lik)[1]
+=#
 
 
 
@@ -282,9 +298,32 @@ mylln(beta) = lllog(beta,ss,def);
 betas  = [0.0 0.0];
 result = optimize(mylln, betas, BFGS())
 predict = pp(ss, result.minimizer)
-yhat = 1 * (predict .> 0.2)
-dplot = [def yhat]
-plot(dplot[1:2000,:])
+
+cut0 = 0
+global disO = 1
+objt = mean(def)
+for i in 1:100
+    cutN = i/100
+    yhat = 1 * (predict .> cutN)
+    disN =  abs.(mean(yhat) - objt)
+    if disN < disO
+        global disO = disN
+        global cut0 = cutN
+    end
+end
+yhat = 1 * (predict .> cut0);
+
+b1  = -settings.b
+y1 , uys, lys = mynorm(settings.y);
+states  = [repeat(b1,params.nx,1) repeat(y1, inner= params.ne)]
+Dsolhat = pp(states, result.minimizer)
+Dsolhat = reshape(Dsolhat, (params.ne,params.nx))
+Dhat    = 1 * (Dsolhat .> cut0);
+heat3   = heatmap(settings.y, settings.b, Dhat', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+plot(heat1,heat2, heat3,layout=(3,1),size =(1200,1000), aspect_ratio = 0.6)
+
+
+
 #=
  Graphics for fit
 =#
