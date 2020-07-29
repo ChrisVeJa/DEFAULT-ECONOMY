@@ -105,7 +105,6 @@ function mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne, σrisk)
     end
     return vrnew, bpnew
 end
-
 function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05)
     # -------------------------------------------------------------------------
     # 0. Settings
@@ -189,14 +188,13 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 @time polfun, settings = Solver(params, hf, uf);
 heat = heatmap(settings.y, settings.b, polfun.D',
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-plot(heat)
 #savefig("./Figures/heatmap_base.svg")
 ############################################################
 # Simulation
 ############################################################
 econsim = ModelSim(params,polfun, settings,hf, nsim=100000);
-#pdef = round(100 * sum(econsim.sim[:, 5])/ 100000; digits = 2);
-#display("Simulation finished, with frequency of $pdef default events");
+pdef = round(100 * sum(econsim.sim[:, 5])/ 100000; digits = 2);
+display("Simulation finished, with frequency of $pdef default events");
 
 DD  = -ones(params.ne,params.nx)
 sts =  econsim.sim[:,2:3]
@@ -212,7 +210,6 @@ for i in 1:params.ne
     end
 end
 heat1 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-plot(heat1)
 #savefig("./Figures/compheat_sim.svg")
 ############################################################
 # Training
@@ -223,6 +220,7 @@ mynorm(x) = begin
     nx = (x .- 0.5(ux+lx)) ./ (0.5*(ux-lx))
     return nx, ux, lx
 end
+
 y  = econsim.sim[:,8];
 ys, uys, lys = mynorm(y);
 bs = econsim.sim[:,2];
@@ -238,8 +236,8 @@ Flux.@epochs 10 begin
    display(lossb(ss', bb'))
 end
 dplot = [bb NNB(ss')'];
-plot(dplot[1:500,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
-    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:topright, grid=:false)
+p1 = plot(dplot[1:500,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
+    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:topright, grid=:false);
 
 
 dd = econsim.sim[:,5];
@@ -259,9 +257,47 @@ Flux.@epochs 10 begin
    Flux.Optimise.train!(lossd, psd, datad, ADAM())
    display(lossd(ss1, dd1))
 end
-lik = NND(ss1)';
-dplot = [dd lik];
-plot(dplot[1:5000,:])
+dhat1 = NND(ss1)'
+dplot2 = [dd dhat1];
+p2 = plot(dplot2[1:5000,:],label = ["default" "NN"], fg_legend=:transparent,bg_legend=:transparent,
+    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:topright, grid=:false);
+
+newsim = Array{Float64,2}(undef,100*1000,4)
+for i = 1:100
+simaux = ModelSim(params,polfun, settings,hf, nsim=100000);
+select = rand(1:100000,1000,1)
+newsim[(i-1)*1000+1:i*1000,:] = simaux.sim[select,[8,2,4,5]]
+end
+
+
+
+y1sim  = newsim[:,1];  ys1sim, uys1sim, lys1sim = mynorm(y1sim);
+bs1sim = newsim[:,2];
+sssim  = [-bs1sim ys1sim]
+ss1sim = Array{Float32}(sssim')
+dd1sim = Array{Float32}(newsim[:,4]')
+datadsim = Flux.Data.DataLoader(ss1sim,dd1sim)
+Flux.Optimise.train!(lossd, psd, datadsim, ADAM())
+dhat2 = NND(ss1sim)'
+dplot3 = [dd dhat1 dhat2];
+p3 = plot(dplot3[1:5000,[1,3]],label = ["default" "NN" "NN1"], fg_legend=:transparent,bg_legend=:transparent,
+    c=[:blue :red :purple], alpha = 0.7, w = [1.15 0.75 0.75], legend=:topright, grid=:false);
+
+
+
+
+
+
+
+function train!(loss, ps, data, opt; cb = () -> ())
+  ps = Params(ps)
+  @progress for d in data
+      gs = gradient(ps) do
+        loss(batchmemaybe(d)...)
+      update!(opt, ps, gs)
+      cb()
+end
+
 
 
 
