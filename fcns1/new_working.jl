@@ -179,7 +179,7 @@ end
 ############################################################
 params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
         θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
-        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 501);
+        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 251);
 uf(x, σrisk)= x.^(1 - σrisk) / (1 - σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
 
@@ -190,13 +190,13 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 heat = heatmap(settings.y, settings.b, polfun.D',
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
 plot(heat)
-savefig("./Figures/heatmap_base.svg")
+#savefig("./Figures/heatmap_base.svg")
 ############################################################
 # Simulation
 ############################################################
-econsim = ModelSim(params,polfun, settings,hf);
-pdef = round(100 * sum(econsim.sim[:, 5])/ 100000; digits = 2);
-display("Simulation finished, with frequency of $pdef default events");
+econsim = ModelSim(params,polfun, settings,hf, nsim=100000);
+#pdef = round(100 * sum(econsim.sim[:, 5])/ 100000; digits = 2);
+#display("Simulation finished, with frequency of $pdef default events");
 
 DD  = -ones(params.ne,params.nx)
 sts =  econsim.sim[:,2:3]
@@ -211,9 +211,9 @@ for i in 1:params.ne
         end
     end
 end
-heat2 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-compheat = plot(heat1,heat2,layout=(2,1),size =(800,1000));
-savefig("./Figures/compheat_sim.svg")
+heat1 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+plot(heat1)
+#savefig("./Figures/compheat_sim.svg")
 ############################################################
 # Training
 ############################################################
@@ -241,9 +241,9 @@ dplot = [bb NNB(ss')'];
 plot(dplot[1:500,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
     c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:topright, grid=:false)
 
-#=
+
 dd = econsim.sim[:,5];
-Q1 = 8
+Q1 = 32
 NND = Chain(Dense(2,Q1,softplus), Dense(Q1,1,sigmoid));
 lossd(x::Array,y::Array) = begin
      x1 = NND(x)
@@ -259,59 +259,9 @@ Flux.@epochs 10 begin
    Flux.Optimise.train!(lossd, psd, datad, ADAM())
    display(lossd(ss1, dd1))
 end
-lik = NND(ss')';
-cgrid = maximum(lik)/100
-td = size(lik)[1]
-=#
-
-
-
-pp(x,b) = begin
-    xb = x * b'
-    return (1 .+ exp.(-xb)) .^ (-1)
-end
-
-function lllog(b,x,y)
-    xb = x * b'
-    fxb = (1 .+ exp.(-xb)) .^ (-1)
-    LL  = y .* log.(fxb)  + (1 .- y) .* log.(1 .- fxb)
-    return -sum(LL)
-end
-def = econsim.sim[:,5];
-mylln(beta) = lllog(beta,ss,def);
-betas  = [0.0 0.0];
-result = optimize(mylln, betas, BFGS())
-predict = pp(ss, result.minimizer)
-
-cut0 = 0
-global disO = 1
-objt = mean(def)
-for i in 1:100
-    cutN = i/100
-    yhat = 1 * (predict .> cutN)
-    disN =  abs.(mean(yhat) - objt)
-    if disN < disO
-        global disO = disN
-        global cut0 = cutN
-    end
-end
-yhat = 1 * (predict .> cut0);
-
-b1  = -settings.b
-y1 , uys, lys = mynorm(settings.y);
-states  = [repeat(b1,params.nx,1) repeat(y1, inner= params.ne)]
-Dsolhat = pp(states, result.minimizer)
-Dsolhat = reshape(Dsolhat, (params.ne,params.nx))
-Dhat    = 1 * (Dsolhat .> cut0);
-heat3   = heatmap(settings.y, settings.b, Dhat', aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-plot(heat1,heat2, heat3,layout=(3,1),size =(1200,1000), aspect_ratio = 0.6)
-
-
-
-#=
- Graphics for fit
-=#
-
+lik = NND(ss1)';
+dplot = [dd lik];
+plot(dplot[1:5000,:])
 
 
 
