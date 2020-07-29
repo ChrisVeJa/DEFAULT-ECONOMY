@@ -21,7 +21,7 @@ function Solver(params, hf, uf)
     y = exp.(ly)
     # --------------------------------------------------------------
     # 2. Output in case of default
-    udef = uf.(hf(y, fhat), σrisk)
+    udef = uf(hf(y, fhat), σrisk)
     # --------------------------------------------------------------
     # 3. To calculate the intervals of debt I will consider
     grid = (ub - lb) / (ne - 1)
@@ -43,7 +43,7 @@ function FixedPoint(b, y, udef, P, p0, params, uf)
     rep= 0
     yb = b .+ y'
     # ----------------------------------------
-    vr   = 1 / (1 - β) * uf.((r / (1 + r)) * b .+ y', σrisk)
+    vr   = 1 / (1 - β) * uf((r / (1 + r)) * b .+ y', σrisk)
     udef = repeat(udef', ne, 1)
     vd   = 1 / (1 - β) * udef
     vf   = max.(vr, vd)
@@ -105,6 +105,7 @@ function mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne, σrisk)
     end
     return vrnew, bpnew
 end
+
 function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05)
     # -------------------------------------------------------------------------
     # 0. Settings
@@ -179,13 +180,13 @@ end
 params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
         θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
         ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 501);
-uf(x, σrisk)= x^(1 - σrisk) / (1 - σrisk)
+uf(x, σrisk)= x.^(1 - σrisk) / (1 - σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
 
 ############################################################
 # Solving
 ############################################################
-polfun, settings = Solver(params, hf, uf);
+@time polfun, settings = Solver(params, hf, uf);
 heat = heatmap(settings.y, settings.b, polfun.D',
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
 plot(heat)
