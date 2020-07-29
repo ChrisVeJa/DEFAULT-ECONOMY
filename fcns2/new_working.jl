@@ -50,6 +50,7 @@ for i in 1:params.ne
 end
 heat1 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
 #savefig("./Figures/compheat_sim.svg")
+
 ############################################################
 # Training
 ############################################################
@@ -165,19 +166,3 @@ fixedp(bb,D,bp, settings, params, uf) = begin
     end
     return v,vr,vd, iteration
 end
-
-updated!(v, vr,vd, D, uvr, udef, params, bp, P) = begin
-    @unpack β, θ = params
-    ev  = v * P'
-    evd = vd * P'
-    vr1 = uvr + β*ev[bp]
-    evaux =  θ * ev[end, :]' .+  (1 - θ) * evd
-    vd1 = udef' .+ β*evaux
-    v1  = max.(vr1,vd1)
-    dif = max(maximum(abs.(v1-v)),maximum(abs.(vr1-vr)), maximum(abs.(vd1-vd)))
-    return v1, vr1, vd1, dif
-end
-
-polfun.
-vg,vrg,vdg, iteration = fixedp(bb,D,bp, settings, params, uf)
-display(maximum(abs.(vdg-polfun.vd)))

@@ -115,9 +115,9 @@ function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05)
 
     # -------------------------------------------------------------------------
     # 2. Simulation of the Economy
-    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) yⱼ"
+    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) yⱼ vr vd θ"
     distϕ = Bernoulli(θ)
-    EconSim = Array{Float64,2}(undef, nsim2, 8)  # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
+    EconSim = Array{Float64,2}(undef, nsim2, 11)  # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
     EconSim[1, 1:2] = [0 b[rand(1:ne)]]  # b could be any value in the grid
     EconSim = simulation!(
         EconSim,simul_state,PolFun,y,ydef,b,distϕ,nsim2,p0)
@@ -128,7 +128,7 @@ function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05)
     return modelsim
 end
 function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
-    @unpack D, bb, vf , q, vd = PolFun;
+    @unpack D, bb, vf , q, vd,vr = PolFun;
     for i = 1:nsim2-1
         bi = findfirst(x -> x == sim[i, 2], b) # position of B
         j = simul_state[i]                     # state for y
@@ -137,8 +137,8 @@ function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
             defchoice = D[bi, j]
             ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]
             bsim = (1 - defchoice) * bb[bi, j]
-            sim[i, 3:8] =
-                [ysim bsim defchoice vf[bi, j] q[bi, j] y[j]]
+            sim[i, 3:11] =
+                [ysim bsim defchoice vf[bi, j] q[bi, j] y[j]  vr[bi, j]  vd[bi, j] 0]
             sim[i+1, 1:2] = [defchoice bsim]
         else
             # Under previous default, I simulate if the economy could reenter to the market
@@ -148,12 +148,12 @@ function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
                 defchoice = D[p0, j] # default again?
                 ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]# output | choice
                 bsim = (1 - defchoice) * bb[p0, j]
-                sim[i, 3:8] =
-                    [ysim bsim defchoice vf[p0, j] q[p0,j] y[j]]
+                sim[i, 3:11] =
+                    [ysim bsim defchoice vf[p0, j] q[p0,j] y[j] vr[p0, j] vd[p0, j] 0]
                 sim[i+1, 1:2] = [defchoice bsim]
             else # They are out the market
-                sim[i, 3:8] =
-                    [ydef[j] 0 1 vd[p0, j] q[p0, j] y[j]] #second change
+                sim[i, 3:11] =
+                    [ydef[j] 0 1 vd[p0, j] q[p0, j] y[j] vr[p0, j] vd[p0, j] 1] #second change
                 sim[i+1, 1:2] = [1 0]
             end
         end
