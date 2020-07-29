@@ -119,9 +119,9 @@ function ModelSim(params, PolFun, ext; nsim = 100000, burn = 0.05)
 
     # -------------------------------------------------------------------------
     # 2. Simulation of the Economy
-    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) yⱼ Vᵣ Vđ θ=1?"
+    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) yⱼ"
     distϕ = Bernoulli(θ)
-    EconSim = Array{Float64,2}(undef, nsim2, 11)  # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
+    EconSim = Array{Float64,2}(undef, nsim2, 8)  # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
     EconSim[1, 1:2] = [0 b[rand(1:ne)]]  # b could be any value in the grid
     EconSim = simulation!(
         EconSim,simul_state,PolFun,y,ydef,b,distϕ,nsim2,p0)
