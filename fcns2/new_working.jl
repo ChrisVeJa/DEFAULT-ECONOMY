@@ -100,13 +100,22 @@ scatter(sc1[2],sc1[3],[sc1[4], sc2[4],sc3[4],sc4[4]], alpha =0.2,
     label = tit, legendfontsize = 8, fg_legend = :transparent,
     bg_legend = :transparent, legend = :topleft,size=(800,600))
 
-difmat = [sc1[4] sc2[4] sc3[4] sc4[4]];
+difmat = [sc1[3] sc1[2] sc1[4] sc2[4] sc3[4] sc4[4]];
+difmat = sort(difmat,dims=1)
+difmat = difmat[:,3:end]
 minvalmat = [findmin(difmat[i,:])[1] for i in 1:size(difmat)[1]]
 minmat = [findmin(difmat[i,:])[2] for i in 1:size(difmat)[1]]
 minarc = tit[minmat];
+bestNN = [sort([sc1[3] sc1[2]],dims=1) minvalmat difmat minarc]
 
-
-
+io = open("bestNN.txt", "w");
+for i in 1:size(bestNN)[1]
+    for j in 1:7
+        print(io, round(bestNN[i,j], digits=4),"\t")
+    end
+    println(io,bestNN[i,8])
+end
+close(io);
 
 
 newsim = Array{Float64,2}(undef,100*1000,4)
