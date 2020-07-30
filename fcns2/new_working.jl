@@ -17,14 +17,14 @@ include("supcodes.jl")
 ############################################################
 params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
         θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
-        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 251);
+        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 501);
 uf(x, σrisk)= x.^(1 - σrisk) / (1 - σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
 
 ############################################################
 # Solving
 ############################################################
-@time polfun, settings = Solver(params, hf, uf);
+polfun, settings = Solver(params, hf, uf);
 heat = heatmap(settings.y, settings.b, polfun.D',
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
 #savefig("./Figures/heatmap_base.svg")
@@ -49,6 +49,7 @@ for i in 1:params.ne
     end
 end
 heat1 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+
 #savefig("./Figures/compheat_sim.svg")
 
 ############################################################
@@ -67,7 +68,7 @@ vd = econsim.sim[:,10];
 vr, uvr, lvr = mynorm(vr);
 vd, uvd, lvd = mynorm(vd);
 ss, uss, lss = mynorm(ss0);
-Q1 = 32
+Q1 = 16
 NNR  = Chain(Dense(2, Q1, softplus), Dense(Q1, 1));
 llvr(x,y)  = Flux.mse(NNR(x),y);
 datar = Flux.Data.DataLoader((ss',vr'))
@@ -85,8 +86,84 @@ datafit = [[datafit[i][1] datafit[i][2] datafit[i][3] datafit[i][4]] for i in 1:
 datafit = [vcat(datafit...)][1]
 datafit = sort(datafit, dims=1)
 diff = abs.(datafit[:,4] - datafit[:,3])
-scatter(datafit[:,2],datafit[:,1],diff, marker_z = (+),markersize = 5,
+sc1 = scatter(datafit[:,2],datafit[:,1],diff, marker_z = (+),markersize = 5,
         color = :bluesreds, label ="", markerstrokewidth = 0.1)
+
+
+
+
+NNR1  = Chain(Dense(2, Q1, tanh), Dense(Q1, 1));
+llvr1(x,y)  = Flux.mse(NNR1(x),y);
+datar1 = Flux.Data.DataLoader((ss',vr'))
+psr1 = Flux.params(NNR1)
+Flux.@epochs 10 begin
+   Flux.Optimise.train!(llvr1, psr1, datar1, Descent())
+   display(llvr1(ss', vr'))
+end
+
+# Fit
+vrfit1 = NNR1(ss')'
+datafit1 = [(ss0[i,1], ss0[i,2], vrfit1[i] ,vr[i])  for i in eachindex(vr)]
+datafit1 = unique(datafit1)
+datafit1 = [[datafit1[i][1] datafit1[i][2] datafit1[i][3] datafit1[i][4]] for i in 1:length(datafit1)]
+datafit1 = [vcat(datafit1...)][1]
+datafit1 = sort(datafit1, dims=1)
+diff1 = abs.(datafit1[:,4] - datafit1[:,3])
+sc2 = scatter(datafit1[:,2],datafit1[:,1],diff1, marker_z = (+),markersize = 5,
+        color = :bluesreds, label ="", markerstrokewidth = 0.1)
+
+
+NNR1  = Chain(Dense(2, Q1, relu), Dense(Q1, Q1,tanh), Dense(Q1,1));
+llvr1(x,y)  = Flux.mse(NNR1(x),y);
+datar1 = Flux.Data.DataLoader((ss',vr'))
+psr1 = Flux.params(NNR1)
+Flux.@epochs 10 begin
+   Flux.Optimise.train!(llvr1, psr1, datar1, Descent())
+   display(llvr1(ss', vr'))
+end
+
+# Fit
+vrfit1 = NNR1(ss')'
+datafit1 = [(ss0[i,1], ss0[i,2], vrfit1[i] ,vr[i])  for i in eachindex(vr)]
+datafit1 = unique(datafit1)
+datafit1 = [[datafit1[i][1] datafit1[i][2] datafit1[i][3] datafit1[i][4]] for i in 1:length(datafit1)]
+datafit1 = [vcat(datafit1...)][1]
+datafit1 = sort(datafit1, dims=1)
+diff1 = abs.(datafit1[:,4] - datafit1[:,3])
+sc3 = scatter(datafit1[:,2],datafit1[:,1],diff1, marker_z = (+),markersize = 5,
+        color = :bluesreds, label ="", markerstrokewidth = 0.1)
+
+
+
+NNR1  = Chain(Dense(2, Q1, relu), Dense(Q1, Q1,softplus), Dense(Q1,1));
+llvr1(x,y)  = Flux.mse(NNR1(x),y);
+datar1 = Flux.Data.DataLoader((ss',vr'))
+psr1 = Flux.params(NNR1)
+Flux.@epochs 10 begin
+  Flux.Optimise.train!(llvr1, psr1, datar1, Descent())
+  display(llvr1(ss', vr'))
+end
+
+# Fit
+vrfit1 = NNR1(ss')'
+datafit1 = [(ss0[i,1], ss0[i,2], vrfit1[i] ,vr[i])  for i in eachindex(vr)]
+datafit1 = unique(datafit1)
+datafit1 = [[datafit1[i][1] datafit1[i][2] datafit1[i][3] datafit1[i][4]] for i in 1:length(datafit1)]
+datafit1 = [vcat(datafit1...)][1]
+datafit1 = sort(datafit1, dims=1)
+diff1 = abs.(datafit1[:,4] - datafit1[:,3])
+sc4 = scatter(datafit1[:,2],datafit1[:,1],diff1, marker_z = (+),markersize = 5,
+       color = :bluesreds, label ="", markerstrokewidth = 0.1)
+
+
+
+
+
+
+
+
+
+
 
 newsim = Array{Float64,2}(undef,100*1000,4)
 for i = 1:10
