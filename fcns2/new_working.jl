@@ -90,7 +90,7 @@ NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
 sc2  = mytrain(NNR2,data,ss0,vr,col = :sienna4);
 NNR3 = Chain(Dense(2, 16, relu), Dense(16, 16,softplus), Dense(16,1));
 sc3  = mytrain(NNR3,data,ss0,vr,col = :purple);
-NNR4 = Chain(Dense(2, 16, relu), Dense(16, 16,tanh), Dense(16,1));
+NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
 sc4  = mytrain(NNR4,data,ss0,vr,col = :teal);
 tit = ["Softplus" "Tanh" "Relu + softplus" "Relu + tanh"]
 plot(sc1[1],sc2[1],sc3[1],sc4[1],layout = (2,2),size=(1000,800),
@@ -104,14 +104,6 @@ difmat = [sc1[4] sc2[4] sc3[4] sc4[4]];
 minvalmat = [findmin(difmat[i,:])[1] for i in 1:size(difmat)[1]]
 minmat = [findmin(difmat[i,:])[2] for i in 1:size(difmat)[1]]
 minarc = tit[minmat];
-scatter(sc1[2],sc1[3],minvalmat,legendfontsize = 8,
-    series_ann = (minarc, 4),
-    fg_legend = :transparent,
-    bg_legend = :transparent, legend = :topleft,size=(800,600))
-
-
-
-
 
 
 
