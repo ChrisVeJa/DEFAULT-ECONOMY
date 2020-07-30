@@ -62,7 +62,7 @@ mynorm(x) = begin
     return nx, ux, lx
 end
 
-mytrain(NN,data,ss,vr;) = begin
+mytrain(NN,data,ss,vr; col = :blue) = begin
     lossf(x,y) = Flux.mse(NN(x),y);
     traindata  = Flux.Data.DataLoader(data)
     pstrain = Flux.params(NN)
@@ -74,9 +74,9 @@ mytrain(NN,data,ss,vr;) = begin
     fit = [vcat(fit...)][1]
     fit = sort(fit, dims=1)
     diff = abs.(fit[:,4] - fit[:,3])
-    sc = scatter(fit[:,2], fit[:,1],diff, marker_z = (+),markersize = 5,
-            color = :bluesreds, label ="", markerstrokewidth = 0.1);
-    return sc
+    sc = scatter(fit[:,2], fit[:,1],diff,markersize = 5, legend = :false,
+            color = col, alpha =0.2, label ="", markerstrokewidth = 0.1);
+    return sc, fit[:,2],fit[:,1],diff
 end
 
 ss0 = econsim.sim[:,[2,8]] # bₜ, yₜ
@@ -85,13 +85,31 @@ vr, uvr, lvr = mynorm(vr);
 ss, uss, lss = mynorm(ss0);
 data = (Array{Float32}(ss'), Array{Float32}(vr'));
 NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
-sc1  = mytrain(NNR1,data,ss0,vr);
+sc1  = mytrain(NNR1,data,ss0,vr,col = :orange);
 NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
-sc2  = mytrain(NNR2,data,ss0,vr);
+sc2  = mytrain(NNR2,data,ss0,vr,col = :sienna4);
 NNR3 = Chain(Dense(2, 16, relu), Dense(16, 16,softplus), Dense(16,1));
-sc3  = mytrain(NNR3,data,ss0,vr);
+sc3  = mytrain(NNR3,data,ss0,vr,col = :purple);
 NNR4 = Chain(Dense(2, 16, relu), Dense(16, 16,tanh), Dense(16,1));
-sc4  = mytrain(NNR4,data,ss0,vr);
+sc4  = mytrain(NNR4,data,ss0,vr,col = :teal);
+tit = ["Softplus" "Tanh" "Relu + softplus" "Relu + tanh"]
+plot(sc1[1],sc2[1],sc3[1],sc4[1],layout = (2,2),size=(1000,800),
+    title = tit)
+
+scatter(sc1[2],sc1[3],[sc1[4], sc2[4],sc3[4],sc4[4]], alpha =0.2,
+    label = tit, legendfontsize = 8, fg_legend = :transparent,
+    bg_legend = :transparent, legend = :topleft,size=(800,600))
+
+difmat = [sc1[4] sc2[4] sc3[4] sc4[4]];
+minvalmat = [findmin(difmat[i,:])[1] for i in 1:size(difmat)[1]]
+minmat = [findmin(difmat[i,:])[2] for i in 1:size(difmat)[1]]
+minarc = tit[minmat];
+scatter(sc1[2],sc1[3],minvalmat,legendfontsize = 8,
+    series_ann = (minarc, 4),
+    fg_legend = :transparent,
+    bg_legend = :transparent, legend = :topleft,size=(800,600))
+
+
 
 
 
