@@ -62,102 +62,36 @@ mynorm(x) = begin
     return nx, ux, lx
 end
 
+mytrain(NN,data,ss,vr;) = begin
+    lossf(x,y) = Flux.mse(NN(x),y);
+    traindata  = Flux.Data.DataLoader(data)
+    pstrain = Flux.params(NN)
+    Flux.@epochs 10 Flux.Optimise.train!(lossf, pstrain, traindata, Descent())
+    vrfit = NN(data[1])'
+    fit = [(ss[i,1], ss[i,2], vrfit[i] ,vr[i])  for i in eachindex(vr)]
+    fit = unique(fit)
+    fit = [[fit[i][1] fit[i][2] fit[i][3] fit[i][4]] for i in 1:length(fit)]
+    fit = [vcat(fit...)][1]
+    fit = sort(fit, dims=1)
+    diff = abs.(fit[:,4] - fit[:,3])
+    sc = scatter(fit[:,2], fit[:,1],diff, marker_z = (+),markersize = 5,
+            color = :bluesreds, label ="", markerstrokewidth = 0.1);
+    return sc
+end
+
 ss0 = econsim.sim[:,[2,8]] # bₜ, yₜ
-vr = econsim.sim[:,9] # bₜ, yₜ
-vd = econsim.sim[:,10];
+vr = econsim.sim[:,9]      # bₜ, yₜ
 vr, uvr, lvr = mynorm(vr);
-vd, uvd, lvd = mynorm(vd);
 ss, uss, lss = mynorm(ss0);
-Q1 = 16
-NNR  = Chain(Dense(2, Q1, softplus), Dense(Q1, 1));
-llvr(x,y)  = Flux.mse(NNR(x),y);
-datar = Flux.Data.DataLoader((ss',vr'))
-psr = Flux.params(NNR)
-Flux.@epochs 10 begin
-   Flux.Optimise.train!(llvr, psr, datar, Descent())
-   display(llvr(ss', vr'))
-end
-
-# Fit
-vrfit = NNR(ss')'
-datafit = [(ss0[i,1], ss0[i,2], vrfit[i] ,vr[i])  for i in eachindex(vr)]
-datafit = unique(datafit)
-datafit = [[datafit[i][1] datafit[i][2] datafit[i][3] datafit[i][4]] for i in 1:length(datafit)]
-datafit = [vcat(datafit...)][1]
-datafit = sort(datafit, dims=1)
-diff = abs.(datafit[:,4] - datafit[:,3])
-sc1 = scatter(datafit[:,2],datafit[:,1],diff, marker_z = (+),markersize = 5,
-        color = :bluesreds, label ="", markerstrokewidth = 0.1)
-
-
-
-
-NNR1  = Chain(Dense(2, Q1, tanh), Dense(Q1, 1));
-llvr1(x,y)  = Flux.mse(NNR1(x),y);
-datar1 = Flux.Data.DataLoader((ss',vr'))
-psr1 = Flux.params(NNR1)
-Flux.@epochs 10 begin
-   Flux.Optimise.train!(llvr1, psr1, datar1, Descent())
-   display(llvr1(ss', vr'))
-end
-
-# Fit
-vrfit1 = NNR1(ss')'
-datafit1 = [(ss0[i,1], ss0[i,2], vrfit1[i] ,vr[i])  for i in eachindex(vr)]
-datafit1 = unique(datafit1)
-datafit1 = [[datafit1[i][1] datafit1[i][2] datafit1[i][3] datafit1[i][4]] for i in 1:length(datafit1)]
-datafit1 = [vcat(datafit1...)][1]
-datafit1 = sort(datafit1, dims=1)
-diff1 = abs.(datafit1[:,4] - datafit1[:,3])
-sc2 = scatter(datafit1[:,2],datafit1[:,1],diff1, marker_z = (+),markersize = 5,
-        color = :bluesreds, label ="", markerstrokewidth = 0.1)
-
-
-NNR1  = Chain(Dense(2, Q1, relu), Dense(Q1, Q1,tanh), Dense(Q1,1));
-llvr1(x,y)  = Flux.mse(NNR1(x),y);
-datar1 = Flux.Data.DataLoader((ss',vr'))
-psr1 = Flux.params(NNR1)
-Flux.@epochs 10 begin
-   Flux.Optimise.train!(llvr1, psr1, datar1, Descent())
-   display(llvr1(ss', vr'))
-end
-
-# Fit
-vrfit1 = NNR1(ss')'
-datafit1 = [(ss0[i,1], ss0[i,2], vrfit1[i] ,vr[i])  for i in eachindex(vr)]
-datafit1 = unique(datafit1)
-datafit1 = [[datafit1[i][1] datafit1[i][2] datafit1[i][3] datafit1[i][4]] for i in 1:length(datafit1)]
-datafit1 = [vcat(datafit1...)][1]
-datafit1 = sort(datafit1, dims=1)
-diff1 = abs.(datafit1[:,4] - datafit1[:,3])
-sc3 = scatter(datafit1[:,2],datafit1[:,1],diff1, marker_z = (+),markersize = 5,
-        color = :bluesreds, label ="", markerstrokewidth = 0.1)
-
-
-
-NNR1  = Chain(Dense(2, Q1, relu), Dense(Q1, Q1,softplus), Dense(Q1,1));
-llvr1(x,y)  = Flux.mse(NNR1(x),y);
-datar1 = Flux.Data.DataLoader((ss',vr'))
-psr1 = Flux.params(NNR1)
-Flux.@epochs 10 begin
-  Flux.Optimise.train!(llvr1, psr1, datar1, Descent())
-  display(llvr1(ss', vr'))
-end
-
-# Fit
-vrfit1 = NNR1(ss')'
-datafit1 = [(ss0[i,1], ss0[i,2], vrfit1[i] ,vr[i])  for i in eachindex(vr)]
-datafit1 = unique(datafit1)
-datafit1 = [[datafit1[i][1] datafit1[i][2] datafit1[i][3] datafit1[i][4]] for i in 1:length(datafit1)]
-datafit1 = [vcat(datafit1...)][1]
-datafit1 = sort(datafit1, dims=1)
-diff1 = abs.(datafit1[:,4] - datafit1[:,3])
-sc4 = scatter(datafit1[:,2],datafit1[:,1],diff1, marker_z = (+),markersize = 5,
-       color = :bluesreds, label ="", markerstrokewidth = 0.1)
-
-
-
-
+data = (Array{Float32}(ss'), Array{Float32}(vr'));
+NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
+sc1  = mytrain(NNR1,data,ss0,vr);
+NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
+sc2  = mytrain(NNR2,data,ss0,vr);
+NNR3 = Chain(Dense(2, 16, relu), Dense(16, 16,softplus), Dense(16,1));
+sc3  = mytrain(NNR3,data,ss0,vr);
+NNR4 = Chain(Dense(2, 16, relu), Dense(16, 16,tanh), Dense(16,1));
+sc4  = mytrain(NNR4,data,ss0,vr);
 
 
 
@@ -176,100 +110,3 @@ ss1 = (newsim[:,1:2] .- 0.5*(uss + lss)) ./ (0.5*(uss - lss));
 datar1 = Flux.Data.DataLoader((ss1',vr1'))
 Flux.Optimise.train!(llvr, psr, datar1, Descent())
 display(llvr(ss', vr'))
-
-
-
-NND  = Chain(Dense(2, 4, softplus), Dense(4, 1))
-lossb(x, y) = Flux.mse(NNB(x), y)
-datab = Flux.Data.DataLoader(ss', bb')
-psb   = Flux.params(NNB)
-Flux.@epochs 10 begin
-   Flux.Optimise.train!(lossb, psb, datab, Descent())
-   display(lossb(ss', bb'))
-end
-dplot = [bb NNB(ss')'];
-p1 = plot(dplot[1:500,:], label = ["bond" "NN"], fg_legend=:transparent,bg_legend=:transparent,
-    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:topright, grid=:false);
-
-
-dd = econsim.sim[:,5];
-Q1 = 32
-NND = Chain(Dense(2,Q1,softplus), Dense(Q1,1,sigmoid));
-lossd(x::Array,y::Array) = begin
-     x1 = NND(x)
-     logll = log.(x1 .+ 0.0000001).*y + log.(1.0000001 .- x1) .* (1 .-y)
-     logll = mean(logll)
-     return -logll
-end
-ss1   = Array{Float32}(ss')
-dd1   = Array{Float32}(dd')
-datad = Flux.Data.DataLoader(ss1,dd1)
-psd   = Flux.params(NND);
-Flux.@epochs 10 begin
-   Flux.Optimise.train!(lossd, psd, datad, ADAM())
-   display(lossd(ss1, dd1))
-end
-dhat1 = NND(ss1)'
-dplot2 = [dd dhat1];
-p2 = plot(dplot2[1:5000,:],label = ["default" "NN"], fg_legend=:transparent,bg_legend=:transparent,
-    c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:topright, grid=:false);
-
-
-
-
-
-y1sim  = newsim[:,1];  ys1sim, uys1sim, lys1sim = mynorm(y1sim);
-bs1sim = newsim[:,2];
-sssim  = [-bs1sim ys1sim]
-ss1sim = Array{Float32}(sssim')
-dd1sim = Array{Float32}(newsim[:,4]')
-datadsim = Flux.Data.DataLoader(ss1sim,dd1sim)
-Flux.Optimise.train!(lossd, psd, datadsim, ADAM())
-dhat2 = NND(ss1sim)'
-dplot3 = [dd dhat1 dhat2];
-p3 = plot(dplot3[1:5000,[1,3]],label = ["default" "NN" "NN1"], fg_legend=:transparent,bg_legend=:transparent,
-    c=[:blue :red :purple], alpha = 0.7, w = [1.15 0.75 0.75], legend=:topright, grid=:false);
-
-
-
-
-
-
-
-function train!(loss, ps, data, opt; cb = () -> ())
-  ps = Params(ps)
-  @progress for d in data
-      gs = gradient(ps) do
-        loss(batchmemaybe(d)...)
-      update!(opt, ps, gs)
-      cb()
-end
-
-
-
-
-
-D = polfun.D
-bb = polfun.bb
-bp = polfun.bp
-
-fixedp(bb,D,bp, settings, params, uf) = begin
-    @unpack P, y, b,udef   = settings
-    @unpack σrisk, β, ne,r, θ = params
-    vd = 1/(1-β) * udef;
-    vd = repeat(vd',ne, 1)
-    vr = 1/(1 - β) * uf.((r / (1 + r)) * b .+ y', σrisk)
-    q  = (1 / (1 + r)) * (1 .- (D*P'))
-    v   = max.(vr,vd)
-    cc  = (b .+ y') - (q[bp].*bb);
-    cc[cc.<0] .= 0;
-    uvr = uf.(cc,σrisk)
-    dif = 1.0
-    iteration = 1
-    while dif > 1e-8 && iteration<10000
-        v1, vr1, vd1 , dif = updated!(v,vr, vd,D, uvr, udef,params,bp, P)
-        vr = vr1; vd=  vd1 ; v = v1;
-        iteration+=1
-    end
-    return v,vr,vd, iteration
-end
