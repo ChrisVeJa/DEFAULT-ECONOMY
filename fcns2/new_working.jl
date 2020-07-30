@@ -61,13 +61,48 @@ mynorm(x) = begin
     return nx, ux, lx
 end
 
-y  = econsim.sim[:,8];
-ys, uys, lys = mynorm(y);
-bs = econsim.sim[:,2];
-ss = [-bs ys]
-bb = -econsim.sim[:,4];
-Q1    = 16
-NNB   = Chain(Dense(2, Q1, softplus), Dense(Q1, 1, sigmoid))
+ss0 = econsim.sim[:,[2,8]] # bₜ, yₜ
+vr = econsim.sim[:,9] # bₜ, yₜ
+vd = econsim.sim[:,10];
+vr, uvr, lvr = mynorm(vr);
+vd, uvd, lvd = mynorm(vd);
+ss, uss, lss = mynorm(ss0);
+Q1 = 16
+NNR  = Chain(Dense(2, Q1, softplus), Dense(Q1, 1));
+llvr(x,y)  = Flux.mse(NNR(x),y);
+datar = Flux.Data.DataLoader((ss',vr'))
+psr = Flux.params(NNR)
+Flux.@epochs 10 begin
+   Flux.Optimise.train!(llvr, psr, datar, Descent())
+   display(llvr(ss', vr'))
+end
+
+# Fit
+vrfit = NNR(ss')'
+datafit = [(ss0[i,1], ss0[i,2], vrfit[i] ,vr[i])  for i in eachindex(vr)]
+datafit = unique(datafit)
+datafit = [[datafit[i][1] datafit[i][2] datafit[i][3] datafit[i][4]] for i in 1:length(datafit)]
+datafit = [vcat(datafit...)][1]
+datafit = sort(datafit, dims=1)
+diff = abs.(datafit[:,4] - datafit[:,3])
+scatter(datafit[:,2],datafit[:,1],diff, marker_z = (+),markersize = 5,
+        color = :bluesreds, label ="", markerstrokewidth = 0.1)
+
+newsim = Array{Float64,2}(undef,100*1000,4)
+for i = 1:10
+    simaux = ModelSim(params,polfun, settings,hf, nsim=100000);
+    newsim[(i-1)*10000+1:i*10000,:] = simaux.sim[rand(1:100000,10000,1),[2,8,9,10]]
+end
+
+vr1 = (newsim[:,3] .- 0.5*(uvr + lvr)) ./ (0.5*(uvr - lvr));
+ss1 = (newsim[:,1:2] .- 0.5*(uss + lss)) ./ (0.5*(uss - lss));
+datar1 = Flux.Data.DataLoader((ss1',vr1'))
+Flux.Optimise.train!(llvr, psr, datar1, Descent())
+display(llvr(ss', vr'))
+
+
+
+NND  = Chain(Dense(2, 4, softplus), Dense(4, 1))
 lossb(x, y) = Flux.mse(NNB(x), y)
 datab = Flux.Data.DataLoader(ss', bb')
 psb   = Flux.params(NNB)
@@ -102,12 +137,7 @@ dplot2 = [dd dhat1];
 p2 = plot(dplot2[1:5000,:],label = ["default" "NN"], fg_legend=:transparent,bg_legend=:transparent,
     c=[:blue :red], alpha = 0.7, w = [1.15 0.75], legend=:topright, grid=:false);
 
-newsim = Array{Float64,2}(undef,100*1000,4)
-for i = 1:100
-simaux = ModelSim(params,polfun, settings,hf, nsim=100000);
-select = rand(1:100000,1000,1)
-newsim[(i-1)*1000+1:i*1000,:] = simaux.sim[select,[8,2,4,5]]
-end
+
 
 
 
