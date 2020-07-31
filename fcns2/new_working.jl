@@ -17,7 +17,7 @@ include("supcodes.jl")
 ############################################################
 params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
         θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
-        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 501);
+        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 251);
 uf(x, σrisk)= x.^(1 - σrisk) / (1 - σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
 
@@ -88,7 +88,7 @@ NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
 sc1  = mytrain(NNR1,data,ss0,vr,col = :orange);
 NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
 sc2  = mytrain(NNR2,data,ss0,vr,col = :sienna4);
-NNR3 = Chain(Dense(2, 16, relu), Dense(16, 16,softplus), Dense(16,1));
+NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
 sc3  = mytrain(NNR3,data,ss0,vr,col = :purple);
 NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
 sc4  = mytrain(NNR4,data,ss0,vr,col = :teal);
@@ -117,6 +117,34 @@ for i in 1:size(bestNN)[1]
 end
 close(io);
 
+polsta = [ repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne,1))];
+pred1 = NNR1(polsta')';
+pred1 = ((pred1) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
+pred1 = reshape(pred1, params.ne,params.nx);
+difpre1 = pred1 - polfun.vr;
+pred2 = NNR2(polsta')';
+pred2 = ((pred2) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
+pred2 = reshape(pred2, params.ne,params.nx);
+difpre2 = pred2 - polfun.vr;
+pred3 = NNR3(polsta')';
+pred3 = ((pred3) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
+pred3 = reshape(pred3, params.ne,params.nx);
+difpre3 = pred3 - polfun.vr;
+pred4 = NNR4(polsta')';
+pred4 = ((pred4) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
+pred4 = reshape(pred4, params.ne,params.nx);
+difpre4 = pred4 - polfun.vr;
+
+anim = @animate for i in 1:21
+plot(settings.b,[difpre1[:,i] difpre2[:,i] difpre3[:,i] difpre4[:,i]],
+    c= [:black :green :blue :red], grid= :false, xlabel = "debt",
+    label= ["softplus" "tanh" "relu+softplus" "relu+tanh"],
+    fg_legend = :transparent, bg_legend = :transparent,
+    legend_title = "state for y = $i", legendtitlefontsize = 8,
+    style = [:solid :solid :dash :dash],
+    title = "VR predicted - VR actual")
+end
+gif(anim,"myanim.gif",fps = 1)
 
 newsim = Array{Float64,2}(undef,100*1000,4)
 for i = 1:10
