@@ -27,6 +27,9 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 polfun, settings = Solver(params, hf, uf);
 heat = heatmap(settings.y, settings.b, polfun.D',
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+heatVR = heatmap(settings.y, settings.b, polfun.vr',
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
+        c = :Accent_3 )
 #savefig("./Figures/heatmap_base.svg")
 ############################################################
 # Simulation
@@ -35,23 +38,61 @@ econsim = ModelSim(params,polfun, settings,hf, nsim=100000);
 pdef = round(100 * sum(econsim.sim[:, 5])/ 100000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 
-DD  = -ones(params.ne,params.nx)
-sts =  econsim.sim[:,2:3]
-stuple = [(sts[i,1], sts[i,2])  for i in 1:size(sts)[1] ];
-for i in 1:params.ne
-    bi = settings.b[i]
-    for j in 1:params.nx
-        yj = settings.y[j]
-        pos = findfirst(x -> x==(bi,yj), stuple)
-        if ~isnothing(pos)
-            DD[i,j] = econsim.sim[pos, 5]
+myuni(data,params,settings)= begin
+    sts = data[:,1:2]
+    datav = data[:,3:4]
+    DD  = -ones(params.ne,params.nx)
+    VR  = fill(NaN,params.ne,params.nx)
+    stuple = [(sts[i,1], sts[i,2])  for i in 1:size(sts)[1] ];
+    for i in 1:params.ne
+        bi = settings.b[i]
+        for j in 1:params.nx
+            yj = settings.y[j]
+            pos = findfirst(x -> x==(bi,yj), stuple)
+            if ~isnothing(pos)
+                DD[i,j] = datav[pos, 1]
+                VR[i,j] = datav[pos, 2]
+            end
         end
     end
+    return DD, VR
 end
-heat1 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-
+myunique(data) = begin
+    dataTu = [Tuple(data[i,:])  for i in 1:size(data)[1]]
+    dataTu = unique(dataTu)
+    dataTu = [[dataTu[i]...]' for i in 1:length(dataTu)]
+    data   = [vcat(dataTu...)][1]
+    return data
+end
+mysimneu(nn) = begin
+    newsim = Array{Float64,2}(undef,nn*1000,4)
+    for i = 1:nn
+        simaux = ModelSim(params,polfun, settings,hf, nsim=10000);
+        newsim[(i-1)*1000+1:i*1000,:] = simaux.sim[rand(1:10000,1000,1),[2,3,5,9]]
+    end
+    return newsim
+end
+global data = myunique(data)
+DD, VR = myuni(data,params,settings)
+heat1 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+heat1VR = heatmap(settings.y, settings.b, VR',
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
+        c = :Accent_3 , grid=:false)
 #savefig("./Figures/compheat_sim.svg")
 
+animate = @animate for i in 1:100
+    newsim = mysimneu(100)
+    global data =  [data ;newsim]
+    global data = myunique(data)
+    DD, VR = myuni(data,params,settings)
+    heat1VR = heatmap(settings.y, settings.b, VR',
+            aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
+            c = :Accent_3 , grid=:false);
+    plot(heatVR, heat1VR, layout = (2,1), size=(400,500), title = "Round $i")
+    display(i)
+end
+gif(animate,"myanimban.gif",fps = 5)
 ############################################################
 # Training
 ############################################################
@@ -145,12 +186,6 @@ plot(settings.b,[difpre1[:,i] difpre2[:,i] difpre3[:,i] difpre4[:,i]],
     title = "VR predicted - VR actual")
 end
 gif(anim,"myanim.gif",fps = 1)
-
-newsim = Array{Float64,2}(undef,100*1000,4)
-for i = 1:10
-    simaux = ModelSim(params,polfun, settings,hf, nsim=100000);
-    newsim[(i-1)*10000+1:i*10000,:] = simaux.sim[rand(1:100000,10000,1),[2,8,9,10]]
-end
 
 vr1 = (newsim[:,3] .- 0.5*(uvr + lvr)) ./ (0.5*(uvr - lvr));
 ss1 = (newsim[:,1:2] .- 0.5*(uss + lss)) ./ (0.5*(uss - lss));
