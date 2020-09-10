@@ -6,8 +6,8 @@
 # [0] Including our module
 ############################################################
 using Random, Distributions, Statistics, LinearAlgebra, Plots,
-    StatsBase, Parameters, Flux
-include("supcodes.jl")
+    StatsBase, Parameters, Flux;
+include("supcodes.jl");
 ############################################################
 # []  Functions
 ############################################################
@@ -26,21 +26,36 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 ############################################################
 polfun, settings = Solver(params, hf, uf);
 heat = heatmap(settings.y, settings.b, polfun.D',
-        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt");
 heatVR = heatmap(settings.y, settings.b, polfun.vr',
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
-        c = :Accent_3 )
-#savefig("./Figures/heatmap_base.svg")
+        c = :Accent_3);
+#
 ############################################################
 # Simulation
 ############################################################
-econsim = ModelSim(params,polfun, settings,hf, nsim=100000);
-pdef = round(100 * sum(econsim.sim[:, 5])/ 100000; digits = 2);
+econsim0 = ModelSim(params,polfun, settings,hf, nsim=100000);
+pdef = round(100 * sum(econsim0.sim[:, 5])/ 100000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 
-myuni(data,params,settings)= begin
-    sts = data[:,1:2]
-    datav = data[:,3:4]
+econsim1 = ModelSim(params,polfun, settings,hf, nsim=1000000);
+pdef = round(100 * sum(econsim1.sim[:, 5])/ 1000000; digits = 2);
+display("Simulation finished, with frequency of $pdef default events");
+
+myunique(data) = begin
+    dataTu = [Tuple(data[i,:])  for i in 1:size(data)[1]]
+    dataTu = unique(dataTu)
+    dataTu = [[dataTu[i]...]' for i in 1:length(dataTu)]
+    data   = [vcat(dataTu...)][1]
+    return data
+end
+
+data0 = myunique(econsim0.sim)
+data1 = myunique(econsim1.sim)
+
+preheatmap(data,params,settings)= begin
+    sts = data[:,2:3]
+    datav = data[:,5:6]
     DD  = -ones(params.ne,params.nx)
     VR  = fill(NaN,params.ne,params.nx)
     stuple = [(sts[i,1], sts[i,2])  for i in 1:size(sts)[1] ];
@@ -57,42 +72,25 @@ myuni(data,params,settings)= begin
     end
     return DD, VR
 end
-myunique(data) = begin
-    dataTu = [Tuple(data[i,:])  for i in 1:size(data)[1]]
-    dataTu = unique(dataTu)
-    dataTu = [[dataTu[i]...]' for i in 1:length(dataTu)]
-    data   = [vcat(dataTu...)][1]
-    return data
-end
-mysimneu(nn) = begin
-    newsim = Array{Float64,2}(undef,nn*1000,4)
-    for i = 1:nn
-        simaux = ModelSim(params,polfun, settings,hf, nsim=10000);
-        newsim[(i-1)*1000+1:i*1000,:] = simaux.sim[rand(1:10000,1000,1),[2,3,5,9]]
-    end
-    return newsim
-end
-global data = myunique(data)
-DD, VR = myuni(data,params,settings)
-heat1 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),
-        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-heat1VR = heatmap(settings.y, settings.b, VR',
-        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
-        c = :Accent_3 , grid=:false)
-#savefig("./Figures/compheat_sim.svg")
 
-animate = @animate for i in 1:100
-    newsim = mysimneu(100)
-    global data =  [data ;newsim]
-    global data = myunique(data)
-    DD, VR = myuni(data,params,settings)
-    heat1VR = heatmap(settings.y, settings.b, VR',
-            aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
-            c = :Accent_3 , grid=:false);
-    plot(heatVR, heat1VR, layout = (2,1), size=(400,500), title = "Round $i")
-    display(i)
-end
-gif(animate,"myanimban.gif",fps = 5)
+DD0, VR0 = preheatmap(data0,params,settings);
+heat0 = heatmap(settings.y, settings.b, DD0', c = cgrad([:white, :black, :yellow]),
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+heat0VR = heatmap(settings.y, settings.b, VR0',aspect_ratio = 0.8, xlabel = "Output",
+                ylabel = "Debt", c = :Accent_3 , grid=:false);
+
+DD1, VR1 = preheatmap(data1,params,settings)
+heat1 = heatmap(settings.y, settings.b, DD1', c = cgrad([:white, :black, :yellow]),
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+heat1VR = heatmap(settings.y, settings.b, VR1',aspect_ratio = 0.8, xlabel = "Output",
+                ylabel = "Debt", c = :Accent_3 , grid=:false);
+
+# Plotting HEATMAPS by sample size
+plot(heat,heat0,heat1,layout = (3,1), size = (600,1200), title = ["(Actual)" "(100 m)" "(1 millon)"])
+savefig("./Figures/heatmap_D.png");
+plot(heatVR,heat0VR,heat1VR,layout = (3,1), size = (600,1200), title = ["(Actual)" "(100 m)" "(1 millon)"])
+savefig("./Figures/heatmap_V.png");
+
 ############################################################
 # Training
 ############################################################
@@ -103,11 +101,30 @@ mynorm(x) = begin
     return nx, ux, lx
 end
 
-mytrain(NN,data,ss,vr; col = :blue) = begin
+ss0 = econsim0.sim[:,[2,8]]  # bₜ, yₜ
+vr  = econsim0.sim[:,9]      # vᵣ
+vr, uvr, lvr = mynorm(vr);
+ss, uss, lss = mynorm(ss0);
+data = (Array{Float32}(ss'), Array{Float32}(vr'));
+
+mytrain(NN,data) = begin
     lossf(x,y) = Flux.mse(NN(x),y);
     traindata  = Flux.Data.DataLoader(data)
     pstrain = Flux.params(NN)
     Flux.@epochs 10 Flux.Optimise.train!(lossf, pstrain, traindata, Descent())
+end
+
+NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
+sc1  = mytrain(NNR1,data);
+NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
+sc2  = mytrain(NNR2,data);
+NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
+sc3  = mytrain(NNR3,data);
+NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
+sc4  = mytrain(NNR4,data);
+
+
+myfit(NN,data,ss,vr; col = :blue) = begin
     vrfit = NN(data[1])'
     fit = [(ss[i,1], ss[i,2], vrfit[i] ,vr[i])  for i in eachindex(vr)]
     fit = unique(fit)
@@ -115,31 +132,27 @@ mytrain(NN,data,ss,vr; col = :blue) = begin
     fit = [vcat(fit...)][1]
     fit = sort(fit, dims=1)
     diff = abs.(fit[:,4] - fit[:,3])
-    sc = scatter(fit[:,2], fit[:,1],diff,markersize = 5, legend = :false,
+    sc  = scatter(fit[:,2], fit[:,1],diff,markersize = 5, legend = :false,
             color = col, alpha =0.2, label ="", markerstrokewidth = 0.1);
     return sc, fit[:,2],fit[:,1],diff
 end
 
-ss0 = econsim.sim[:,[2,8]] # bₜ, yₜ
-vr = econsim.sim[:,9]      # bₜ, yₜ
-vr, uvr, lvr = mynorm(vr);
-ss, uss, lss = mynorm(ss0);
-data = (Array{Float32}(ss'), Array{Float32}(vr'));
-NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
-sc1  = mytrain(NNR1,data,ss0,vr,col = :orange);
-NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
-sc2  = mytrain(NNR2,data,ss0,vr,col = :sienna4);
-NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
-sc3  = mytrain(NNR3,data,ss0,vr,col = :purple);
-NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
-sc4  = mytrain(NNR4,data,ss0,vr,col = :teal);
+sc1 = myfit(NNR1,data,ss0,vr,col = :orange);
+sc2 = myfit(NNR2,data,ss0,vr,col = :sienna4);
+sc3 = myfit(NNR3,data,ss0,vr,col = :purple);
+sc4 = myfit(NNR4,data,ss0,vr,col = :teal);
 tit = ["Softplus" "Tanh" "Relu + softplus" "Relu + tanh"]
-plot(sc1[1],sc2[1],sc3[1],sc4[1],layout = (2,2),size=(1000,800),
-    title = tit)
+plot(sc1[1],sc2[1],sc3[1],sc4[1],layout = (2,2),size=(1000,800),title = tit);
+scatter(sc1[2],sc1[3],[sc1[4], sc2[4],sc3[4],sc4[4]], alpha =0.2, label = tit, legendfontsize = 8,
+    fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,size=(800,600));
 
-scatter(sc1[2],sc1[3],[sc1[4], sc2[4],sc3[4],sc4[4]], alpha =0.2,
-    label = tit, legendfontsize = 8, fg_legend = :transparent,
-    bg_legend = :transparent, legend = :topleft,size=(800,600))
+
+
+
+
+
+
+
 
 difmat = [sc1[3] sc1[2] sc1[4] sc2[4] sc3[4] sc4[4]];
 difmat = sort(difmat,dims=1)
