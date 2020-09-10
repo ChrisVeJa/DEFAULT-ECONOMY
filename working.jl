@@ -114,43 +114,25 @@ mytrain(NN,data) = begin
     Flux.@epochs 10 Flux.Optimise.train!(lossf, pstrain, traindata, Descent())
 end
 
-NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
-sc1  = mytrain(NNR1,data);
-NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
-sc2  = mytrain(NNR2,data);
-NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
-sc3  = mytrain(NNR3,data);
-NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
-sc4  = mytrain(NNR4,data);
 
-
-myfit(NN,data,ss,vr; col = :blue) = begin
-    vrfit = NN(data[1])'
-    fit = [(ss[i,1], ss[i,2], vrfit[i] ,vr[i])  for i in eachindex(vr)]
-    fit = unique(fit)
-    fit = [[fit[i][1] fit[i][2] fit[i][3] fit[i][4]] for i in 1:length(fit)]
-    fit = [vcat(fit...)][1]
-    fit = sort(fit, dims=1)
-    diff = abs.(fit[:,4] - fit[:,3])
-    sc  = scatter(fit[:,2], fit[:,1],diff,markersize = 5, legend = :false,
-            color = col, alpha =0.2, label ="", markerstrokewidth = 0.1);
-    return sc, fit[:,2],fit[:,1],diff
-end
-
-sc1 = myfit(NNR1,data,ss0,vr,col = :orange);
-sc2 = myfit(NNR2,data,ss0,vr,col = :sienna4);
-sc3 = myfit(NNR3,data,ss0,vr,col = :purple);
-sc4 = myfit(NNR4,data,ss0,vr,col = :teal);
-tit = ["Softplus" "Tanh" "Relu + softplus" "Relu + tanh"]
-plot(sc1[1],sc2[1],sc3[1],sc4[1],layout = (2,2),size=(1000,800),title = tit);
-scatter(sc1[2],sc1[3],[sc1[4], sc2[4],sc3[4],sc4[4]], alpha =0.2, label = tit, legendfontsize = 8,
-    fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,size=(800,600));
-
-
-
-
-
-
+# In-sample
+    NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
+    mytrain(NNR1,data);
+    NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
+    mytrain(NNR2,data);
+    NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
+    mytrain(NNR3,data);
+    NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
+    mytrain(NNR4,data);
+    uniqdata = unique([data[1]; data[2]],dims=2)
+    fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
+    diff = abs.(uniqdata[3,:] .- fitt)
+    scatter(uniqdata[1,:],uniqdata[2,:], [diff[:,1], diff[:,2], diff[:,3], diff[:,4]]);
+# Out-sample
+    bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
+    ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
+    states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
+    outpre = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
 
 
 
