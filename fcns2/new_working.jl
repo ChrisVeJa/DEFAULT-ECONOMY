@@ -5,7 +5,7 @@
 ############################################################
 # [0] Including our module
 ############################################################
-using Random, Optim, Distributions, Statistics, LinearAlgebra, Plots,
+using Random, Distributions, Statistics, LinearAlgebra, Plots,
     StatsBase, Parameters, Flux
 include("supcodes.jl")
 ############################################################
