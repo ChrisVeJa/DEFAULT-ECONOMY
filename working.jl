@@ -1,45 +1,194 @@
 ###############################################################################
 # 			APPROXIMATING DEFAULT ECONOMIES WITH NEURAL NETWORKS
-# The following code exemplifies the solution, simulation and approximation
-# of a basic Arellano-type economy with default
-
-# Written by: Christian Velasquez (velasqcb@bc.edu)
-# Dont hesitate in send any comment
 ###############################################################################
 
+############################################################
 # [0] Including our module
-using Random, Distributions,Statistics, LinearAlgebra, Plots,StatsBase,Parameters, Flux;
-include("DefaultEconomy.jl");
+############################################################
+using Random, Distributions, Statistics, LinearAlgebra, Plots,
+    StatsBase, Parameters, Flux
+include("supcodes.jl")
+############################################################
+# []  Functions
+############################################################
 
-# [1] Solving the model
-EconDef = DefaultEconomy.ModelSettings();
-EconSol = DefaultEconomy.SolveDefEcon(EconDef);
+############################################################
+# SETTING
+############################################################
+params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+        θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
+        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 251);
+uf(x, σrisk)= x.^(1 - σrisk) / (1 - σrisk)
+hf(y, fhat) = min.(y, fhat * mean(y))
 
-# [2] Simulate a sample with 1e5 observations
-EconSim = DefaultEconomy.ModelSimulate(EconSol,nsim=100000,burn=0.05);
+############################################################
+# Solving
+############################################################
+polfun, settings = Solver(params, hf, uf);
+heat = heatmap(settings.y, settings.b, polfun.D',
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+heatVR = heatmap(settings.y, settings.b, polfun.vr',
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
+        c = :Accent_3 )
+#savefig("./Figures/heatmap_base.svg")
+############################################################
+# Simulation
+############################################################
+econsim = ModelSim(params,polfun, settings,hf, nsim=100000);
+pdef = round(100 * sum(econsim.sim[:, 5])/ 100000; digits = 2);
+display("Simulation finished, with frequency of $pdef default events");
 
-# [3] Estimating a Neural network
-# 3.1 Data for training
-VFNeuF  = (vf= EconSim.Sim[:,6], q = EconSim.Sim[:,7],states= EconSim.Sim[:,2:3]);
+myuni(data,params,settings)= begin
+    sts = data[:,1:2]
+    datav = data[:,3:4]
+    DD  = -ones(params.ne,params.nx)
+    VR  = fill(NaN,params.ne,params.nx)
+    stuple = [(sts[i,1], sts[i,2])  for i in 1:size(sts)[1] ];
+    for i in 1:params.ne
+        bi = settings.b[i]
+        for j in 1:params.nx
+            yj = settings.y[j]
+            pos = findfirst(x -> x==(bi,yj), stuple)
+            if ~isnothing(pos)
+                DD[i,j] = datav[pos, 1]
+                VR[i,j] = datav[pos, 2]
+            end
+        end
+    end
+    return DD, VR
+end
+myunique(data) = begin
+    dataTu = [Tuple(data[i,:])  for i in 1:size(data)[1]]
+    dataTu = unique(dataTu)
+    dataTu = [[dataTu[i]...]' for i in 1:length(dataTu)]
+    data   = [vcat(dataTu...)][1]
+    return data
+end
+mysimneu(nn) = begin
+    newsim = Array{Float64,2}(undef,nn*1000,4)
+    for i = 1:nn
+        simaux = ModelSim(params,polfun, settings,hf, nsim=10000);
+        newsim[(i-1)*1000+1:i*1000,:] = simaux.sim[rand(1:10000,1000,1),[2,3,5,9]]
+    end
+    return newsim
+end
+global data = myunique(data)
+DD, VR = myuni(data,params,settings)
+heat1 = heatmap(settings.y, settings.b, DD', c = cgrad([:white, :black, :yellow]),
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+heat1VR = heatmap(settings.y, settings.b, VR',
+        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
+        c = :Accent_3 , grid=:false)
+#savefig("./Figures/compheat_sim.svg")
 
-# 3.2 Neural network for Value Funtion 16 neurons, 1 hidden layer, with softplus
-VFhat   = DefaultEconomy.NeuralTraining(VFNeuF[1],VFNeuF[3], Nepoch = 10);
-# 3.3 Neural network for Bond Price  16 neurons, 2 hidden layer, with softplus
-ns      = 2; Q = 16;
-ϕfun(x) = log1p(exp(x));
-#mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
-mhat_q  = Chain(Dense(ns,Q,ϕfun),Dense(Q,Q,ϕfun), Dense(Q,1));
-loss(x,y)= Flux.mse(mhat_q(x),y);
-opt     = Descent();
-NQChar  = DefaultEconomy.NeuralSettings(mhat_q,loss,opt);
-qhat    = DefaultEconomy.NeuralTraining(VFNeuF[2],VFNeuF[3],neuSettings=NQChar,Nepoch = 10);
+animate = @animate for i in 1:100
+    newsim = mysimneu(100)
+    global data =  [data ;newsim]
+    global data = myunique(data)
+    DD, VR = myuni(data,params,settings)
+    heat1VR = heatmap(settings.y, settings.b, VR',
+            aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
+            c = :Accent_3 , grid=:false);
+    plot(heatVR, heat1VR, layout = (2,1), size=(400,500), title = "Round $i")
+    display(i)
+end
+gif(animate,"myanimban.gif",fps = 5)
+############################################################
+# Training
+############################################################
+mynorm(x) = begin
+    ux = maximum(x, dims=1)
+    lx = minimum(x, dims=1)
+    nx = (x .- 0.5(ux+lx)) ./ (0.5*(ux-lx))
+    return nx, ux, lx
+end
 
+mytrain(NN,data,ss,vr; col = :blue) = begin
+    lossf(x,y) = Flux.mse(NN(x),y);
+    traindata  = Flux.Data.DataLoader(data)
+    pstrain = Flux.params(NN)
+    Flux.@epochs 10 Flux.Optimise.train!(lossf, pstrain, traindata, Descent())
+    vrfit = NN(data[1])'
+    fit = [(ss[i,1], ss[i,2], vrfit[i] ,vr[i])  for i in eachindex(vr)]
+    fit = unique(fit)
+    fit = [[fit[i][1] fit[i][2] fit[i][3] fit[i][4]] for i in 1:length(fit)]
+    fit = [vcat(fit...)][1]
+    fit = sort(fit, dims=1)
+    diff = abs.(fit[:,4] - fit[:,3])
+    sc = scatter(fit[:,2], fit[:,1],diff,markersize = 5, legend = :false,
+            color = col, alpha =0.2, label ="", markerstrokewidth = 0.1);
+    return sc, fit[:,2],fit[:,1],diff
+end
 
-# [4] Solving - Simulating - Training
-VFNeuFAux, VFhatAux, qhatAux, DIF= DefaultEconomy.ConvergeNN(EconSol,VFNeuF,VFhat,qhat);
-Γ1old, re11   = Flux.destructure(VFhat.Mhat);
-Γ2old, re21   = Flux.destructure(qhat.Mhat);
-Γ1oldA, re11A = Flux.destructure(VFhatAux.Mhat);
-Γ2oldA, re21A = Flux.destructure(qhatAux.Mhat);
-plot(DIF, legend= false)
-lens!([200, 400], [0.1, 0.3], inset = (1, bbox(0.5, 0.0, 0.4, 0.4)))
+ss0 = econsim.sim[:,[2,8]] # bₜ, yₜ
+vr = econsim.sim[:,9]      # bₜ, yₜ
+vr, uvr, lvr = mynorm(vr);
+ss, uss, lss = mynorm(ss0);
+data = (Array{Float32}(ss'), Array{Float32}(vr'));
+NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
+sc1  = mytrain(NNR1,data,ss0,vr,col = :orange);
+NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
+sc2  = mytrain(NNR2,data,ss0,vr,col = :sienna4);
+NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
+sc3  = mytrain(NNR3,data,ss0,vr,col = :purple);
+NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
+sc4  = mytrain(NNR4,data,ss0,vr,col = :teal);
+tit = ["Softplus" "Tanh" "Relu + softplus" "Relu + tanh"]
+plot(sc1[1],sc2[1],sc3[1],sc4[1],layout = (2,2),size=(1000,800),
+    title = tit)
+
+scatter(sc1[2],sc1[3],[sc1[4], sc2[4],sc3[4],sc4[4]], alpha =0.2,
+    label = tit, legendfontsize = 8, fg_legend = :transparent,
+    bg_legend = :transparent, legend = :topleft,size=(800,600))
+
+difmat = [sc1[3] sc1[2] sc1[4] sc2[4] sc3[4] sc4[4]];
+difmat = sort(difmat,dims=1)
+difmat = difmat[:,3:end]
+minvalmat = [findmin(difmat[i,:])[1] for i in 1:size(difmat)[1]]
+minmat = [findmin(difmat[i,:])[2] for i in 1:size(difmat)[1]]
+minarc = tit[minmat];
+bestNN = [sort([sc1[3] sc1[2]],dims=1) minvalmat difmat minarc]
+
+io = open("bestNN.txt", "w");
+for i in 1:size(bestNN)[1]
+    for j in 1:7
+        print(io, round(bestNN[i,j], digits=4),"\t")
+    end
+    println(io,bestNN[i,8])
+end
+close(io);
+
+polsta = [ repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne,1))];
+pred1 = NNR1(polsta')';
+pred1 = ((pred1) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
+pred1 = reshape(pred1, params.ne,params.nx);
+difpre1 = pred1 - polfun.vr;
+pred2 = NNR2(polsta')';
+pred2 = ((pred2) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
+pred2 = reshape(pred2, params.ne,params.nx);
+difpre2 = pred2 - polfun.vr;
+pred3 = NNR3(polsta')';
+pred3 = ((pred3) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
+pred3 = reshape(pred3, params.ne,params.nx);
+difpre3 = pred3 - polfun.vr;
+pred4 = NNR4(polsta')';
+pred4 = ((pred4) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
+pred4 = reshape(pred4, params.ne,params.nx);
+difpre4 = pred4 - polfun.vr;
+
+anim = @animate for i in 1:21
+plot(settings.b,[difpre1[:,i] difpre2[:,i] difpre3[:,i] difpre4[:,i]],
+    c= [:black :green :blue :red], grid= :false, xlabel = "debt",
+    label= ["softplus" "tanh" "relu+softplus" "relu+tanh"],
+    fg_legend = :transparent, bg_legend = :transparent,
+    legend_title = "state for y = $i", legendtitlefontsize = 8,
+    style = [:solid :solid :dash :dash],
+    title = "VR predicted - VR actual")
+end
+gif(anim,"myanim.gif",fps = 1)
+
+vr1 = (newsim[:,3] .- 0.5*(uvr + lvr)) ./ (0.5*(uvr - lvr));
+ss1 = (newsim[:,1:2] .- 0.5*(uss + lss)) ./ (0.5*(uss - lss));
+datar1 = Flux.Data.DataLoader((ss1',vr1'))
+Flux.Optimise.train!(llvr, psr, datar1, Descent())
+display(llvr(ss', vr'))
