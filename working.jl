@@ -165,32 +165,66 @@ end
 ##########################################################
 # 1 million
 ##########################################################
-ss0 = econsim0.sim[:,[2,8]]  # bₜ, yₜ
-vr  = econsim0.sim[:,9]      # vᵣ
-vr, uvr, lvr = mynorm(vr);
-ss, uss, lss = mynorm(ss0);
-data = (Array{Float32}(ss'), Array{Float32}(vr'));
+ss0 = econsim1.sim[:,[2,8]]   # bₜ, yₜ
+vr1  = econsim1.sim[:,9]      # vᵣ
+vr1, uvr1, lvr1 = mynorm(vr1);
+ss1, uss1, lss1 = mynorm(ss0);
+data1 = (Array{Float32}(ss1'), Array{Float32}(vr1'));
 
     NNR1e6 = Chain(Dense(2, 16, softplus), Dense(16, 1));
-    mytrain(NNR1e6,data);
+    mytrain(NNR1e6,data1);
     NNR2e6 = Chain(Dense(2, 16, tanh), Dense(16, 1));
-    mytrain(NNR2e6,data);
+    mytrain(NNR2e6,data1);
     NNR3e6 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
-    mytrain(NNR3e6,data);
+    mytrain(NNR3e6,data1);
     NNR4e6 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
-    mytrain(NNR4e6,data);
+    mytrain(NNR4e6,data1);
 
 # In-sample
-    uniqdata = unique([data[1]; data[2]],dims=2)
-    fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
-    diff = abs.(uniqdata[3,:] .- fitt)
-    scatter(uniqdata[1,:],uniqdata[2,:], [diff[:,1], diff[:,2], diff[:,3], diff[:,4]])
+    uniqdata1 = unique([data1[1]; data1[2]],dims=2)
+    fitte6 = [NNR1e6(uniqdata1[1:2,:])' NNR2e6(uniqdata1[1:2,:])' NNR3e6(uniqdata1[1:2,:])' NNR4e6(uniqdata1[1:2,:])']
+    diffe6 = abs.(uniqdata1[3,:] .- fitte6)
+    scatter(uniqdata1[1,:],uniqdata1[2,:], [diffe6[:,1], diffe6[:,2], diffe6[:,3], diffe6[:,4]])
 
 # Out-sample
-    bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
-    ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
-    vnorm = (vec(polfun.vr) .- 0.5(uvr+lvr)) ./ (0.5*(uvr-lvr))
-    states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
-    outpre = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
-    diff2 = abs.(vnorm.- outpre)
-    scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3], diff2[:,4]], markerstrokewidth= 0.3, alpha =0.42)
+    bnorme6 = (settings.b .- 0.5(uss1[1]+lss1[1])) ./ (0.5*(uss1[1]-lss1[1]))
+    ynorme6 = (settings.y .- 0.5(uss1[2]+lss1[2])) ./ (0.5*(uss1[2]-lss1[2]))
+    vnorme6 = (vec(polfun.vr) .- 0.5(uvr1+lvr1)) ./ (0.5*(uvr1-lvr1))
+    statese6 = [repeat(bnorme6,params.nx)' ; repeat(ynorme6,inner= (params.ne,1))']
+    outpree6 = [NNR1e6(statese6)' NNR2e6(statese6)' NNR3(statese6)' NNR4(statese6)']
+    diff2e6 = abs.(vnorme6.- outpree6)
+    scatter(statese6[1,:],statese6[2,:], [diff2e6[:,1], diff2e6[:,2], diff2e6[:,3], diff2e6[:,4]], markerstrokewidth= 0.3, alpha =0.42)
+
+##########################################################
+# Actual
+##########################################################
+
+ss0 = econsim1.sim[:,[2,8]]   # bₜ, yₜ
+vr1  = econsim1.sim[:,9]      # vᵣ
+vr1, uvr1, lvr1 = mynorm(vr1);
+ss1, uss1, lss1 = mynorm(ss0);
+data1 = (Array{Float32}(ss1'), Array{Float32}(vr1'));
+
+    NNR1e6 = Chain(Dense(2, 16, softplus), Dense(16, 1));
+    mytrain(NNR1e6,data1);
+    NNR2e6 = Chain(Dense(2, 16, tanh), Dense(16, 1));
+    mytrain(NNR2e6,data1);
+    NNR3e6 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
+    mytrain(NNR3e6,data1);
+    NNR4e6 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
+    mytrain(NNR4e6,data1);
+
+# In-sample
+    uniqdata1 = unique([data1[1]; data1[2]],dims=2)
+    fitte6 = [NNR1e6(uniqdata1[1:2,:])' NNR2e6(uniqdata1[1:2,:])' NNR3e6(uniqdata1[1:2,:])' NNR4e6(uniqdata1[1:2,:])']
+    diffe6 = abs.(uniqdata1[3,:] .- fitte6)
+    scatter(uniqdata1[1,:],uniqdata1[2,:], [diffe6[:,1], diffe6[:,2], diffe6[:,3], diffe6[:,4]])
+
+# Out-sample
+    bnorme6 = (settings.b .- 0.5(uss1[1]+lss1[1])) ./ (0.5*(uss1[1]-lss1[1]))
+    ynorme6 = (settings.y .- 0.5(uss1[2]+lss1[2])) ./ (0.5*(uss1[2]-lss1[2]))
+    vnorme6 = (vec(polfun.vr) .- 0.5(uvr1+lvr1)) ./ (0.5*(uvr1-lvr1))
+    statese6 = [repeat(bnorme6,params.nx)' ; repeat(ynorme6,inner= (params.ne,1))']
+    outpree6 = [NNR1e6(statese6)' NNR2e6(statese6)' NNR3(statese6)' NNR4(statese6)']
+    diff2e6 = abs.(vnorme6.- outpree6)
+    scatter(statese6[1,:],statese6[2,:], [diff2e6[:,1], diff2e6[:,2], diff2e6[:,3], diff2e6[:,4]], markerstrokewidth= 0.3, alpha =0.42)
