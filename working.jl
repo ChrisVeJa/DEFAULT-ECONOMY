@@ -25,6 +25,23 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 # Solving
 ############################################################
 polfun, settings = Solver(params, hf, uf);
+
+plot(settings.b, polfun.vf[:,10:12], label = ["low" "normal" "high"],
+    fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,
+    grid = :false, c= [:red :black :blue], w = [2 1.15 1.15],
+    style = [:dot :solid :dash], title = "Value function by debt level",
+    xlabel = "debt" , ylabel = "Value function")
+savefig("./Figures/ValueFunction.png")
+
+plot(settings.b, polfun.bb[:,10:12], label = ["low" "normal" "high"],
+    fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,
+    grid = :false, c= [:red :black :blue], w = [2 1.15 1.15],
+    style = [:dot :solid :dash], title = "Value function by debt level",
+    xlabel = "debt (state)" , ylabel = "Debt issued")
+savefig("./Figures/DebtChoice.png")
+
+
+
 heat = heatmap(settings.y, settings.b, polfun.D',
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt");
 heatVR = heatmap(settings.y, settings.b, polfun.vr',
