@@ -25,29 +25,28 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 # Solving
 ############################################################
 polfun, settings = Solver(params, hf, uf);
-
 plot(settings.b, polfun.vf[:,10:12], label = ["low" "normal" "high"],
     fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,
     grid = :false, c= [:red :black :blue], w = [2 1.15 1.15],
     style = [:dot :solid :dash], title = "Value function by debt level",
     xlabel = "debt" , ylabel = "Value function")
 savefig("./Figures/ValueFunction.png")
-
 plot(settings.b, polfun.bb[:,10:12], label = ["low" "normal" "high"],
     fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,
     grid = :false, c= [:red :black :blue], w = [2 1.15 1.15],
     style = [:dot :solid :dash], title = "Value function by debt level",
     xlabel = "debt (state)" , ylabel = "Debt issued")
 savefig("./Figures/DebtChoice.png")
-
-
-
+plot(settings.b, polfun.q[:,10:12], label = ["low" "normal" "high"],
+    fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,
+    grid = :false, c= [:red :black :blue], w = [2 1.15 1.15],
+    style = [:dot :solid :dash], title = "New issued Bonds Price",
+    xlabel = "debt (state)" , ylabel = "Price of new bonds")
+savefig("./Figures/PriceBond.png")
 heat = heatmap(settings.y, settings.b, polfun.D',
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt");
-heatVR = heatmap(settings.y, settings.b, polfun.vr',
-        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt",
-        c = :Accent_3);
-#
+savefig("./Figures/heatD0.png")
+
 ############################################################
 # Simulation
 ############################################################
@@ -58,6 +57,15 @@ display("Simulation finished, with frequency of $pdef default events");
 econsim1 = ModelSim(params,polfun, settings,hf, nsim=1000000);
 pdef = round(100 * sum(econsim1.sim[:, 5])/ 1000000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
+
+# Plotting
+plot(layout=(2,2), size = (1200,900), grid = :false)
+plot!(econsim0.sim[1000:2000,3], subplot= 1, label = :false, style = :dash, ylabel = "output")
+plot!(econsim0.sim[1000:2000,4], subplot= 2, label = :false, style = :dash, ylabel = "debt")
+plot!(econsim0.sim[1000:2000,6], subplot= 3, label = :false, style = :dash, ylabel = "Value Function")
+plot!(econsim0.sim[1000:2000,7], subplot= 4, label = :false, style = :dash, ylabel = "Price")
+savefig("./Figures/simulation.png")
+
 
 myunique(data) = begin
     dataTu = [Tuple(data[i,:])  for i in 1:size(data)[1]]
@@ -91,22 +99,16 @@ preheatmap(data,params,settings)= begin
 end
 
 DD0, VR0 = preheatmap(data0,params,settings);
-heat0 = heatmap(settings.y, settings.b, DD0', c = cgrad([:white, :black, :yellow]),
+heat0    = heatmap(settings.y, settings.b, DD0', c = cgrad([:white, :black, :yellow]),
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-heat0VR = heatmap(settings.y, settings.b, VR0',aspect_ratio = 0.8, xlabel = "Output",
-                ylabel = "Debt", c = :Accent_3 , grid=:false);
-
 DD1, VR1 = preheatmap(data1,params,settings)
-heat1 = heatmap(settings.y, settings.b, DD1', c = cgrad([:white, :black, :yellow]),
+heat1    = heatmap(settings.y, settings.b, DD1', c = cgrad([:white, :black, :yellow]),
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-heat1VR = heatmap(settings.y, settings.b, VR1',aspect_ratio = 0.8, xlabel = "Output",
-                ylabel = "Debt", c = :Accent_3 , grid=:false);
 
 # Plotting HEATMAPS by sample size
-plot(heat,heat0,heat1,layout = (3,1), size = (600,1200), title = ["(Actual)" "(100 m)" "(1 millon)"])
+plot(heat0,heat1,layout = (2,1), size = (500,800), title = ["(Actual)" "(100 m)" "(1 millon)"])
+
 savefig("./Figures/heatmap_D.png");
-plot(heatVR,heat0VR,heat1VR,layout = (3,1), size = (600,1200), title = ["(Actual)" "(100 m)" "(1 millon)"])
-savefig("./Figures/heatmap_V.png");
 
 ############################################################
 # Training
@@ -132,7 +134,10 @@ mytrain(NN,data) = begin
 end
 
 
-# In-sample
+##########################################################
+# 100 thousands
+##########################################################
+
     NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
     mytrain(NNR1,data);
     NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
@@ -141,6 +146,41 @@ end
     mytrain(NNR3,data);
     NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
     mytrain(NNR4,data);
+
+# In-sample
+    uniqdata = unique([data[1]; data[2]],dims=2)
+    fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
+    diff = abs.(uniqdata[3,:] .- fitt)
+    scatter(uniqdata[1,:],uniqdata[2,:], [diff[:,1], diff[:,2], diff[:,3], diff[:,4]])
+
+# Out-sample
+    bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
+    ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
+    vnorm = (vec(polfun.vr) .- 0.5(uvr+lvr)) ./ (0.5*(uvr-lvr))
+    states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
+    outpre = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
+    diff2 = abs.(vnorm.- outpre)
+    scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3], diff2[:,4]], markerstrokewidth= 0.3, alpha =0.42)
+
+##########################################################
+# 1 million
+##########################################################
+ss0 = econsim0.sim[:,[2,8]]  # bₜ, yₜ
+vr  = econsim0.sim[:,9]      # vᵣ
+vr, uvr, lvr = mynorm(vr);
+ss, uss, lss = mynorm(ss0);
+data = (Array{Float32}(ss'), Array{Float32}(vr'));
+
+    NNR1e6 = Chain(Dense(2, 16, softplus), Dense(16, 1));
+    mytrain(NNR1e6,data);
+    NNR2e6 = Chain(Dense(2, 16, tanh), Dense(16, 1));
+    mytrain(NNR2e6,data);
+    NNR3e6 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
+    mytrain(NNR3e6,data);
+    NNR4e6 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
+    mytrain(NNR4e6,data);
+
+# In-sample
     uniqdata = unique([data[1]; data[2]],dims=2)
     fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
     diff = abs.(uniqdata[3,:] .- fitt)

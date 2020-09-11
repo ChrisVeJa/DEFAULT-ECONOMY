@@ -6,5 +6,8 @@ The solution of an economy based on Arellano with the baseline calibration purpo
 
 ![](.//Figures//PriceBond.png)
 
+![](.//Figures//heatD0.png)
 
-![](.//Figures//heatmap_D.png)
+![](.//Figures//simulation.png)
+
+![](./Figures/heatmap_D.png)
