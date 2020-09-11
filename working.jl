@@ -127,63 +127,13 @@ end
     uniqdata = unique([data[1]; data[2]],dims=2)
     fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
     diff = abs.(uniqdata[3,:] .- fitt)
-    scatter(uniqdata[1,:],uniqdata[2,:], [diff[:,1], diff[:,2], diff[:,3], diff[:,4]]);
+    scatter(uniqdata[1,:],uniqdata[2,:], [diff[:,1], diff[:,2], diff[:,3], diff[:,4]])
+
 # Out-sample
     bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
     ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
+    vnorm = (vec(polfun.vr) .- 0.5(uvr+lvr)) ./ (0.5*(uvr-lvr))
     states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
     outpre = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
-
-
-
-difmat = [sc1[3] sc1[2] sc1[4] sc2[4] sc3[4] sc4[4]];
-difmat = sort(difmat,dims=1)
-difmat = difmat[:,3:end]
-minvalmat = [findmin(difmat[i,:])[1] for i in 1:size(difmat)[1]]
-minmat = [findmin(difmat[i,:])[2] for i in 1:size(difmat)[1]]
-minarc = tit[minmat];
-bestNN = [sort([sc1[3] sc1[2]],dims=1) minvalmat difmat minarc]
-
-io = open("bestNN.txt", "w");
-for i in 1:size(bestNN)[1]
-    for j in 1:7
-        print(io, round(bestNN[i,j], digits=4),"\t")
-    end
-    println(io,bestNN[i,8])
-end
-close(io);
-
-polsta = [ repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne,1))];
-pred1 = NNR1(polsta')';
-pred1 = ((pred1) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
-pred1 = reshape(pred1, params.ne,params.nx);
-difpre1 = pred1 - polfun.vr;
-pred2 = NNR2(polsta')';
-pred2 = ((pred2) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
-pred2 = reshape(pred2, params.ne,params.nx);
-difpre2 = pred2 - polfun.vr;
-pred3 = NNR3(polsta')';
-pred3 = ((pred3) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
-pred3 = reshape(pred3, params.ne,params.nx);
-difpre3 = pred3 - polfun.vr;
-pred4 = NNR4(polsta')';
-pred4 = ((pred4) .* (0.5*(uvr-lvr))) .+ (0.5*(uvr+lvr))
-pred4 = reshape(pred4, params.ne,params.nx);
-difpre4 = pred4 - polfun.vr;
-
-anim = @animate for i in 1:21
-plot(settings.b,[difpre1[:,i] difpre2[:,i] difpre3[:,i] difpre4[:,i]],
-    c= [:black :green :blue :red], grid= :false, xlabel = "debt",
-    label= ["softplus" "tanh" "relu+softplus" "relu+tanh"],
-    fg_legend = :transparent, bg_legend = :transparent,
-    legend_title = "state for y = $i", legendtitlefontsize = 8,
-    style = [:solid :solid :dash :dash],
-    title = "VR predicted - VR actual")
-end
-gif(anim,"myanim.gif",fps = 1)
-
-vr1 = (newsim[:,3] .- 0.5*(uvr + lvr)) ./ (0.5*(uvr - lvr));
-ss1 = (newsim[:,1:2] .- 0.5*(uss + lss)) ./ (0.5*(uss - lss));
-datar1 = Flux.Data.DataLoader((ss1',vr1'))
-Flux.Optimise.train!(llvr, psr, datar1, Descent())
-display(llvr(ss', vr'))
+    diff2 = abs.(vnorm.- outpre)
+    scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3], diff2[:,4]], markerstrokewidth= 0.3, alpha =0.42)
