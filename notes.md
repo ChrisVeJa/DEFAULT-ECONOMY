@@ -11,3 +11,9 @@ The solution of an economy based on Arellano with the baseline calibration purpo
 ![](.//Figures//simulation.png)
 
 ![](./Figures/heatmap_D.png)
+
+![](./Figures/scatter1.png)
+![](./Figures/scatter2.png)
+![](./Figures/scatter3.png)
+![](./Figures/scatter4.png)
+![](./Figures/scatter5.png)
