@@ -151,8 +151,11 @@ end
     uniqdata = unique([data[1]; data[2]],dims=2)
     fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
     diff = abs.(uniqdata[3,:] .- fitt)
-    scatter(uniqdata[1,:],uniqdata[2,:], [diff[:,1], diff[:,2], diff[:,3], diff[:,4]])
-
+    scatter(uniqdata[1,:],uniqdata[2,:], [diff[:,1], diff[:,2], diff[:,3], diff[:,4]],
+            markerstrokewidth= 0.3, alpha =0.42,
+            label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+            fg_legend=:transparent, bg_legend=:transparent)
+    savefig("./Figures/scatter1.png");
 # Out-sample
     bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
     ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
@@ -160,8 +163,11 @@ end
     states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
     outpre = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
     diff2 = abs.(vnorm.- outpre)
-    scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3], diff2[:,4]], markerstrokewidth= 0.3, alpha =0.42)
-
+    scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3], diff2[:,4]],
+            markerstrokewidth= 0.3, alpha =0.42,
+            label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+            fg_legend=:transparent, bg_legend=:transparent)
+    savefig("./Figures/scatter2.png");
 ##########################################################
 # 1 million
 ##########################################################
@@ -184,8 +190,11 @@ data1 = (Array{Float32}(ss1'), Array{Float32}(vr1'));
     uniqdata1 = unique([data1[1]; data1[2]],dims=2)
     fitte6 = [NNR1e6(uniqdata1[1:2,:])' NNR2e6(uniqdata1[1:2,:])' NNR3e6(uniqdata1[1:2,:])' NNR4e6(uniqdata1[1:2,:])']
     diffe6 = abs.(uniqdata1[3,:] .- fitte6)
-    scatter(uniqdata1[1,:],uniqdata1[2,:], [diffe6[:,1], diffe6[:,2], diffe6[:,3], diffe6[:,4]])
-
+    scatter(uniqdata1[1,:],uniqdata1[2,:], [diffe6[:,1], diffe6[:,2], diffe6[:,3], diffe6[:,4]],
+            markerstrokewidth= 0.3, alpha =0.42,
+            label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+            fg_legend=:transparent, bg_legend=:transparent)
+    savefig("./Figures/scatter3.png");
 # Out-sample
     bnorme6 = (settings.b .- 0.5(uss1[1]+lss1[1])) ./ (0.5*(uss1[1]-lss1[1]))
     ynorme6 = (settings.y .- 0.5(uss1[2]+lss1[2])) ./ (0.5*(uss1[2]-lss1[2]))
@@ -193,8 +202,11 @@ data1 = (Array{Float32}(ss1'), Array{Float32}(vr1'));
     statese6 = [repeat(bnorme6,params.nx)' ; repeat(ynorme6,inner= (params.ne,1))']
     outpree6 = [NNR1e6(statese6)' NNR2e6(statese6)' NNR3(statese6)' NNR4(statese6)']
     diff2e6 = abs.(vnorme6.- outpree6)
-    scatter(statese6[1,:],statese6[2,:], [diff2e6[:,1], diff2e6[:,2], diff2e6[:,3], diff2e6[:,4]], markerstrokewidth= 0.3, alpha =0.42)
-
+    scatter(statese6[1,:],statese6[2,:], [diff2e6[:,1], diff2e6[:,2], diff2e6[:,3], diff2e6[:,4]],
+            markerstrokewidth= 0.3, alpha =0.42,
+            label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+            fg_legend=:transparent, bg_legend=:transparent)
+    savefig("./Figures/scatter4.png");
 ##########################################################
 # Actual
 ##########################################################
@@ -217,4 +229,8 @@ data2 = (Array{Float32}(ss2'), Array{Float32}(vr2'));
 # In-sample
     fittact = [NNR1act(ss2')' NNR2act(ss2')' NNR3act(ss2')' NNR4act(ss2')']
     diffact = abs.(vr2 .- fittact )
-    scatter(ss2[:,1],ss2[:,2], [diffact[:,1], diffact[:,2], diffact[:,3], diffact[:,4]], markerstrokewidth= 0.3, alpha =0.42)
+    scatter(ss2[:,1],ss2[:,2], [diffact[:,1], diffact[:,2], diffact[:,3], diffact[:,4]],
+            markerstrokewidth= 0.3, alpha =0.42,
+            label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+            fg_legend=:transparent, bg_legend=:transparent)
+    savefig("./Figures/scatter5.png");
