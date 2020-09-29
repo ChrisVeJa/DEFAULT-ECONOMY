@@ -119,11 +119,17 @@ mynorm(x) = begin
     return nx, ux, lx
 end
 
-ss0 = econsim0.sim[:,[2,8]]  # bₜ, yₜ
-vr  = econsim0.sim[:,9]      # vᵣ
+b   = econsim0.sim[:,2]  # bₜₜ
+y   = econsim0.sim[:,2]  # yₜ
+vr  = econsim0.sim[:,9]  # vᵣ
+vd  = econsim0.sim[:,10] # vd
 vr, uvr, lvr = mynorm(vr);
-ss, uss, lss = mynorm(ss0);
+vd, uvd, lvd = mynorm(vd);
+ss, uss, lss = mynorm([b y]);
+ys, uby, lby = mynorm(y)
+
 data = (Array{Float32}(ss'), Array{Float32}(vr'));
+datad = (Array{Float32}(y'), Array{Float32}(vd'))
 
 mytrain(NN,data) = begin
     lossf(x,y) = Flux.mse(NN(x),y);
@@ -134,18 +140,14 @@ end
 
 
 ##########################################################
-# 100 thousands
+# NEURAL NETWORK FOR SIMULATIONS WITH SAMPLE SIZE OF 100K
 ##########################################################
 
-    NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
-    mytrain(NNR1,data);
-    NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
-    mytrain(NNR2,data);
-    NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
-    mytrain(NNR3,data);
-    NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
-    mytrain(NNR4,data);
+# -------------------------------------------------------
+# ESTIMATION
+# -------------------------------------------------------
 
+<<<<<<< HEAD
 # In-sample
     uniqdata = unique([data[1]; data[2]],dims=2)
     fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
@@ -162,16 +164,75 @@ end
     diff2 = abs.(vnorm.- outpre)
     scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3], diff2[:,4]], markerstrokewidth= 0.3, alpha =0.42)
     savefig("./Figures/scatter2.png")
+=======
+    # Value of Repayment
+        NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
+        mytrain(NNR1,data);
+        NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
+        mytrain(NNR2,data);
+        NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
+        mytrain(NNR3,data);
+        NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
+        mytrain(NNR4,data);
+
+    # Value of Default
+        NND1 = Chain(Dense(1, 16, softplus), Dense(16, 1));
+        mytrain(NND1,datad);
+        NND2 = Chain(Dense(1, 16, tanh), Dense(16, 1));
+        mytrain(NND2,datad);
+        NND3 = Chain(Dense(1, 32, relu), Dense(32, 16,softplus), Dense(16,1));
+        mytrain(NND3,datad);
+        NND4 = Chain(Dense(1, 32, relu), Dense(32, 16,tanh), Dense(16,1));
+        mytrain(NND4,datad);
+
+# -------------------------------------------------------
+# FORECAST ERROR
+# -------------------------------------------------------
+
+    # In-sample
+        uniqdata = unique([data[1]; data[2]],dims=2)
+        fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
+        diff = abs.(uniqdata[3,:] .- fitt)
+        scatter(uniqdata[1,:],uniqdata[2,:], [diff[:,1], diff[:,2], diff[:,3], diff[:,4]],
+                markerstrokewidth= 0.3, alpha =0.42,
+                label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+                fg_legend=:transparent, bg_legend=:transparent)
+        savefig("./Figures/scatter1.png");
+
+    # Out-sample
+        bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
+        ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
+        vnorm = (vec(polfun.vr) .- 0.5(uvr+lvr)) ./ (0.5*(uvr-lvr))
+        states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
+        outpre = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
+        diff2 = abs.(vnorm.- outpre)
+        scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3], diff2[:,4]],
+                markerstrokewidth= 0.3, alpha =0.42,
+                label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+                fg_legend=:transparent, bg_legend=:transparent)
+        savefig("./Figures/scatter2.png");
+>>>>>>> ed1102c7b4c0a16420efc5844ae1a237b7481f6a
 
 ##########################################################
-# 1 million
+# NEURAL NETWORK FOR SIMULATIONS WITH SAMPLE SIZE OF 1M
 ##########################################################
-ss0 = econsim1.sim[:,[2,8]]   # bₜ, yₜ
-vr1  = econsim1.sim[:,9]      # vᵣ
-vr1, uvr1, lvr1 = mynorm(vr1);
-ss1, uss1, lss1 = mynorm(ss0);
-data1 = (Array{Float32}(ss1'), Array{Float32}(vr1'));
 
+    b1   = econsim1.sim[:,2]  # bₜₜ
+    y1   = econsim1.sim[:,2]  # yₜ
+    vr1  = econsim1.sim[:,9]  # vᵣ
+    vd1  = econsim1.sim[:,10] # vd
+    vr1, uvr1, lvr1 = mynorm(vr1);
+    vd1, uvd1, lvd1 = mynorm(vd1);
+    ss1, uss1, lss1 = mynorm([b1 y1]);
+    ys1, uby1, lby1 = mynorm(y1)
+    data1  = (Array{Float32}(ss1'), Array{Float32}(vr1'));
+    datad1 = (Array{Float32}(y1'), Array{Float32}(vd1'))
+
+# -------------------------------------------------------
+# ESTIMATION
+# -------------------------------------------------------
+
+    # Value of Repayment
     NNR1e6 = Chain(Dense(2, 16, softplus), Dense(16, 1));
     mytrain(NNR1e6,data1);
     NNR2e6 = Chain(Dense(2, 16, tanh), Dense(16, 1));
@@ -181,13 +242,32 @@ data1 = (Array{Float32}(ss1'), Array{Float32}(vr1'));
     NNR4e6 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
     mytrain(NNR4e6,data1);
 
+
+    # Value of Default
+    NNR1e6d = Chain(Dense(1, 16, softplus), Dense(16, 1));
+    mytrain(NNR1e6d,datad1);
+    NNR2e6d = Chain(Dense(1, 16, tanh), Dense(16, 1));
+    mytrain(NNR2e6d,datad1);
+    NNR3e6d = Chain(Dense(1, 32, relu), Dense(32, 16,softplus), Dense(16,1));
+    mytrain(NNR3e6d,datad1);
+    NNR4e6d = Chain(Dense(1, 32, relu), Dense(32, 16,tanh), Dense(16,1));
+    mytrain(NNR4e6d,datad1);
+
 # In-sample
     uniqdata1 = unique([data1[1]; data1[2]],dims=2)
     fitte6 = [NNR1e6(uniqdata1[1:2,:])' NNR2e6(uniqdata1[1:2,:])' NNR3e6(uniqdata1[1:2,:])' NNR4e6(uniqdata1[1:2,:])']
     diffe6 = abs.(uniqdata1[3,:] .- fitte6)
+<<<<<<< HEAD
     scatter(uniqdata1[1,:],uniqdata1[2,:], [diffe6[:,1], diffe6[:,2], diffe6[:,3], diffe6[:,4]])
     savefig("./Figures/scatter3.png")
 
+=======
+    scatter(uniqdata1[1,:],uniqdata1[2,:], [diffe6[:,1], diffe6[:,2], diffe6[:,3], diffe6[:,4]],
+            markerstrokewidth= 0.3, alpha =0.42,
+            label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+            fg_legend=:transparent, bg_legend=:transparent)
+    savefig("./Figures/scatter3.png");
+>>>>>>> ed1102c7b4c0a16420efc5844ae1a237b7481f6a
 # Out-sample
     bnorme6 = (settings.b .- 0.5(uss1[1]+lss1[1])) ./ (0.5*(uss1[1]-lss1[1]))
     ynorme6 = (settings.y .- 0.5(uss1[2]+lss1[2])) ./ (0.5*(uss1[2]-lss1[2]))
@@ -195,9 +275,17 @@ data1 = (Array{Float32}(ss1'), Array{Float32}(vr1'));
     statese6 = [repeat(bnorme6,params.nx)' ; repeat(ynorme6,inner= (params.ne,1))']
     outpree6 = [NNR1e6(statese6)' NNR2e6(statese6)' NNR3(statese6)' NNR4(statese6)']
     diff2e6 = abs.(vnorme6.- outpree6)
+<<<<<<< HEAD
     scatter(statese6[1,:],statese6[2,:], [diff2e6[:,1], diff2e6[:,2], diff2e6[:,3], diff2e6[:,4]], markerstrokewidth= 0.3, alpha =0.42)
     savefig("./Figures/scatter4.png")
 
+=======
+    scatter(statese6[1,:],statese6[2,:], [diff2e6[:,1], diff2e6[:,2], diff2e6[:,3], diff2e6[:,4]],
+            markerstrokewidth= 0.3, alpha =0.42,
+            label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+            fg_legend=:transparent, bg_legend=:transparent)
+    savefig("./Figures/scatter4.png");
+>>>>>>> ed1102c7b4c0a16420efc5844ae1a237b7481f6a
 ##########################################################
 # Actual
 ##########################################################
@@ -221,5 +309,46 @@ data2 = (Array{Float32}(ss2'), Array{Float32}(vr2'));
     fittact = [NNR1act(ss2')' NNR2act(ss2')' NNR3act(ss2')' NNR4act(ss2')']
     diffact = abs.(vr2 .- fittact )
     scatter(ss2[:,1],ss2[:,2], [diffact[:,1], diffact[:,2], diffact[:,3], diffact[:,4]],
+<<<<<<< HEAD
             markerstrokewidth= 0.3, alpha =0.42)
     savefig("./Figures/scatter5.png")
+=======
+            markerstrokewidth= 0.3, alpha =0.42,
+            label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+            fg_legend=:transparent, bg_legend=:transparent)
+    savefig("./Figures/scatter5.png");
+
+############################################################
+#  Solving the model based on NN  results
+############################################################
+bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
+ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
+vnorm = (vec(polfun.vr) .- 0.5(uvr+lvr)) ./ (0.5*(uvr-lvr))
+states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
+hat_vrnorm = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
+hat_vr =  0.5*(uvr-lvr).*hat_vrnorm .+ 0.5*(uvr+lvr)
+
+hat_vd =
+hat_vf = max.(hat_vr,hat_vd)
+hat_D  = 1 * (hat_vd .> hat_vr)
+
+evf1 = hat_vf * P'
+eδD1 = hat_D  * P'
+q1   = (1 / (1 + r)) * (1 .- eδD1) # price
+qb1  = q1 .* b
+βevf1= β*evf1
+vrnew = Array{Float64,2}(undef,ne,nx)
+bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
+@inbounds for i = 1:ne
+cc = yb[i, :]' .- qb1
+cc = max.(cc,0)
+aux_u = uf.(cc, σrisk) + βevf
+vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
+end
+evaux = θ * evf[p0, :]' .+  (1 - θ) * evd
+vdnew = udef + β*evaux
+vfnew = max.(vrnew, vdnew)
+Dnew = 1 * (vdnew .> vrnew)
+eδD  = Dnew  * P'
+qnew = (1 / (1 + r)) * (1 .- eδD)
+>>>>>>> ed1102c7b4c0a16420efc5844ae1a237b7481f6a
