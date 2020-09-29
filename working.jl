@@ -316,12 +316,12 @@ q1   = (1 / (1 + r)) * (1 .- eδD1) # price
 qb1  = q1 .* b
 βevf1= β*evf1
 vrnew = Array{Float64,2}(undef,ne,nx)
-cc    = Array{Float64,2}(undef,ne,nx)
+cc1    = Array{Float64,2}(undef,ne,nx)
 bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
 yb    = b .+ y'
 @inbounds for i = 1:ne
-cc = yb[i, :]' .- qb1
-cc = max.(cc,0)
+cc1 = yb[i, :]' .- qb1
+cc1 = max.(cc,0)
 aux_u = uf.(cc, σrisk) + βevf1
 vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
 end
