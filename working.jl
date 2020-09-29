@@ -304,8 +304,8 @@ data2 = (Array{Float32}(ss2'), Array{Float32}(vr2'));
 
 
 # Starting the psolution of the model
-@unpack P, b = settings
-@unpack r, β, ne, nx = params
+@unpack P, b,y = settings
+@unpack r, β, ne, nx, σrisk = params
 hat_vr = reshape(hat_vrM[:,1],(ne,nx))
 hat_vd = repeat(hat_vdM[:,1]',ne)
 hat_vf = max.(hat_vr,hat_vd)
@@ -316,11 +316,13 @@ q1   = (1 / (1 + r)) * (1 .- eδD1) # price
 qb1  = q1 .* b
 βevf1= β*evf1
 vrnew = Array{Float64,2}(undef,ne,nx)
+cc    = Array{Float64,2}(undef,ne,nx)
 bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
+yb    = b .+ y'
 @inbounds for i = 1:ne
 cc = yb[i, :]' .- qb1
 cc = max.(cc,0)
-aux_u = uf.(cc, σrisk) + βevf
+aux_u = uf.(cc, σrisk) + βevf1
 vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
 end
 evaux = θ * evf[p0, :]' .+  (1 - θ) * evd
