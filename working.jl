@@ -129,7 +129,7 @@ ss, uss, lss = mynorm([b y]);
 ys, uby, lby = mynorm(y)
 
 data = (Array{Float32}(ss'), Array{Float32}(vr'));
-datad = (Array{Float32}(y'), Array{Float32}(vd'))
+datad = (Array{Float32}(ys'), Array{Float32}(vd'))
 
 mytrain(NN,data) = begin
     lossf(x,y) = Flux.mse(NN(x),y);
@@ -335,6 +335,8 @@ update_solve(hat_vr, hat_vd, settings,params,uf) = begin
     eδD  = Dnew  * P'
     qnew = (1 / (1 + r)) * (1 .- eδD)
     return vrnew, vdnew, vfnew,Dnew,qnew
-#end
+end
 
 vrnew, vdnew, vfnew,Dnew,qne = update_solve(hat_vr, hat_vd, settings,params,uf)
+
+Dnew
