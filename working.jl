@@ -120,7 +120,7 @@ mynorm(x) = begin
 end
 
 b   = econsim0.sim[:,2]  # bₜₜ
-y   = econsim0.sim[:,2]  # yₜ
+y   = econsim0.sim[:,3]  # yₜ
 vr  = econsim0.sim[:,9]  # vᵣ
 vd  = econsim0.sim[:,10] # vd
 vr, uvr, lvr = mynorm(vr);
@@ -200,7 +200,7 @@ end
 ##########################################################
 
     b1   = econsim1.sim[:,2]  # bₜₜ
-    y1   = econsim1.sim[:,2]  # yₜ
+    y1   = econsim1.sim[:,3]  # yₜ
     vr1  = econsim1.sim[:,9]  # vᵣ
     vd1  = econsim1.sim[:,10] # vd
     vr1, uvr1, lvr1 = mynorm(vr1);
@@ -301,33 +301,40 @@ data2 = (Array{Float32}(ss2'), Array{Float32}(vr2'));
     hat_vdnorm = [NND1(ynorm')' NND2(ynorm')' NND3(ynorm')' NND4(ynorm')']
     hat_vdM =  0.5*(uvd-lvd).*hat_vdnorm .+ 0.5*(uvd+lvd)
 
+    hat_vr = reshape(hat_vrM[:,1],(params.ne,params.nx))
+    hat_vd = repeat(hat_vdM[:,1]',params.ne)
 
+update_solve(hat_vr, hat_vd, settings,params,uf) = begin
+    # Starting the psolution of the model
+    @unpack P, b,y = settings
+    @unpack r, β, ne, nx, σrisk,θ = params
+    p0 = findmin(abs.(0 .- b))[2]
+    udef = repeat(settings.udef', ne, 1)
+    hat_vf = max.(hat_vr,hat_vd)
+    hat_D  = 1 * (hat_vd .> hat_vr)
+    evf1 = hat_vf * P'
+    evd1 = hat_vd * P'
+    eδD1 = hat_D  * P'
+    q1   = (1 / (1 + r)) * (1 .- eδD1) # price
+    qb1  = q1 .* b
+    βevf1= β*evf1
+    vrnew = Array{Float64,2}(undef,ne,nx)
+    cc1    = Array{Float64,2}(undef,ne,nx)
+    bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
+    yb    = b .+ y'
+    @inbounds for i = 1:ne
+        cc1 = yb[i, :]' .- qb1
+        cc1 = max.(cc1,0)
+        aux_u = uf.(cc1, σrisk) + βevf1
+        vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
+    end
+    evaux = θ * evf1[p0, :]' .+  (1 - θ) * evd1
+    vdnew = udef + β*evaux
+    vfnew = max.(vrnew, vdnew)
+    Dnew = 1 * (vdnew .> vrnew)
+    eδD  = Dnew  * P'
+    qnew = (1 / (1 + r)) * (1 .- eδD)
+    return vrnew, vdnew, vfnew,Dnew,qnew
+#end
 
-# Starting the psolution of the model
-@unpack P, b,y = settings
-@unpack r, β, ne, nx, σrisk = params
-hat_vr = reshape(hat_vrM[:,1],(ne,nx))
-hat_vd = repeat(hat_vdM[:,1]',ne)
-hat_vf = max.(hat_vr,hat_vd)
-hat_D  = 1 * (hat_vd .> hat_vr)
-evf1 = hat_vf * P'
-eδD1 = hat_D  * P'
-q1   = (1 / (1 + r)) * (1 .- eδD1) # price
-qb1  = q1 .* b
-βevf1= β*evf1
-vrnew = Array{Float64,2}(undef,ne,nx)
-cc1    = Array{Float64,2}(undef,ne,nx)
-bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
-yb    = b .+ y'
-@inbounds for i = 1:ne
-cc1 = yb[i, :]' .- qb1
-cc1 = max.(cc,0)
-aux_u = uf.(cc, σrisk) + βevf1
-vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
-end
-evaux = θ * evf[p0, :]' .+  (1 - θ) * evd
-vdnew = udef + β*evaux
-vfnew = max.(vrnew, vdnew)
-Dnew = 1 * (vdnew .> vrnew)
-eδD  = Dnew  * P'
-qnew = (1 / (1 + r)) * (1 .- eδD)
+vrnew, vdnew, vfnew,Dnew,qne = update_solve(hat_vr, hat_vd, settings,params,uf)
