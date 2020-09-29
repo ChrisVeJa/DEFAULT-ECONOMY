@@ -290,17 +290,26 @@ data2 = (Array{Float32}(ss2'), Array{Float32}(vr2'));
 ############################################################
 #  Solving the model based on NN  results
 ############################################################
-bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
-ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
-vnorm = (vec(polfun.vr) .- 0.5(uvr+lvr)) ./ (0.5*(uvr-lvr))
-states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
-hat_vrnorm = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
-hat_vr =  0.5*(uvr-lvr).*hat_vrnorm .+ 0.5*(uvr+lvr)
+# Predicting with all the models
+    bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
+    ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
+    vrnorm = (vec(polfun.vr) .- 0.5(uvr+lvr)) ./ (0.5*(uvr-lvr))
+    vdnorm = (vec(polfun.vd) .- 0.5(uvd+lvd)) ./ (0.5*(uvd-lvd))
+    states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
+    hat_vrnorm = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
+    hat_vrM =  0.5*(uvr-lvr).*hat_vrnorm .+ 0.5*(uvr+lvr)
+    hat_vdnorm = [NND1(ynorm')' NND2(ynorm')' NND3(ynorm')' NND4(ynorm')']
+    hat_vdM =  0.5*(uvd-lvd).*hat_vdnorm .+ 0.5*(uvd+lvd)
 
-hat_vd =
+
+
+# Starting the psolution of the model
+@unpack P, b = settings
+@unpack r, β, ne, nx = params
+hat_vr = reshape(hat_vrM[:,1],(ne,nx))
+hat_vd = repeat(hat_vdM[:,1]',ne)
 hat_vf = max.(hat_vr,hat_vd)
 hat_D  = 1 * (hat_vd .> hat_vr)
-
 evf1 = hat_vf * P'
 eδD1 = hat_D  * P'
 q1   = (1 / (1 + r)) * (1 .- eδD1) # price
