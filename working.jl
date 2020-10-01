@@ -328,15 +328,23 @@ update_solve(hat_vr, hat_vd, settings,params,uf) = begin
         aux_u = uf.(cc1, σrisk) + βevf1
         vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
     end
+    bb    = repeat(b, 1, nx)
+    bb    = bb[bpnew]
     evaux = θ * evf1[p0, :]' .+  (1 - θ) * evd1
     vdnew = udef + β*evaux
     vfnew = max.(vrnew, vdnew)
-    Dnew = 1 * (vdnew .> vrnew)
-    eδD  = Dnew  * P'
-    qnew = (1 / (1 + r)) * (1 .- eδD)
-    return vrnew, vdnew, vfnew,Dnew,qnew
+    Dnew  = 1 * (vdnew .> vrnew)
+    eδD   = Dnew  * P'
+    qnew  = (1 / (1 + r)) * (1 .- eδD)
+    return (vf = vfnew, vr = vrnew, vd = vdnew, D = Dnew, bb =  bb, q = qnew, bp = bpnew)
 end
 
-vrnew, vdnew, vfnew,Dnew,qne = update_solve(hat_vr, hat_vd, settings,params,uf)
+hat_vr = reshape(hat_vrM[:,2],(params.ne,params.nx))
+hat_vd = repeat(hat_vdM[:,2]',params.ne)
+polfunnew = update_solve(hat_vr, hat_vd, settings,params,uf)
+polfunnew = update_solve(hat_vr, hat_vd, settings,params,uf)
+econsimnew = ModelSim(params,polfunnew, settings,hf, nsim=100000);
+pdef = round(100 * sum(econsimnew.sim[:, 5])/ 100000; digits = 2);
+display("Simulation finished, with frequency of $pdef default events");
 
-Dnew
+polfun
