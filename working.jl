@@ -25,6 +25,11 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 # Solving
 ############################################################
 polfun, settings = Solver(params, hf, uf);
+
+
+############################################################
+# Plotting results from the baseline model
+############################################################
 plot(settings.b, polfun.vf[:,10:12], label = ["low" "normal" "high"],
     fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,
     grid = :false, c= [:red :black :blue], w = [2 1.15 1.15],
@@ -43,12 +48,19 @@ plot(settings.b, polfun.q[:,10:12], label = ["low" "normal" "high"],
     style = [:dot :solid :dash], title = "New issued Bonds Price",
     xlabel = "debt (state)" , ylabel = "Price of new bonds")
 savefig("./Figures/PriceBond.png")
+
+############################################################
+# "Heatmap" of Default decision:
+#  1:= Default  0:= No Default
+############################################################
 heat = heatmap(settings.y, settings.b, polfun.D',
         aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt");
 savefig("./Figures/heatD0.png")
 
 ############################################################
-# Simulation
+# Simulating data from  the model
+# econsim0 : 100k observations
+# econsim1 : 1 million observations
 ############################################################
 econsim0 = ModelSim(params,polfun, settings,hf, nsim=100000);
 pdef = round(100 * sum(econsim0.sim[:, 5])/ 100000; digits = 2);
@@ -58,7 +70,9 @@ econsim1 = ModelSim(params,polfun, settings,hf, nsim=1000000);
 pdef = round(100 * sum(econsim1.sim[:, 5])/ 1000000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 
-# Plotting
+############################################################
+# Plotting simulated series
+############################################################
 plot(layout=(2,2), size = (1200,900), grid = :false)
 plot!(econsim0.sim[1000:2000,3], subplot= 1, label = :false, style = :dash, ylabel = "output")
 plot!(econsim0.sim[1000:2000,4], subplot= 2, label = :false, style = :dash, ylabel = "debt")
@@ -67,6 +81,10 @@ plot!(econsim0.sim[1000:2000,7], subplot= 4, label = :false, style = :dash, ylab
 savefig("./Figures/simulation.png")
 
 
+############################################################
+# "Heatmaps" for simulated data
+############################################################
+# Obtaining unique states
 myunique(data) = begin
     dataTu = [Tuple(data[i,:])  for i in 1:size(data)[1]]
     dataTu = unique(dataTu)
@@ -98,38 +116,48 @@ preheatmap(data,params,settings)= begin
     return DD, VR
 end
 
-DD0, VR0 = preheatmap(data0,params,settings);
-heat0    = heatmap(settings.y, settings.b, DD0', c = cgrad([:white, :black, :yellow]),
-        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
-DD1, VR1 = preheatmap(data1,params,settings)
-heat1    = heatmap(settings.y, settings.b, DD1', c = cgrad([:white, :black, :yellow]),
-        aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+    ############################################################
+    # heatmaps :
+    #    heat 0 := heatmap for simulation 100k
+    #    heat 1 := heatmap for simulation 1 million
+    ############################################################
+    DD0, VR0 = preheatmap(data0,params,settings);
+    heat0    = heatmap(settings.y, settings.b, DD0', c = cgrad([:white, :black, :yellow]),
+            aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
+    DD1, VR1 = preheatmap(data1,params,settings)
+    heat1    = heatmap(settings.y, settings.b, DD1', c = cgrad([:white, :black, :yellow]),
+            aspect_ratio = 0.8, xlabel = "Output", ylabel = "Debt" );
 
-# Plotting HEATMAPS by sample size
-plot(heat0,heat1,layout = (2,1), size = (500,800), title = ["(Actual)" "(100 m)" "(1 millon)"])
-savefig("./Figures/heatmap_D.png");
+    ############################################################
+    # Plotting HEATMAPS by sample size
+    ############################################################
+    plot(heat0,heat1,layout = (2,1), size = (500,800), title = ["(Actual)" "(100 m)" "(1 millon)"])
+    savefig("./Figures/heatmap_D.png");
 
 ############################################################
-# Training
+# NEURAL NETWORKS: Training
 ############################################################
-mynorm(x) = begin
-    ux = maximum(x, dims=1)
-    lx = minimum(x, dims=1)
-    nx = (x .- 0.5(ux+lx)) ./ (0.5*(ux-lx))
-    return nx, ux, lx
-end
+# [1] Normalization step
+    mynorm(x) = begin
+        ux = maximum(x, dims=1)
+        lx = minimum(x, dims=1)
+        nx = (x .- 0.5(ux+lx)) ./ (0.5*(ux-lx))
+        return nx, ux, lx
+    end
 
-b   = econsim0.sim[:,2]  # bₜₜ
-y   = econsim0.sim[:,3]  # yₜ
-vr  = econsim0.sim[:,9]  # vᵣ
-vd  = econsim0.sim[:,10] # vd
-vr, uvr, lvr = mynorm(vr);
-vd, uvd, lvd = mynorm(vd);
-ss, uss, lss = mynorm([b y]);
-ys, uby, lby = mynorm(y)
+    b   = econsim0.sim[:,2]  # bₜₜ
+    y   = econsim0.sim[:,3]  # yₜ
+    vr  = econsim0.sim[:,9]  # vᵣ
+    vd  = econsim0.sim[:,10] # vd
+    vr, uvr, lvr = mynorm(vr);
+    vd, uvd, lvd = mynorm(vd);
+    ss, uss, lss = mynorm([b y]);
+    ys, uby, lby = mynorm(y)
 
-data = (Array{Float32}(ss'), Array{Float32}(vr'));
-datad = (Array{Float32}(ys'), Array{Float32}(vd'))
+    data = (Array{Float32}(ss'), Array{Float32}(vr'));
+    datad = (Array{Float32}(ys'), Array{Float32}(vd'))
+
+# [2] Training
 
 mytrain(NN,data) = begin
     lossf(x,y) = Flux.mse(NN(x),y);
@@ -290,6 +318,7 @@ data2 = (Array{Float32}(ss2'), Array{Float32}(vr2'));
 ############################################################
 #  Solving the model based on NN  results
 ############################################################
+
 # Predicting with all the models
     bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
     ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
@@ -301,55 +330,60 @@ data2 = (Array{Float32}(ss2'), Array{Float32}(vr2'));
     hat_vdnorm = [NND1(ynorm')' NND2(ynorm')' NND3(ynorm')' NND4(ynorm')']
     hat_vdM =  0.5*(uvd-lvd).*hat_vdnorm .+ 0.5*(uvd+lvd)
 
+# Updating solution
 
-update_solve(hat_vr, hat_vd, settings,params,uf) = begin
-    # Starting the psolution of the model
-    @unpack P, b,y = settings
-    @unpack r, β, ne, nx, σrisk,θ = params
-    p0 = findmin(abs.(0 .- b))[2]
-    udef = repeat(settings.udef', ne, 1)
-    hat_vf = max.(hat_vr,hat_vd)
-    hat_D  = 1 * (hat_vd .> hat_vr)
-    evf1 = hat_vf * P'
-    evd1 = hat_vd * P'
-    eδD1 = hat_D  * P'
-    q1   = (1 / (1 + r)) * (1 .- eδD1) # price
-    qb1  = q1 .* b
-    βevf1= β*evf1
-    vrnew = Array{Float64,2}(undef,ne,nx)
-    cc1    = Array{Float64,2}(undef,ne,nx)
-    bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
-    yb    = b .+ y'
-    @inbounds for i = 1:ne
-        cc1 = yb[i, :]' .- qb1
-        cc1 = max.(cc1,0)
-        aux_u = uf.(cc1, σrisk) + βevf1
-        vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
+    update_solve(hat_vr, hat_vd, settings,params,uf) = begin
+        # Starting the psolution of the model
+        @unpack P, b,y = settings
+        @unpack r, β, ne, nx, σrisk,θ = params
+        p0 = findmin(abs.(0 .- b))[2]
+        udef = repeat(settings.udef', ne, 1)
+        hat_vf = max.(hat_vr,hat_vd)
+        hat_D  = 1 * (hat_vd .> hat_vr)
+        evf1 = hat_vf * P'
+        evd1 = hat_vd * P'
+        eδD1 = hat_D  * P'
+        q1   = (1 / (1 + r)) * (1 .- eδD1) # price
+        qb1  = q1 .* b
+        βevf1= β*evf1
+        vrnew = Array{Float64,2}(undef,ne,nx)
+        cc1    = Array{Float64,2}(undef,ne,nx)
+        bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
+        yb    = b .+ y'
+        @inbounds for i = 1:ne
+            cc1 = yb[i, :]' .- qb1
+            cc1 = max.(cc1,0)
+            aux_u = uf.(cc1, σrisk) + βevf1
+            vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
+        end
+        bb    = repeat(b, 1, nx)
+        bb    = bb[bpnew]
+        evaux = θ * evf1[p0, :]' .+  (1 - θ) * evd1
+        vdnew = udef + β*evaux
+        vfnew = max.(vrnew, vdnew)
+        Dnew  = 1 * (vdnew .> vrnew)
+        eδD   = Dnew  * P'
+        qnew  = (1 / (1 + r)) * (1 .- eδD)
+        return (vf = vfnew, vr = vrnew, vd = vdnew, D = Dnew, bb =  bb, q = qnew, bp = bpnew)
     end
-    bb    = repeat(b, 1, nx)
-    bb    = bb[bpnew]
-    evaux = θ * evf1[p0, :]' .+  (1 - θ) * evd1
-    vdnew = udef + β*evaux
-    vfnew = max.(vrnew, vdnew)
-    Dnew  = 1 * (vdnew .> vrnew)
-    eδD   = Dnew  * P'
-    qnew  = (1 / (1 + r)) * (1 .- eδD)
-    return (vf = vfnew, vr = vrnew, vd = vdnew, D = Dnew, bb =  bb, q = qnew, bp = bpnew)
-end
 
-hat_vr = reshape(hat_vrM[:,2],(params.ne,params.nx))
-hat_vd = repeat(hat_vdM[:,2]',params.ne)
-polfunnew = update_solve(hat_vr, hat_vd, settings,params,uf)
-econsimnew = ModelSim(params,polfunnew, settings,hf, nsim=100000);
-pdef = round(100 * sum(econsimnew.sim[:, 5])/ 100000; digits = 2);
-display("Simulation finished, with frequency of $pdef default events");
+############################################################
+#  Updating based on NN
+############################################################
 
+    hat_vr = reshape(hat_vrM[:,1],(params.ne,params.nx))
+    hat_vd = repeat(hat_vdM[:,1]',params.ne)
+    polfunnew = update_solve(hat_vr, hat_vd, settings,params,uf)
+    econsimnew = ModelSim(params,polfunnew, settings,hf, nsim=100000);
+    pdef = round(100 * sum(econsimnew.sim[:, 5])/ 100000; digits = 2);
+    display("Simulation finished, with frequency of $pdef default events");
 
-
-# with the actual data
-hat_vrAct =  0.5*(uvr2-lvr2).*reshape(NNR1act(ss2')',(params.ne,params.nx)) .+ 0.5*(uvr2+lvr2);
-hat_vdAct =  polfun.vd;
-polfunnew = update_solve(hat_vrAct, hat_vdAct, settings,params,uf)
-econsimnew = ModelSim(params,polfunnew, settings,hf, nsim=100000);
-pdef = round(100 * sum(econsimnew.sim[:, 5])/ 100000; digits = 2);
-display("Simulation finished, with frequency of $pdef default events");
+#############################################
+# Updating with a NN based on the whole grid
+############################################
+    hat_vrAct =  0.5*(uvr2-lvr2).*reshape(NNR1act(ss2')',(params.ne,params.nx)) .+ 0.5*(uvr2+lvr2);
+    hat_vdAct =  polfun.vd;
+    polfunnew = update_solve(hat_vrAct, hat_vdAct, settings,params,uf)
+    econsimnew = ModelSim(params,polfunnew, settings,hf, nsim=100000);
+    pdef = round(100 * sum(econsimnew.sim[:, 5])/ 100000; digits = 2);
+    display("Simulation finished, with frequency of $pdef default events");
