@@ -118,11 +118,20 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 # [3.a] Solving the model
 # ----------------------------------------------------------
 polfun, settings = Solver(params, hf, uf);
+MoDel = [vec(polfun[i]) for i in 1:6]
+MoDel = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))  hcat(MoDel...)]
+heads = [:debt, :output, :vf, :vr, :vd, :D, :b, :q]
+ModelData = DataFrame(Tables.table(MoDel, header =heads))
 # ----------------------------------------------------------
 # [3.b] "Heatmap" of Default: 1:= Default  0:= No Default
 # ----------------------------------------------------------
-heat = heatmap(settings.y, settings.b, polfun.D', aspect_ratio = 0.8,
-    xlabel = "Output", ylabel = "Debt", legend = :false)
+p1 = Gadfly.plot(ModelData, x = "debt", y = "vr", color = "output", Geom.line,
+        Theme(background_color = "white", key_position = :right ,key_title_font_size = 6pt,key_label_font_size = 6pt))
+p2 = Gadfly.plot(ModelData, x = "debt", y = "vd", color = "output", Geom.line,Theme(background_color = "white", key_position = :none))
+p3 = Gadfly.plot(ModelData, x = "debt", y = "b", color = "output", Geom.line,Theme(background_color = "white" ,key_position = :none))
+p4 = Gadfly.plot(ModelData, x =  "debt", y = "output", color = "D",Geom.rectbin,
+     Scale.color_discrete_manual("yellow", "black"),Theme(background_color = "white"))
+Gadfly.gridstack([p1 p2; p3 p4])
 #savefig("./Figures/heatD0.png")
 
 # ----------------------------------------------------------
