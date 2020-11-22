@@ -7,7 +7,7 @@
 ############################################################
 using Random, Distributions, Statistics, LinearAlgebra,
         StatsBase, Parameters, Flux, ColorSchemes, Gadfly,
-        Tables, DataFrames
+        Tables, DataFrames, Compose
 include("supcodes.jl");
 
 ############################################################
@@ -186,7 +186,29 @@ mytrain(NNR4,data);
 
 vrtildehat = [NNR1(sstilde')' NNR2(sstilde')' NNR3(sstilde')' NNR4(sstilde')']
 VRhat = vrtildehat.*(0.5*(uvr-lvr)) .+ 0.5*(uvr+lvr)
+NNresults = [ss vec(polfun[2]) VRhat]
+heads = [:debt, :output, :vr,:NN1, :NN2, :NN3, :NN4]
+NNhat = DataFrame(Tables.table(NNresults, header =heads))
+p1 = Gadfly.plot(NNhat, x = "debt", y = "vr", color = "output", Geom.line,
+        Geom.line,Theme(background_color = "white", key_position = :none))
+p2 = Gadfly.plot(NNhat, x = "debt", y = "NN1", color = "output", Geom.line,
+        Geom.line,Theme(background_color = "white", key_position = :none))
+p3 = Gadfly.plot(NNhat, x = "debt", y = "NN2", color = "output", Geom.line,
+        Geom.line,Theme(background_color = "white", key_position = :none))
+p4 = Gadfly.plot(NNhat, x = "debt", y = "NN3", color = "output", Geom.line,
+        Geom.line,Theme(background_color = "white", key_position = :none))
+p5 = Gadfly.plot(NNhat, x = "debt", y = "NN4", color = "output", Geom.line,
+        Geom.line,Theme(background_color = "white", key_position = :none))
+h2 = Gadfly.gridstack([p2 p3; p4 p5])
+vstack(p1,h2,heights=[3,7])
+
+
 resid = vr .-  VRhat;
+
+
+
+
+
 rest = DataFrame(Tables.table([ss resid], header =[:debt,:y,:error1, :error2, :error3, :error4]))
 p1 = plot(rest, x = "debt", y = "error1",color="y", Geom.line)
 p2 = plot(rest, x = "debt", y = "error2",color="y", Geom.line)
