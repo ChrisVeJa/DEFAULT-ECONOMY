@@ -6,7 +6,7 @@
 # [0] Including our module
 ############################################################
 using Random, Distributions, Statistics, LinearAlgebra, Plots,
-    StatsBase, Parameters, Flux;
+    StatsBase, Parameters, Flux, ColorSchemes
 include("supcodes.jl");
 
 ############################################################
@@ -51,7 +51,7 @@ include("supcodes.jl");
     mynorm(x) = begin
         ux = maximum(x, dims=1)
         lx = minimum(x, dims=1)
-        nx = (x .- 0.5(ux+lx)) ./ (0.5*(ux-lx))
+        nx = (x .- 0.5*(ux+lx)) ./ (0.5*(ux-lx))
         return nx, ux, lx
     end
 # ----------------------------------------------------------
@@ -104,7 +104,7 @@ include("supcodes.jl");
 ############################################################
 # [2] SETTING
 ############################################################
-params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.9053,
+params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
         θ = 0.282, nx = 21, m = 3, μ = 0.0,fhat = 0.969,
         ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 251);
 uf(x, σrisk)= x.^(1 - σrisk) / (1 - σrisk)
@@ -141,11 +141,47 @@ display("Simulation finished, with frequency of $pdef default events");
 #savefig("./Figures/heatmap_D.png");
 
 # ----------------------------------------------------------
-# [3.d] Being sure that updating is working well
+# [3.d] To be sure that the updating code is well,
+#       I input the actual value functions and verify the
+#       deviations in policy functions
 # ----------------------------------------------------------
-hat_vr =
-hat_vd =
- fafa = update_solve(hat_vr, hat_vd, settings,params,uf) = begin
+hat_vr = polfun.vr
+hat_vd = polfun.vd
+trial1 = update_solve(hat_vr, hat_vd, settings,params,uf)
+difPolFun = max(maximum(abs.(trial1.bb - polfun.bb)),maximum(abs.(trial1.D - polfun.D)))
+display("After updating the difference in Policy functions is : $difPolFun")
+
+
+
+# ----------------------------------------------------------
+# [3.d] Neural Networks with full information
+# ----------------------------------------------------------
+
+# ***************************************
+# [3.d.1] Value of repayment
+# ***************************************
+ss  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]   # bₜ, yₜ
+vr  = vec(polfun.vr)   # vᵣ
+vrtilde, uvr, lvr = mynorm(vr);
+sstilde, uss, lss = mynorm(ss);
+data = (Array{Float32}(sstilde'), Array{Float32}(vrtilde'));
+
+NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
+NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
+NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
+NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
+
+mytrain(NNR1,data);
+mytrain(NNR2,data);
+mytrain(NNR3,data);
+mytrain(NNR4,data);
+
+vrtildehat = [NNR1(sstilde')' NNR2(sstilde')' NNR3(sstilde')' NNR4(sstilde')']
+VRhat = vrtildehat.*(0.5*(uvr-lvr)) .+ 0.5*(uvr+lvr)
+resid = vr .-  VRhat;
+res1 = reshape(resid[:,1],(params.ne,params.nx))
+plot(res1, legend = :false, palette= ColorSchemes.leonardo)
+
 
 ############################################################
 # NEURAL NETWORKS: Training
@@ -188,8 +224,11 @@ hat_vd =
         uniqdata = unique([data[1]; data[2]],dims=2)
         fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
         diff = abs.(uniqdata[3,:] .- fitt)
-        scatter(uniqdata[1,:],uniqdata[2,:], [diff[:,1], diff[:,2], diff[:,3], diff[:,4]], markerstrokewidth= 0.3, alpha =0.42,
-                label =["softplus" "tanh" "relu+softplus" "relu+tanh"],legend = :topleft, fg_legend=:transparent, bg_legend=:transparent)
+        scatter(uniqdata[1,:],uniqdata[2,:],
+         [diff[:,1], diff[:,2], diff[:,3], diff[:,4]], markerstrokewidth= 0.3,
+          alpha =0.42,
+                label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+                legend = :topleft, fg_legend=:transparent, bg_legend=:transparent)
 
     # Out-sample
         bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
@@ -198,8 +237,10 @@ hat_vd =
         states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
         outpre = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
         diff2 = abs.(vnorm.- outpre)
-        scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3], diff2[:,4]],markerstrokewidth= 0.3, alpha =0.42,
-                label =["softplus" "tanh" "relu+softplus" "relu+tanh"], fg_legend=:transparent, bg_legend=:transparent)
+        scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3],
+        diff2[:,4]],markerstrokewidth= 0.3, alpha =0.42,
+                label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
+                fg_legend=:transparent, bg_legend=:transparent)
 
 
 ##########################################################
