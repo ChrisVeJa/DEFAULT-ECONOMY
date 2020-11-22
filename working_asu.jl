@@ -5,8 +5,9 @@
 ############################################################
 # [0] Including our module
 ############################################################
-using Random, Distributions, Statistics, LinearAlgebra, Plots,
-    StatsBase, Parameters, Flux, ColorSchemes
+using Random, Distributions, Statistics, LinearAlgebra,
+        StatsBase, Parameters, Flux, ColorSchemes, Gadfly,
+        Tables, DataFrames
 include("supcodes.jl");
 
 ############################################################
@@ -177,132 +178,9 @@ mytrain(NNR4,data);
 vrtildehat = [NNR1(sstilde')' NNR2(sstilde')' NNR3(sstilde')' NNR4(sstilde')']
 VRhat = vrtildehat.*(0.5*(uvr-lvr)) .+ 0.5*(uvr+lvr)
 resid = vr .-  VRhat;
-res1 = reshape(resid[:,1],(params.ne,params.nx))
-plot(res1, legend = :false, palette= ColorSchemes.leonardo)
-
-
-############################################################
-# NEURAL NETWORKS: Training
-############################################################
-##########################################################
-# NEURAL NETWORK FOR SIMULATIONS WITH SAMPLE SIZE OF 100K
-##########################################################
-    b   = econsim0.sim[:,2] ; y   = econsim0.sim[:,3]  # yₜ
-    vr  = econsim0.sim[:,9] ; vd  = econsim0.sim[:,10] # vd
-    vr, uvr, lvr = mynorm(vr);    vd, uvd, lvd = mynorm(vd);
-    ss, uss, lss = mynorm([b y]); ys, uby, lby = mynorm(y)
-    data = (Array{Float32}(ss'), Array{Float32}(vr'));
-    datad = (Array{Float32}(ys'), Array{Float32}(vd'))
-
-    # Value of Repayment
-        NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
-        mytrain(NNR1,data);
-        NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
-        mytrain(NNR2,data);
-        NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
-        mytrain(NNR3,data);
-        NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
-        mytrain(NNR4,data);
-
-    # Value of Default
-        NND1 = Chain(Dense(1, 16, softplus), Dense(16, 1));
-        mytrain(NND1,datad);
-        NND2 = Chain(Dense(1, 16, tanh), Dense(16, 1));
-        mytrain(NND2,datad);
-        NND3 = Chain(Dense(1, 32, relu), Dense(32, 16,softplus), Dense(16,1));
-        mytrain(NND3,datad);
-        NND4 = Chain(Dense(1, 32, relu), Dense(32, 16,tanh), Dense(16,1));
-        mytrain(NND4,datad);
-
-# -------------------------------------------------------
-# FORECAST ERROR
-# -------------------------------------------------------
-
-    # In-sample
-        uniqdata = unique([data[1]; data[2]],dims=2)
-        fitt = [NNR1(uniqdata[1:2,:])' NNR2(uniqdata[1:2,:])' NNR3(uniqdata[1:2,:])' NNR4(uniqdata[1:2,:])']
-        diff = abs.(uniqdata[3,:] .- fitt)
-        scatter(uniqdata[1,:],uniqdata[2,:],
-         [diff[:,1], diff[:,2], diff[:,3], diff[:,4]], markerstrokewidth= 0.3,
-          alpha =0.42,
-                label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
-                legend = :topleft, fg_legend=:transparent, bg_legend=:transparent)
-
-    # Out-sample
-        bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
-        ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
-        vnorm = (vec(polfun.vr) .- 0.5(uvr+lvr)) ./ (0.5*(uvr-lvr))
-        states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
-        outpre = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
-        diff2 = abs.(vnorm.- outpre)
-        scatter(states[1,:],states[2,:], [diff2[:,1], diff2[:,2], diff2[:,3],
-        diff2[:,4]],markerstrokewidth= 0.3, alpha =0.42,
-                label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
-                fg_legend=:transparent, bg_legend=:transparent)
-
-
-##########################################################
-# Actual
-##########################################################
-
-ss0  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]   # bₜ, yₜ
-vr2  = vec(polfun.vr)   # vᵣ
-vr2, uvr2, lvr2 = mynorm(vr2);
-ss2, uss2, lss2 = mynorm(ss0);
-data2 = (Array{Float32}(ss2'), Array{Float32}(vr2'));
-
-    NNR1act = Chain(Dense(2, 16, softplus), Dense(16, 1));
-    mytrain(NNR1act,data2);
-    NNR2act = Chain(Dense(2, 16, tanh), Dense(16, 1));
-    mytrain(NNR2act,data2);
-    NNR3act = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
-    mytrain(NNR3act,data2);
-    NNR4act = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
-    mytrain(NNR4act,data2);
-
-# In-sample
-    fittact = [NNR1act(ss2')' NNR2act(ss2')' NNR3act(ss2')' NNR4act(ss2')']
-    diffact = abs.(vr2 .- fittact )
-    scatter(ss2[:,1],ss2[:,2], [diffact[:,1], diffact[:,2], diffact[:,3], diffact[:,4]],
-            markerstrokewidth= 0.3, alpha =0.42,
-            label =["softplus" "tanh" "relu+softplus" "relu+tanh"],
-            fg_legend=:transparent, bg_legend=:transparent)
-    savefig("./Figures/scatter5.png");
-
-############################################################
-#  Solving the model based on NN  results
-############################################################
-
-# Predicting with all the models
-    bnorm = (settings.b .- 0.5(uss[1]+lss[1])) ./ (0.5*(uss[1]-lss[1]))
-    ynorm = (settings.y .- 0.5(uss[2]+lss[2])) ./ (0.5*(uss[2]-lss[2]))
-    vrnorm = (vec(polfun.vr) .- 0.5(uvr+lvr)) ./ (0.5*(uvr-lvr))
-    vdnorm = (vec(polfun.vd) .- 0.5(uvd+lvd)) ./ (0.5*(uvd-lvd))
-    states = [repeat(bnorm,params.nx)' ; repeat(ynorm,inner= (params.ne,1))']
-    hat_vrnorm = [NNR1(states)' NNR2(states)' NNR3(states)' NNR4(states)']
-    hat_vrM =  0.5*(uvr-lvr).*hat_vrnorm .+ 0.5*(uvr+lvr)
-    hat_vdnorm = [NND1(ynorm')' NND2(ynorm')' NND3(ynorm')' NND4(ynorm')']
-    hat_vdM =  0.5*(uvd-lvd).*hat_vdnorm .+ 0.5*(uvd+lvd)
-
-
-
-############################################################
-#  Updating based on NN
-############################################################
-
-    hat_vr = reshape(hat_vrM[:,1],(params.ne,params.nx))
-    hat_vd = repeat(hat_vdM[:,1]',params.ne)
-    polfunnew = update_solve(hat_vr, hat_vd, settings,params,uf)
-    econsimnew = ModelSim(params,polfunnew, settings,hf, nsim=100000);
-    pdef = round(100 * sum(econsimnew.sim[:, 5])/ 100000; digits = 2);
-    display("Simulation finished, with frequency of $pdef default events");
-
-#############################################
-# Updating with a NN based on the whole grid
-############################################
-    hat_vrAct =  0.5*(uvr2-lvr2).*reshape(NNR1act(ss2')',(params.ne,params.nx)) .+ 0.5*(uvr2+lvr2);
-    hat_vdAct =  polfun.vd;
-    polfunnew = update_solve(hat_vrAct, hat_vdAct, settings,params,uf)
-    econsimnew = ModelSim(params,polfunnew, settings,hf, nsim=100000);
-    pdef = round(100 * sum(econsimnew.sim[:, 5])/ 100000; digits = 2);
-    display("Simulation finished, with frequency of $pdef default events");
+rest = DataFrame(Tables.table([ss resid], header =[:debt,:y,:error1, :error2, :error3, :error4]))
+p1 = plot(rest, x = "debt", y = "error1",color="y", Geom.line)
+p2 = plot(rest, x = "debt", y = "error2",color="y", Geom.line)
+p3 = plot(rest, x = "debt", y = "error3",color="y", Geom.line)
+p4 = plot(rest, x = "debt", y = "error4",color="y", Geom.line)
+gridstack([p1 p2; p3 p4])
