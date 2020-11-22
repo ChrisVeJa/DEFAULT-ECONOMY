@@ -151,8 +151,6 @@ trial1 = update_solve(hat_vr, hat_vd, settings,params,uf)
 difPolFun = max(maximum(abs.(trial1.bb - polfun.bb)),maximum(abs.(trial1.D - polfun.D)))
 display("After updating the difference in Policy functions is : $difPolFun")
 
-
-
 # ----------------------------------------------------------
 # [3.d] Neural Networks with full information
 # ----------------------------------------------------------
@@ -308,29 +306,3 @@ data2 = (Array{Float32}(ss2'), Array{Float32}(vr2'));
     econsimnew = ModelSim(params,polfunnew, settings,hf, nsim=100000);
     pdef = round(100 * sum(econsimnew.sim[:, 5])/ 100000; digits = 2);
     display("Simulation finished, with frequency of $pdef default events");
-
-
-
-    ############################################################
-    # Plotting results from the baseline model
-    ############################################################
-    #=
-    plot(settings.b, polfun.vf[:,10:12], label = ["low" "normal" "high"],
-        fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,
-        grid = :false, c= [:red :black :blue], w = [2 1.15 1.15],
-        style = [:dot :solid :dash], title = "Value function by debt level",
-        xlabel = "debt" , ylabel = "Value function")
-    savefig("./Figures/ValueFunction.png")
-    plot(settings.b, polfun.bb[:,10:12], label = ["low" "normal" "high"],
-        fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,
-        grid = :false, c= [:red :black :blue], w = [2 1.15 1.15],
-        style = [:dot :solid :dash], title = "Value function by debt level",
-        xlabel = "debt (state)" , ylabel = "Debt issued")
-    savefig("./Figures/DebtChoice.png")
-    plot(settings.b, polfun.q[:,10:12], label = ["low" "normal" "high"],
-        fg_legend = :transparent, bg_legend = :transparent, legend = :topleft,
-        grid = :false, c= [:red :black :blue], w = [2 1.15 1.15],
-        style = [:dot :solid :dash], title = "New issued Bonds Price",
-        xlabel = "debt (state)" , ylabel = "Price of new bonds")
-    savefig("./Figures/PriceBond.png")
-    =#
