@@ -6,7 +6,7 @@
 # [0] Including our module
 ############################################################
 using Random, Distributions, Statistics, LinearAlgebra,
-        StatsBase, Parameters, Flux, ColorSchemes, Gadfly,
+        StatsBase, Parameters, Flux, ColorSchemes, Gadfly, Caito, Fontconfig,
         Tables, DataFrames, Compose
 include("supcodes.jl");
 
@@ -24,29 +24,7 @@ include("supcodes.jl");
         return data
     end
 # ----------------------------------------------------------
-# [1.b] Creating the value of the grids
-# ----------------------------------------------------------
-    preheatmap(data,params,settings)= begin
-        sts = data[:,2:3]
-        datav = data[:,5:6]
-        DD  = -ones(params.ne,params.nx)
-        VR  = fill(NaN,params.ne,params.nx)
-        stuple = [(sts[i,1], sts[i,2])  for i in 1:size(sts)[1] ];
-        for i in 1:params.ne
-            bi = settings.b[i]
-            for j in 1:params.nx
-                yj = settings.y[j]
-                pos = findfirst(x -> x==(bi,yj), stuple)
-                if ~isnothing(pos)
-                    DD[i,j] = datav[pos, 1]
-                    VR[i,j] = datav[pos, 2]
-                end
-            end
-        end
-        return DD, VR
-    end
-# ----------------------------------------------------------
-# [1.c]  Normalization:
+# [1.b]  Normalization:
 #     ̃x = (x - 1/2(xₘₐₓ + xₘᵢₙ)) /(1/2(xₘₐₓ - xₘᵢₙ))
 # ----------------------------------------------------------
     mynorm(x) = begin
@@ -56,7 +34,7 @@ include("supcodes.jl");
         return nx, ux, lx
     end
 # ----------------------------------------------------------
-# [1.d]  Training of neural network
+# [1.c]  Training of neural network
 # ----------------------------------------------------------
     mytrain(NN,data) = begin
         lossf(x,y) = Flux.mse(NN(x),y);
@@ -112,7 +90,7 @@ uf(x, σrisk)= x.^(1 - σrisk) / (1 - σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
 
 ############################################################
-# [3] WORKING
+# [3] THE MODEL
 ############################################################
 # ----------------------------------------------------------
 # [3.a] Solving the model
@@ -123,7 +101,7 @@ MoDel = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))  h
 heads = [:debt, :output, :vf, :vr, :vd, :D, :b, :q]
 ModelData = DataFrame(Tables.table(MoDel, header =heads))
 # ----------------------------------------------------------
-# [3.b] "Heatmap" of Default: 1:= Default  0:= No Default
+# [3.b] Plotting results from the Model
 # ----------------------------------------------------------
 p1 = Gadfly.plot(ModelData, x = "debt", y = "vr", color = "output", Geom.line,
         Theme(background_color = "white", key_position = :right ,key_title_font_size = 6pt,key_label_font_size = 6pt))
@@ -136,43 +114,57 @@ Gadfly.gridstack([p1 p2; p3 p4])
 
 # ----------------------------------------------------------
 # [3.c] Simulating data from  the model
-#  Heatmap : 0 := Default
 # ----------------------------------------------------------
 econsim0 = ModelSim(params,polfun, settings,hf, nsim=100000);
 data0 = myunique(econsim0.sim)
-DD0, VR0 = preheatmap(data0,params,settings);
-heat0  = heatmap(settings.y, settings.b, DD0', ylabel = "Debt",
-        legend = :false, c = cgrad([:white, :black, :yellow]),
-        aspect_ratio = 0.8, xlabel = "Output", )
-plot(heat,heat0,layout = (2,1), size = (500,800),
-     title = ["Actual" "Simulated data 100k"])
+DDsimulated= fill(NaN,params.ne*params.nx, 3)
+DDsimulated[:,1:2] = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]
+for i in 1: size(data0,1)
+    posb = findfirst(x -> x == data0[i,2], settings.b)
+    posy = findfirst(x -> x == data0[i,8], settings.y)
+    DDsimulated[(posy-1)*params.ne+posb ,3] = data0[i,5]
+end
+heads = [:debt, :output, :D]
+DDsimulated = DataFrame(Tables.table(DDsimulated, header =heads))
+p5 = Gadfly.plot(DDsimulated, x =  "debt", y = "output", color = "D",Geom.rectbin,
+     Scale.color_discrete_manual("white","black","yellow"),Theme(background_color = "white"))
 pdef = round(100 * sum(econsim0.sim[:, 5])/ 100000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 #savefig("./Figures/heatmap_D.png");
+#= It gives us the first problems:
+    □ The number of unique observations are small
+    □ Some yellow whenm they shoul dbe black
+ =#
+set_default_plot_size(8cm, 12cm)
+heat1 = Gadfly.vstack(p4, p5)
 
-# ----------------------------------------------------------
-# [3.d] To be sure that the updating code is well,
+
+
+# **********************************************************
+# [Note] To be sure that the updating code is well,
 #       I input the actual value functions and verify the
 #       deviations in policy functions
-# ----------------------------------------------------------
+# **********************************************************
 hat_vr = polfun.vr
 hat_vd = polfun.vd
 trial1 = update_solve(hat_vr, hat_vd, settings,params,uf)
 difPolFun = max(maximum(abs.(trial1.bb - polfun.bb)),maximum(abs.(trial1.D - polfun.D)))
 display("After updating the difference in Policy functions is : $difPolFun")
 
-# ----------------------------------------------------------
-# [3.d] Neural Networks with full information
-# ----------------------------------------------------------
+# ##########################################################
+# [4] NEURAL NETWORKS WITH FULL INFORMATION
+# ##########################################################
 
 # ***************************************
-# [3.d.1] Value of repayment
+# [4.a] Value of repayment
 # ***************************************
-ss  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]   # bₜ, yₜ
-vr  = vec(polfun.vr)   # vᵣ
-vrtilde, uvr, lvr = mynorm(vr);
-sstilde, uss, lss = mynorm(ss);
-data = (Array{Float32}(sstilde'), Array{Float32}(vrtilde'));
+
+# Normalizing
+    ss  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]   # bₜ, yₜ
+    vr  = vec(polfun.vr)   # vᵣ
+    vrtilde, uvr, lvr = mynorm(vr);
+    sstilde, uss, lss = mynorm(ss);
+    data = (Array{Float32}(sstilde'), Array{Float32}(vrtilde'));
 
 NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
 NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
@@ -189,6 +181,10 @@ VRhat = vrtildehat.*(0.5*(uvr-lvr)) .+ 0.5*(uvr+lvr)
 NNresults = [ss vec(polfun[2]) VRhat]
 heads = [:debt, :output, :vr,:NN1, :NN2, :NN3, :NN4]
 NNhat = DataFrame(Tables.table(NNresults, header =heads))
+
+
+
+
 p1 = Gadfly.plot(NNhat, x = "debt", y = "vr", color = "output", Geom.line,
         Geom.line,Theme(background_color = "white", key_position = :none))
 p2 = Gadfly.plot(NNhat, x = "debt", y = "NN1", color = "output", Geom.line,
