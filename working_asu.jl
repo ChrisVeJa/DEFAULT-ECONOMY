@@ -103,18 +103,39 @@ ModelData = DataFrame(Tables.table(MoDel, header =heads))
 # ----------------------------------------------------------
 # [3.b] Plotting results from the Model
 # ----------------------------------------------------------
-p0 = Gadfly.plot(ModelData, x = "debt", y = "vf", color = "output", Geom.line,
+set_default_plot_size(12cm, 8cm)
+p0 = Gadfly.plot(ModelData, x = "debt", y = "vf", color = "output",Geom.line,
         Theme(background_color = "white", key_position = :right ,
-        key_title_font_size = 6pt,key_label_font_size = 6pt))
+        key_title_font_size = 6pt,key_label_font_size = 6pt),
+        Guide.ylabel("Value function"), Guide.xlabel("Debt (t)"))
+draw(PNG("./Plots/ValuFunction.png"),p0);
 
-
+set_default_plot_size(12cm, 8cm)
 p1 = Gadfly.plot(ModelData, x = "debt", y = "vr", color = "output", Geom.line,
-        Theme(background_color = "white", key_position = :right ,key_title_font_size = 6pt,key_label_font_size = 6pt))
-p2 = Gadfly.plot(ModelData, x = "debt", y = "vd", color = "output", Geom.line,Theme(background_color = "white", key_position = :none))
-p3 = Gadfly.plot(ModelData, x = "debt", y = "b", color = "output", Geom.line,Theme(background_color = "white" ,key_position = :none))
+    Theme(background_color = "white", key_position = :right ,
+    key_title_font_size = 6pt,key_label_font_size = 6pt),
+    Guide.ylabel("Value of repayment", orientation = :vertical), Guide.xlabel("Debt (t)"));
+
+p2 = Gadfly.plot(ModelData, x = "debt", y = "vd", color = "output", Geom.line,
+    Theme(background_color = "white", key_position = :none),
+    Guide.ylabel("Value of Default", orientation = :vertical), Guide.xlabel("Debt (t)"));
+
+p3 = Gadfly.plot(ModelData, x = "debt", y = "b", color = "output",
+    Geom.line,Theme(background_color = "white" ,key_position = :none),
+    Guide.ylabel("Debt policy (t+1)", orientation = :vertical), Guide.xlabel("Debt (t)"));
+
+
+ytick = round.(settings.y, digits=2)
+yticks = [ytick[1], ytick[6] ,ytick[11], ytick[16] ,ytick[end]]
 p4 = Gadfly.plot(ModelData, x =  "debt", y = "output", color = "D",Geom.rectbin,
-     Scale.color_discrete_manual("yellow", "black"),Theme(background_color = "white"))
-Gadfly.gridstack([p1 p2; p3 p4])
+    Scale.color_discrete_manual("yellow", "black"),
+    Theme(background_color = "white",key_title_font_size = 8pt,key_label_font_size = 8pt),
+    Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"),
+    Guide.colorkey(title="Default choice", labels=["Default","No Default"]),
+    Guide.xticks(ticks=[-0.40,-0.3, -0.2, -0.1, 0]), Guide.yticks(ticks= yticks));
+set_default_plot_size(18cm, 12cm)
+h0 = Gadfly.gridstack([p1 p2; p3 p4])
+draw(PNG("./Plots/Model0.png"),h0)
 #savefig("./Figures/heatD0.png")
 
 # ----------------------------------------------------------
@@ -166,6 +187,31 @@ display("After updating the difference in Policy functions is : $difPolFun")
 # [4.a] Value of repayment
 # ***************************************
 
+
+# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+# Approximating using a OLS approach
+# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    ss  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]
+    ss  = [ones(params.nx*params.ne,1) ss ss.^2 ss[:,1].*ss[:,2]]  # bₜ, yₜ
+    vr  = vec(polfun.vr)
+    β   = (ss'*ss)\ (ss'*vr)
+    res1 = vr - ss*β
+    maxres = maximum(abs.(res1))
+    display("The vex $maxres")
+    modl1 = DataFrame(Tables.table([ss[:,2:3] res1], header=[:debt, :output, :Model1]))
+    plotRes1 = plot(modl1, x = "debt", y = "Model1",color="output", Geom.line,Theme(background_color = "white"))
+
+    hat_vr = reshape(ss*β, params.ne, params.nx)
+    hat_vd = polfun.vd
+    trial1 = update_solve(hat_vr, hat_vd, settings,params,uf)
+    sim1 = ModelSim(params,trial1, settings,hf, nsim=100000);
+    pdef = round(100 * sum(sim1.sim[:, 5])/ 100000; digits = 2);
+    display("Simulation finished, with frequency of $pdef default events");
+    #savefig("./Figures/heatmap_D.png");
+
+# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+# Using Chebyshev Polynomials
+# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Normalizing
     ss  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]   # bₜ, yₜ
     vr  = vec(polfun.vr)   # vᵣ
@@ -217,3 +263,5 @@ p3 = plot(rest, x = "debt", y = "error3",color="y", Geom.line,
 p4 = plot(rest, x = "debt", y = "error4",color="y", Geom.line,
         Theme(background_color = "white", key_position = :none))
 h3 = gridstack([p1 p2; p3 p4])
+
+maxi
