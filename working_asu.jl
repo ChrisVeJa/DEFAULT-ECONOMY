@@ -6,7 +6,7 @@
 # [0] Including our module
 ############################################################
 using Random, Distributions, Statistics, LinearAlgebra,
-        StatsBase, Parameters, Flux, ColorSchemes, Gadfly, Caito, Fontconfig,
+        StatsBase, Parameters, Flux, ColorSchemes, Gadfly, Cairo, Fontconfig,
         Tables, DataFrames, Compose
 include("supcodes.jl");
 
@@ -104,7 +104,10 @@ ModelData = DataFrame(Tables.table(MoDel, header =heads))
 # [3.b] Plotting results from the Model
 # ----------------------------------------------------------
 p0 = Gadfly.plot(ModelData, x = "debt", y = "vf", color = "output", Geom.line,
-        Theme(background_color = "white", key_position = :right ,key_title_font_size = 6pt,key_label_font_size = 6pt))
+        Theme(background_color = "white", key_position = :right ,
+        key_title_font_size = 6pt,key_label_font_size = 6pt))
+
+
 p1 = Gadfly.plot(ModelData, x = "debt", y = "vr", color = "output", Geom.line,
         Theme(background_color = "white", key_position = :right ,key_title_font_size = 6pt,key_label_font_size = 6pt))
 p2 = Gadfly.plot(ModelData, x = "debt", y = "vd", color = "output", Geom.line,Theme(background_color = "white", key_position = :none))
