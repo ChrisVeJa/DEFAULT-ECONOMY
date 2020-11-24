@@ -187,113 +187,138 @@ display("After updating the difference in Policy functions is : $difPolFun")
 # [4.a] Value of repayment
 # ***************************************
 
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    # Approximating using a OLS approach
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+        ss  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]
+        vr  = vec(polfun.vr)
+        xss  = [ones(params.nx*params.ne,1) ss ss.^2 ss[:,1].*ss[:,2]]  # bₜ, yₜ
+        β   = (xss'*xss)\ (xss'*vr)
+        hatvrols = xss *β
+        res1 = vr - hatvrols
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    # Normal Basis
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+        ss  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]   # bₜ, yₜ
+        vr  = vec(polfun.vr)   # vᵣ
+        sst = 2*(ss .- minimum(ss, dims=1)) ./ (maximum(ss, dims=1)-minimum(ss, dims=1)) .-1
+        vrt = 2*(vr .- minimum(vr)) ./ (maximum(vr)-minimum(vr)) .-1
+        d = 4
 
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Approximating using a OLS approach
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-    ss  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]
-    vr  = vec(polfun.vr)
-    xss  = [ones(params.nx*params.ne,1) ss ss.^2 ss[:,1].*ss[:,2]]  # bₜ, yₜ
-    β   = (xss'*xss)\ (xss'*vr)
-    hatvrols = xss *β
-    res1 = vr - hatvrols
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Normal Basis
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-    ss  = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]   # bₜ, yₜ
-    vr  = vec(polfun.vr)   # vᵣ
-    sst = 2*(ss .- minimum(ss, dims=1)) ./ (maximum(ss, dims=1)-minimum(ss, dims=1)) .-1
-    vrt = 2*(vr .- minimum(vr)) ./ (maximum(vr)-minimum(vr)) .-1
-    d = 4
-
-    mat1 = sst[:,1] .^ convert(Array,0:d)'
-    mat2 = sst[:,2] .^ convert(Array,0:d)'
-    xbasis =  Array{Float64,2}(undef,size(mat1,1),div((d+2)*(d+1),2)) # remember that it start at 0
-    startcol = 1
-    for i in 0:d
-        cols = d - i +1
-        endcol = startcol + cols - 1
-        mati = mat1[:,i+1] .* mat2[:,1:cols]
-        xbasis[:,startcol:endcol] = mati
-        startcol = endcol+1
-    end
-    βbasis = (xbasis'*xbasis)\ (xbasis'*vrt)
-    hatvrbasis = ((1/2*((xbasis*βbasis) .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
-    res2   = vr - hatvrbasis
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Using Chebyshev Polynomials
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-    cheby(x, d) = begin
-        mat1 = Array{Float64,2}(undef,size(x,1),d+1)
-        mat1[:,1:2] = [ones(size(x,1)) x]
-        for i in 3:d+1
-            mat1[:,i] =  2 .*x .*mat1[:,i-1] - mat1[:,i-1]
+        mat1 = sst[:,1] .^ convert(Array,0:d)'
+        mat2 = sst[:,2] .^ convert(Array,0:d)'
+        xbasis =  Array{Float64,2}(undef,size(mat1,1),div((d+2)*(d+1),2)) # remember that it start at 0
+        startcol = 1
+        for i in 0:d
+            cols = d - i +1
+            endcol = startcol + cols - 1
+            mati = mat1[:,i+1] .* mat2[:,1:cols]
+            xbasis[:,startcol:endcol] = mati
+            startcol = endcol+1
         end
-        return mat1
-    end
-    mat1 = cheby(sst[:,1],d)
-    mat2 = cheby(sst[:,2],d)
-    xcheby=  Array{Float64,2}(undef,size(mat1,1),div((d+2)*(d+1),2)) # remember that it start at 0
-    startcol = 1
-    for i in 0:d
-        cols = d - i +1
-        endcol = startcol + cols - 1
-        mati = mat1[:,i+1] .* mat2[:,1:cols]
-        xcheby[:,startcol:endcol] = mati
-        startcol = endcol+1
-    end
-    βcheby = (xcheby'*xcheby)\ (xcheby'*vrt)
-    hatvrcheby = ((1/2*((xcheby*βcheby) .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
-    res3   = vr - hatvrcheby
+        βbasis = (xbasis'*xbasis)\ (xbasis'*vrt)
+        hatvrbasis = ((1/2*((xbasis*βbasis) .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+        res2   = vr - hatvrbasis
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    # Using Chebyshev Polynomials
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+        cheby(x, d) = begin
+            mat1 = Array{Float64,2}(undef,size(x,1),d+1)
+            mat1[:,1:2] = [ones(size(x,1)) x]
+            for i in 3:d+1
+                mat1[:,i] =  2 .*x .*mat1[:,i-1] - mat1[:,i-1]
+            end
+            return mat1
+        end
+        mat1 = cheby(sst[:,1],d)
+        mat2 = cheby(sst[:,2],d)
+        xcheby=  Array{Float64,2}(undef,size(mat1,1),div((d+2)*(d+1),2)) # remember that it start at 0
+        startcol = 1
+        for i in 0:d
+            cols = d - i +1
+            endcol = startcol + cols - 1
+            mati = mat1[:,i+1] .* mat2[:,1:cols]
+            xcheby[:,startcol:endcol] = mati
+            startcol = endcol+1
+        end
+        βcheby = (xcheby'*xcheby)\ (xcheby'*vrt)
+        hatvrcheby = ((1/2*((xcheby*βcheby) .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+        res3   = vr - hatvrcheby
 
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Summarizing
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-    println("MODELS:    ")
-    println("Model 1: MSE $(sqrt(mean(res1.^2))) and MAE $(maximum(abs.(res1)))")
-    println("Model 2: MSE $(sqrt(mean(res2.^2))) and MAE $(maximum(abs.(res2)))")
-    println("Model 3: MSE $(sqrt(mean(res3.^2))) and MAE $(maximum(abs.(res3)))")
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    # Summarizing
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+        println("MODELS:    ")
+        println("Model 1: MSE $(sqrt(mean(res1.^2))) and MAE $(maximum(abs.(res1)))")
+        println("Model 2: MSE $(sqrt(mean(res2.^2))) and MAE $(maximum(abs.(res2)))")
+        println("Model 3: MSE $(sqrt(mean(res3.^2))) and MAE $(maximum(abs.(res3)))")
 
 
-    modls = DataFrame(Tables.table([ss hatvrols res1 hatvrbasis res2 hatvrcheby res3],
-            header=[:debt, :output, :VRMod1, :ResMod1, :VRMod2, :ResMod2, :VRMod3, :ResMod3]))
+        modls = DataFrame(Tables.table([ss hatvrols res1 hatvrbasis res2 hatvrcheby res3],
+                header=[:debt, :output, :VRMod1, :ResMod1, :VRMod2, :ResMod2, :VRMod3, :ResMod3]))
 
-    p1 = plot(modls, x = "debt", y = "ResMod1",color="output", Geom.line,
-            Theme(background_color = "white"))
-    p2 = plot(modls, x = "debt", y = "ResMod3",color="output", Geom.line,
-            Theme(background_color = "white", key_position = :none))
-    p3 = plot(modls, x = "debt", y = "ResMod3",color="output", Geom.line,
-            Theme(background_color = "white", key_position = :none))
+        p1 = plot(modls, x = "debt", y = "ResMod1",color="output", Geom.line,
+                Theme(background_color = "white"))
+        p2 = plot(modls, x = "debt", y = "ResMod3",color="output", Geom.line,
+                Theme(background_color = "white", key_position = :none))
+        p3 = plot(modls, x = "debt", y = "ResMod3",color="output", Geom.line,
+                Theme(background_color = "white", key_position = :none))
 
-    set_default_plot_size(12cm, 18cm)
-    h3 = vstack(p1,p2,p3)
+        set_default_plot_size(12cm, 18cm)
+        h3 = vstack(p1,p2,p3)
 
-    hat_vr1 = reshape(hatvrols, params.ne, params.nx)
-    hat_vd  = polfun.vd
-    updmdl1 = update_solve(hat_vr1, hat_vd, settings,params,uf)
-    sim1    = ModelSim(params,trial1, settings,hf, nsim=1000000);
-    pdef    = round(100 * sum(sim1.sim[:, 5])/ 1000000; digits = 2);
-    display("The model with OLS simulates a default frequency of $pdef percent");
+        hat_vr1 = reshape(hatvrols, params.ne, params.nx)
+        hat_vd  = polfun.vd
+        updmdl1 = update_solve(hat_vr1, hat_vd, settings,params,uf)
+        sim1    = ModelSim(params,trial1, settings,hf, nsim=1000000);
+        pdef    = round(100 * sum(sim1.sim[:, 5])/ 1000000; digits = 2);
+        display("The model with OLS simulates a default frequency of $pdef percent");
 
-    hat_vr2 = reshape(hatvrbasis, params.ne, params.nx)
-    hat_vd  = polfun.vd
-    updmdl2 = update_solve(hat_vr2, hat_vd, settings,params,uf)
-    sim2    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
-    pdef    = round(100 * sum(sim2.sim[:, 5])/ 1000000; digits = 2);
-    display("The model with basis simulates a default frequency of $pdef percent");
+        hat_vr2 = reshape(hatvrbasis, params.ne, params.nx)
+        hat_vd  = polfun.vd
+        updmdl2 = update_solve(hat_vr2, hat_vd, settings,params,uf)
+        sim2    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
+        pdef    = round(100 * sum(sim2.sim[:, 5])/ 1000000; digits = 2);
+        display("The model with basis simulates a default frequency of $pdef percent");
 
-    hat_vr3 = reshape(hatvrcheby, params.ne, params.nx)
-    hat_vd  = polfun.vd
-    updmdl3 = update_solve(hat_vr3, hat_vd, settings,params,uf)
-    sim3    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
-    pdef    = round(100 * sum(sim3.sim[:, 5])/ 1000000; digits = 2);
-    display("The model with Chebyshev simulates a default frequency of $pdef percent");
+        hat_vr3 = reshape(hatvrcheby, params.ne, params.nx)
+        hat_vd  = polfun.vd
+        updmdl3 = update_solve(hat_vr3, hat_vd, settings,params,uf)
+        sim3    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
+        pdef    = round(100 * sum(sim3.sim[:, 5])/ 1000000; digits = 2);
+        display("The model with Chebyshev simulates a default frequency of $pdef percent");
 
 
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Neural Networks
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    d = 4
+    sst = 2*(ss .- minimum(ss, dims=1)) ./ (maximum(ss, dims=1)-minimum(ss, dims=1)) .-1
+    vrt = 2*(vr .- minimum(vr)) ./ (maximum(vr)-minimum(vr)) .-1
+
+
+    dataux = repeat([sst vrt],10,1)
+    dataux = dataux[rand(1:size(dataux,1),size(dataux,1)),:]
+    traindata = Flux.Data.DataLoader((dataux[:,1:2]', dataux[:,3]'));
+    NNR1 = Chain(Dense(2, d, softplus), Dense(d, 1));
+    parNNR1 = Flux.params(NNR1)
+    loss1(x,y) = Flux.mse(NNR1(x),y);
+    Flux.@epochs 10 Flux.Optimise.train!(loss1, parNNR1, traindata, Descent())
+
+    hatvrNNR1 = ((1/2*(NNR1(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+    res4   = vr - hatvrNNR1
+    display(maximum(abs.(res4)))
+
+
+    NNR2 = Chain(Dense(2, d, tanh), Dense(d, 1));
+    parNNR2 = Flux.params(NNR2)
+    loss2(x,y) = Flux.mse(NNR2(x),y);
+    Flux.@epochs 10 Flux.Optimise.train!(loss2, parNNR2, traindata, Descent())
+
+    hatvrNNR2 = ((1/2*(NNR2(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+    res5   = vr - hatvrNNR2
+    display(maximum(abs.(res5)))
 
 
 
@@ -307,9 +332,8 @@ display("After updating the difference in Policy functions is : $difPolFun")
 
 
 
-    vrtilde, uvr, lvr = mynorm(vr);
-    sstilde, uss, lss = mynorm(ss);
-    data = (Array{Float32}(sstilde'), Array{Float32}(vrtilde'));
+
+
 
 
 
