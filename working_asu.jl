@@ -103,6 +103,8 @@ ModelData = DataFrame(Tables.table(MoDel, header =heads))
 # ----------------------------------------------------------
 # [3.b] Plotting results from the Model
 # ----------------------------------------------------------
+p0 = Gadfly.plot(ModelData, x = "debt", y = "vf", color = "output", Geom.line,
+        Theme(background_color = "white", key_position = :right ,key_title_font_size = 6pt,key_label_font_size = 6pt))
 p1 = Gadfly.plot(ModelData, x = "debt", y = "vr", color = "output", Geom.line,
         Theme(background_color = "white", key_position = :right ,key_title_font_size = 6pt,key_label_font_size = 6pt))
 p2 = Gadfly.plot(ModelData, x = "debt", y = "vd", color = "output", Geom.line,Theme(background_color = "white", key_position = :none))
@@ -131,6 +133,8 @@ p5 = Gadfly.plot(DDsimulated, x =  "debt", y = "output", color = "D",Geom.rectbi
 pdef = round(100 * sum(econsim0.sim[:, 5])/ 100000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 #savefig("./Figures/heatmap_D.png");
+
+
 #= It gives us the first problems:
     □ The number of unique observations are small
     □ Some yellow whenm they shoul dbe black
@@ -184,9 +188,9 @@ NNhat = DataFrame(Tables.table(NNresults, header =heads))
 
 
 
-
+set_default_plot_size(12cm, 12cm)
 p1 = Gadfly.plot(NNhat, x = "debt", y = "vr", color = "output", Geom.line,
-        Geom.line,Theme(background_color = "white", key_position = :none))
+        Geom.line,Theme(background_color = "white"))
 p2 = Gadfly.plot(NNhat, x = "debt", y = "NN1", color = "output", Geom.line,
         Geom.line,Theme(background_color = "white", key_position = :none))
 p3 = Gadfly.plot(NNhat, x = "debt", y = "NN2", color = "output", Geom.line,
@@ -196,18 +200,17 @@ p4 = Gadfly.plot(NNhat, x = "debt", y = "NN3", color = "output", Geom.line,
 p5 = Gadfly.plot(NNhat, x = "debt", y = "NN4", color = "output", Geom.line,
         Geom.line,Theme(background_color = "white", key_position = :none))
 h2 = Gadfly.gridstack([p2 p3; p4 p5])
-vstack(p1,h2,heights=[3,7])
+
 
 
 resid = vr .-  VRhat;
-
-
-
-
-
 rest = DataFrame(Tables.table([ss resid], header =[:debt,:y,:error1, :error2, :error3, :error4]))
-p1 = plot(rest, x = "debt", y = "error1",color="y", Geom.line)
-p2 = plot(rest, x = "debt", y = "error2",color="y", Geom.line)
-p3 = plot(rest, x = "debt", y = "error3",color="y", Geom.line)
-p4 = plot(rest, x = "debt", y = "error4",color="y", Geom.line)
-gridstack([p1 p2; p3 p4])
+p1 = plot(rest, x = "debt", y = "error1",color="y", Geom.line,
+        Theme(background_color = "white"))
+p2 = plot(rest, x = "debt", y = "error2",color="y", Geom.line,
+        Theme(background_color = "white", key_position = :none))
+p3 = plot(rest, x = "debt", y = "error3",color="y", Geom.line,
+        Theme(background_color = "white", key_position = :none))
+p4 = plot(rest, x = "debt", y = "error4",color="y", Geom.line,
+        Theme(background_color = "white", key_position = :none))
+h3 = gridstack([p1 p2; p3 p4])
