@@ -314,7 +314,7 @@ display("After updating the difference in Policy functions is : $difPolFun")
     NNR2 = Chain(Dense(2, d, tanh), Dense(d, 1));
     parNNR2 = Flux.params(NNR2)
     loss2(x,y) = Flux.mse(NNR2(x),y);
-    Flux.@epochs 10 Flux.Optimise.train!(loss2, parNNR2, traindata, Descent())
+    Flux.@epochs 10 Flux.Optimise.train!(loss2, parNNR2, traindata, Descent());
 
     hatvrNNR2 = ((1/2*(NNR2(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
     res5   = vr - hatvrNNR2
