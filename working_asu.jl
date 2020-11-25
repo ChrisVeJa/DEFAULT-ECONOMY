@@ -102,26 +102,30 @@ ModelData = DataFrame(Tables.table(MoDel, header =heads))
 # ----------------------------------------------------------
 # [3.b] Plotting results from the Model
 # ----------------------------------------------------------
-set_default_plot_size(12cm, 8cm)
+set_default_plot_size(18cm, 12cm)
 p0 = Gadfly.plot(ModelData, x = "debt", y = "vf", color = "output",Geom.line,
         Theme(background_color = "white", key_position = :right ,
         key_title_font_size = 6pt,key_label_font_size = 6pt),
-        Guide.ylabel("Value function"), Guide.xlabel("Debt (t)"))
+        Guide.ylabel("Value function"), Guide.xlabel("Debt (t)"),
+        Guide.title("Value function by output level"))
 draw(PNG("./Plots/ValuFunction.png"),p0);
 
 set_default_plot_size(12cm, 8cm)
 p1 = Gadfly.plot(ModelData, x = "debt", y = "vr", color = "output", Geom.line,
     Theme(background_color = "white", key_position = :right ,
     key_title_font_size = 6pt,key_label_font_size = 6pt),
-    Guide.ylabel("Value of repayment", orientation = :vertical), Guide.xlabel("Debt (t)"));
+    Guide.ylabel("Value of repayment", orientation = :vertical), Guide.xlabel("Debt (t)"),
+    Guide.title("(a) Value function for Repayment"));
 
 p2 = Gadfly.plot(ModelData, x = "debt", y = "vd", color = "output", Geom.line,
     Theme(background_color = "white", key_position = :none),
-    Guide.ylabel("Value of Default", orientation = :vertical), Guide.xlabel("Debt (t)"));
+    Guide.ylabel("Value of Default", orientation = :vertical), Guide.xlabel("Debt (t)"),
+    Guide.title("(b) Value function for Default"));
 
 p3 = Gadfly.plot(ModelData, x = "debt", y = "b", color = "output",
     Geom.line,Theme(background_color = "white" ,key_position = :none),
-    Guide.ylabel("Debt policy (t+1)", orientation = :vertical), Guide.xlabel("Debt (t)"));
+    Guide.ylabel("Debt policy (t+1)", orientation = :vertical), Guide.xlabel("Debt (t)"),
+    Guide.title("(c) Debt policy function"));
 
 
 ytick = round.(settings.y, digits=2)
@@ -131,11 +135,12 @@ p4 = Gadfly.plot(ModelData, x =  "debt", y = "output", color = "D",Geom.rectbin,
     Theme(background_color = "white",key_title_font_size = 8pt,key_label_font_size = 8pt),
     Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"),
     Guide.colorkey(title="Default choice", labels=["Default","No Default"]),
-    Guide.xticks(ticks=[-0.40,-0.3, -0.2, -0.1, 0]), Guide.yticks(ticks= yticks));
+    Guide.xticks(ticks=[-0.40,-0.3, -0.2, -0.1, 0]), Guide.yticks(ticks= yticks),
+    Guide.title("(d) Default Choice"));
 set_default_plot_size(18cm, 12cm)
 h0 = Gadfly.gridstack([p1 p2; p3 p4])
 draw(PNG("./Plots/Model0.png"),h0)
-#savefig("./Figures/heatD0.png")
+
 
 # ----------------------------------------------------------
 # [3.c] Simulating data from  the model
@@ -159,7 +164,7 @@ p5 = Gadfly.plot(DDsimulated, x =  "debt", y = "output", color = "D",Geom.rectbi
      Guide.xticks(ticks=[-0.40,-0.3, -0.2, -0.1, 0]), Guide.yticks(ticks= yticks))
 pdef = round(100 * sum(econsim0.sim[:, 5])/ 100000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
-#savefig("./Figures/heatmap_D.png");
+
 
 
 #= It gives us the first problems:
