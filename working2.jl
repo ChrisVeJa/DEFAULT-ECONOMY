@@ -145,7 +145,7 @@ draw(PNG("./Plots/Model0.png"),h0)
 # ----------------------------------------------------------
 # [3.c] Simulating data from  the model
 # ----------------------------------------------------------
-econsim0 = ModelSim(params,polfun, settings,hf, nsim=100000);
+econsim0 = ModelSim(params,polfun, settings,hf, nsim=1000000);
 data0 = myunique(econsim0.sim)
 DDsimulated= fill(NaN,params.ne*params.nx, 3)
 DDsimulated[:,1:2] = [repeat(settings.b,params.nx) repeat(settings.y,inner= (params.ne,1))]
@@ -172,7 +172,7 @@ p5 = Gadfly.plot(DDsimulated, x =  "debt", y = "output", color = "D",Geom.rectbi
      Guide.colorkey(title="Default choice", labels=["Non observed", "No Default","Default"]),
      Guide.xticks(ticks=[-0.40,-0.3, -0.2, -0.1, 0]), Guide.yticks(ticks= yticks),
      Guide.title("(b) Simulated Data"));
-pdef = round(100 * sum(econsim0.sim[:, 5])/ 100000; digits = 2);
+pdef = round(100 * sum(econsim0.sim[:, 5])/ 1000000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 
 
@@ -304,6 +304,14 @@ display("After updating the difference in Policy functions is : $difPolFun")
     println("Neural network 3 Elu: MSE $(sqrt(mean(resNN3.^2))) and MAE $(maximum(abs.(resNN3)))")
     println("Neural network 4 Sigmoid: MSE $(sqrt(mean(resNN4.^2))) and MAE $(maximum(abs.(resNN4)))")
     println("Neural network 5 Swish: MSE $(sqrt(mean(resNN5.^2))) and MAE $(maximum(abs.(resNN5)))")
+    sumRESID = [sqrt(mean(res1.^2))   maximum(abs.(res1)) sqrt(mean((res1./vr).^2))*100  maximum(abs.(res1./vr))*100 ;
+        sqrt(mean(res2.^2))   maximum(abs.(res2)) sqrt(mean((res2./vr).^2))*100  maximum(abs.(res2./vr))*100 ;
+        sqrt(mean(res3.^2))   maximum(abs.(res3)) sqrt(mean((res3./vr).^2))*100  maximum(abs.(res3./vr))*100 ;
+        sqrt(mean(resNN1.^2))   maximum(abs.(resNN1)) sqrt(mean((resNN1./vr).^2))*100  maximum(abs.(resNN1./vr))*100 ;
+        sqrt(mean(resNN2.^2))   maximum(abs.(resNN2)) sqrt(mean((resNN2./vr).^2))*100  maximum(abs.(resNN2./vr))*100 ;
+        sqrt(mean(resNN3.^2))   maximum(abs.(resNN3)) sqrt(mean((resNN3./vr).^2))*100  maximum(abs.(resNN3./vr))*100 ;
+        sqrt(mean(resNN4.^2))   maximum(abs.(resNN4)) sqrt(mean((resNN4./vr).^2))*100  maximum(abs.(resNN4./vr))*100 ;
+        sqrt(mean(resNN5.^2))   maximum(abs.(resNN5)) sqrt(mean((resNN5./vr).^2))*100  maximum(abs.(resNN5./vr))*100]
 
     # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
     # Plotting approximations
@@ -342,11 +350,13 @@ display("After updating the difference in Policy functions is : $difPolFun")
     # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
     # Policy function conditional on fit
     # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-
+    set_default_plot_size(24cm, 18cm)
     polfunfit = Array{Any,1}(undef,8)
     simfit = Array{Any,1}(undef,8)
     difB   = Array{Float64,2}(undef,params.ne*params.nx,8)
+    PFB   = Array{Float64,2}(undef,params.ne*params.nx,8)
     plotdifB = Array{Any,1}(undef,8)
+    plotPFB = Array{Any,1}(undef,8)
     hat_vd  = polfun.vd
     nrep = 100000
     for i in  1:8
@@ -355,21 +365,29 @@ display("After updating the difference in Policy functions is : $difPolFun")
         simfit[i]    = ModelSim(params,polfunfit[i], settings,hf, nsim=nrep);
         global pdef    = round(100 * sum(simfit[i].sim[:, 5])/nrep; digits = 2);
         Derror  = sum(abs.(polfunfit[i].D-polfun.D))/(params.nx*params.ne)
+        PFB[:,i] = vec(polfunfit[i].bb)
         difB[:,i] = vec(polfunfit[i].bb - polfun.bb)
         display("The model $i has $pdef percent of default and a default error choice of $Derror");
     end
     headsB = [:debt, :output, :Model1,:Model2,:Model3,:Model4,:Model5,:Model6,:Model7,:Model8]
     DebtPoldif = DataFrame(Tables.table([ss difB], header=headsB))
+    DebtPol = DataFrame(Tables.table([ss PFB], header=headsB))
 
     for i in  1:8
         plotdifB[i] = Gadfly.plot(DebtPoldif, x = "debt", y = headsB[2+i],color="output", Geom.line,
                 Theme(background_color = "white", key_position= :none),Guide.ylabel("Model "* string(i)),
                 Guide.title("Error in PF model " * string(i)))
+        plotPFB[i] = Gadfly.plot(DebtPol, x = "debt", y = headsB[2+i],color="output", Geom.line,
+                        Theme(background_color = "white", key_position= :none),Guide.ylabel("Model "* string(i)),
+                        Guide.title("Debt PF model " * string(i)))
     end
 
     PFBerror = gridstack([p3 plotdifB[1] plotdifB[2]; #=
     =# plotdifB[3] plotdifB[4] plotdifB[5];plotdifB[6] plotdifB[7] plotdifB[8]])
     draw(PNG("./Plots/PFBerror.png"),PFBerror)
+    plotPFB = gridstack([p3 plotPFB[1] plotPFB[2]; #=
+    =# plotPFB[3] plotPFB[4] plotPFB[5];plotPFB[6] plotPFB[7] plotPFB[8]])
+    draw(PNG("./Plots/PFB.png"),plotPFB)
 
 
 
