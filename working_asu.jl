@@ -38,9 +38,8 @@ include("supcodes.jl");
 # ----------------------------------------------------------
     mytrain(NN,data) = begin
         lossf(x,y) = Flux.mse(NN(x),y);
-        traindata  = Flux.Data.DataLoader(data)
         pstrain = Flux.params(NN)
-        Flux.@epochs 10 Flux.Optimise.train!(lossf, pstrain, traindata, Descent())
+        Flux.@epochs 10 Flux.Optimise.train!(lossf, pstrain, data, Descent())
     end
 # ----------------------------------------------------------
 # [1.d]  Policy function conditional on expected values
@@ -153,7 +152,11 @@ end
 heads = [:debt, :output, :D]
 DDsimulated = DataFrame(Tables.table(DDsimulated, header =heads))
 p5 = Gadfly.plot(DDsimulated, x =  "debt", y = "output", color = "D",Geom.rectbin,
-     Scale.color_discrete_manual("white","black","yellow"),Theme(background_color = "white"))
+     Scale.color_discrete_manual("white","black","yellow"),Theme(background_color = "white"),
+     Theme(background_color = "white",key_title_font_size = 8pt,key_label_font_size = 8pt),
+     Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"),
+     Guide.colorkey(title="Default choice", labels=["Non observed", "No Default","Default"]),
+     Guide.xticks(ticks=[-0.40,-0.3, -0.2, -0.1, 0]), Guide.yticks(ticks= yticks))
 pdef = round(100 * sum(econsim0.sim[:, 5])/ 100000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 #savefig("./Figures/heatmap_D.png");
@@ -163,9 +166,9 @@ display("Simulation finished, with frequency of $pdef default events");
     □ The number of unique observations are small
     □ Some yellow whenm they shoul dbe black
  =#
-set_default_plot_size(8cm, 12cm)
+set_default_plot_size(12cm, 12cm)
 heat1 = Gadfly.vstack(p4, p5)
-
+draw(PNG("./Plots/heat1.png"),heat1)
 
 
 # **********************************************************
@@ -205,14 +208,14 @@ display("After updating the difference in Policy functions is : $difPolFun")
         vrt = 2*(vr .- minimum(vr)) ./ (maximum(vr)-minimum(vr)) .-1
         d = 4
 
-        mat1 = sst[:,1] .^ convert(Array,0:d)'
-        mat2 = sst[:,2] .^ convert(Array,0:d)'
+        matv1 = sst[:,1] .^ convert(Array,0:d)'
+        matv2 = sst[:,2] .^ convert(Array,0:d)'
         xbasis =  Array{Float64,2}(undef,size(mat1,1),div((d+2)*(d+1),2)) # remember that it start at 0
         startcol = 1
         for i in 0:d
             cols = d - i +1
             endcol = startcol + cols - 1
-            mati = mat1[:,i+1] .* mat2[:,1:cols]
+            mati = matv1[:,i+1] .* matv2[:,1:cols]
             xbasis[:,startcol:endcol] = mati
             startcol = endcol+1
         end
@@ -259,13 +262,14 @@ display("After updating the difference in Policy functions is : $difPolFun")
 
         p1 = plot(modls, x = "debt", y = "ResMod1",color="output", Geom.line,
                 Theme(background_color = "white"))
-        p2 = plot(modls, x = "debt", y = "ResMod3",color="output", Geom.line,
+        p2 = plot(modls, x = "debt", y = "ResMod2",color="output", Geom.line,
                 Theme(background_color = "white", key_position = :none))
         p3 = plot(modls, x = "debt", y = "ResMod3",color="output", Geom.line,
                 Theme(background_color = "white", key_position = :none))
 
         set_default_plot_size(12cm, 18cm)
         h3 = vstack(p1,p2,p3)
+        draw(PNG("./Plots/res1.png"),h3)
 
         hat_vr1 = reshape(hatvrols, params.ne, params.nx)
         hat_vd  = polfun.vd
@@ -297,10 +301,29 @@ display("After updating the difference in Policy functions is : $difPolFun")
     sst = 2*(ss .- minimum(ss, dims=1)) ./ (maximum(ss, dims=1)-minimum(ss, dims=1)) .-1
     vrt = 2*(vr .- minimum(vr)) ./ (maximum(vr)-minimum(vr)) .-1
 
-
     dataux = repeat([sst vrt],10,1)
     dataux = dataux[rand(1:size(dataux,1),size(dataux,1)),:]
     traindata = Flux.Data.DataLoader((dataux[:,1:2]', dataux[:,3]'));
+
+
+    NNR1 = Chain(Dense(2, d, softplus), Dense(d, 1));
+    NNR2 = Chain(Dense(2, d, tanh), Dense(d, 1));
+    NNR3 = Chain(Dense(2, d, elu), Dense(d, 1));
+    NNR4 = Chain(Dense(2, d, sigmoid), Dense(d, 1));
+
+
+
+
+    mytrain(NNR1,traindata);
+    mytrain(NNR2,traindata);
+    mytrain(NNR3,traindata);
+    mytrain(NNR4,traindata);
+
+    hatvrNNR1 = ((1/2*(NNR1(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+    hatvrNNR2 = ((1/2*(NNR2(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+    hatvrNNR3 = ((1/2*(NNR3(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+    hatvrNNR4 = ((1/2*(NNR4(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+
     NNR1 = Chain(Dense(2, d, softplus), Dense(d, 1));
     parNNR1 = Flux.params(NNR1)
     loss1(x,y) = Flux.mse(NNR1(x),y);
@@ -322,7 +345,28 @@ display("After updating the difference in Policy functions is : $difPolFun")
 
 
 
+    NNR3 = Chain(Dense(2, d, elu), Dense(d, 1));
+    parNNR3 = Flux.params(NNR3)
+    loss3(x,y) = Flux.mse(NNR3(x),y);
+    Flux.@epochs 10 Flux.Optimise.train!(loss3, parNNR3, traindata, Descent());
 
+    hatvrNNR3 = ((1/2*(NNR3(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+    res6   = vr - hatvrNNR3
+    display(maximum(abs.(res6)))
+
+
+
+
+
+
+    NNR4 = Chain(Dense(2, d, sigmoid), Dense(d, 1));
+    parNNR4 = Flux.params(NNR4)
+    loss4(x,y) = Flux.mse(NNR4(x),y);
+    Flux.@epochs 10 Flux.Optimise.train!(loss4, parNNR4, traindata, Descent());
+
+    hatvrNNR4 = ((1/2*(NNR4(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+    res7   = vr - hatvrNNR4
+    display(maximum(abs.(res7)))
 
 
 
