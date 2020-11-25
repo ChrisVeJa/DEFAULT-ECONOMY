@@ -210,7 +210,7 @@ display("After updating the difference in Policy functions is : $difPolFun")
 
         matv1 = sst[:,1] .^ convert(Array,0:d)'
         matv2 = sst[:,2] .^ convert(Array,0:d)'
-        xbasis =  Array{Float64,2}(undef,size(mat1,1),div((d+2)*(d+1),2)) # remember that it start at 0
+        xbasis =  Array{Float64,2}(undef,size(matv1,1),div((d+2)*(d+1),2)) # remember that it start at 0
         startcol = 1
         for i in 0:d
             cols = d - i +1
@@ -248,52 +248,6 @@ display("After updating the difference in Policy functions is : $difPolFun")
         hatvrcheby = ((1/2*((xcheby*βcheby) .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
         res3   = vr - hatvrcheby
 
-    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-    # Summarizing
-    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-        println("MODELS:    ")
-        println("Model 1: MSE $(sqrt(mean(res1.^2))) and MAE $(maximum(abs.(res1)))")
-        println("Model 2: MSE $(sqrt(mean(res2.^2))) and MAE $(maximum(abs.(res2)))")
-        println("Model 3: MSE $(sqrt(mean(res3.^2))) and MAE $(maximum(abs.(res3)))")
-
-
-        modls = DataFrame(Tables.table([ss hatvrols res1 hatvrbasis res2 hatvrcheby res3],
-                header=[:debt, :output, :VRMod1, :ResMod1, :VRMod2, :ResMod2, :VRMod3, :ResMod3]))
-
-        p1 = plot(modls, x = "debt", y = "ResMod1",color="output", Geom.line,
-                Theme(background_color = "white"))
-        p2 = plot(modls, x = "debt", y = "ResMod2",color="output", Geom.line,
-                Theme(background_color = "white", key_position = :none))
-        p3 = plot(modls, x = "debt", y = "ResMod3",color="output", Geom.line,
-                Theme(background_color = "white", key_position = :none))
-
-        set_default_plot_size(12cm, 18cm)
-        h3 = vstack(p1,p2,p3)
-        draw(PNG("./Plots/res1.png"),h3)
-
-        hat_vr1 = reshape(hatvrols, params.ne, params.nx)
-        hat_vd  = polfun.vd
-        updmdl1 = update_solve(hat_vr1, hat_vd, settings,params,uf)
-        sim1    = ModelSim(params,trial1, settings,hf, nsim=1000000);
-        pdef    = round(100 * sum(sim1.sim[:, 5])/ 1000000; digits = 2);
-        display("The model with OLS simulates a default frequency of $pdef percent");
-
-        hat_vr2 = reshape(hatvrbasis, params.ne, params.nx)
-        hat_vd  = polfun.vd
-        updmdl2 = update_solve(hat_vr2, hat_vd, settings,params,uf)
-        sim2    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
-        pdef    = round(100 * sum(sim2.sim[:, 5])/ 1000000; digits = 2);
-        display("The model with basis simulates a default frequency of $pdef percent");
-
-        hat_vr3 = reshape(hatvrcheby, params.ne, params.nx)
-        hat_vd  = polfun.vd
-        updmdl3 = update_solve(hat_vr3, hat_vd, settings,params,uf)
-        sim3    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
-        pdef    = round(100 * sum(sim3.sim[:, 5])/ 1000000; digits = 2);
-        display("The model with Chebyshev simulates a default frequency of $pdef percent");
-
-
-
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Neural Networks
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
@@ -310,69 +264,69 @@ display("After updating the difference in Policy functions is : $difPolFun")
     NNR2 = Chain(Dense(2, d, tanh), Dense(d, 1));
     NNR3 = Chain(Dense(2, d, elu), Dense(d, 1));
     NNR4 = Chain(Dense(2, d, sigmoid), Dense(d, 1));
+    NNR5 = Chain(Dense(2, d, swish), Dense(d, 1));
+
+    NeuralEsti(NN,data,x,y) = begin
+        mytrain(NN,data)
+        hatvrNN = ((1/2*(NN(x')' .+1))*(maximum(y)-minimum(y)) .+ minimum(y))
+        resNN  = y - hatvrNN
+        return hatvrNN, resNN
+    end
+
+    hatvrNNR1, resNN1 = NeuralEsti(NNR1,traindata,sst,vr)
+    hatvrNNR2, resNN2 = NeuralEsti(NNR2,traindata,sst,vr)
+    hatvrNNR3, resNN3 = NeuralEsti(NNR3,traindata,sst,vr)
+    hatvrNNR4, resNN4 = NeuralEsti(NNR4,traindata,sst,vr)
+    hatvrNNR5, resNN5 = NeuralEsti(NNR5,traindata,sst,vr)
+
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    # Summarizing
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    println("Model 1 simple OLS: MSE $(sqrt(mean(res1.^2))) and MAE $(maximum(abs.(res1)))")
+    println("Model 2 OLS with normalization: MSE $(sqrt(mean(res2.^2))) and MAE $(maximum(abs.(res2)))")
+    println("Model 3 Chebyshev: MSE $(sqrt(mean(res3.^2))) and MAE $(maximum(abs.(res3)))")
+    println("Neural network 1 Softplus: MSE $(sqrt(mean(resNN1.^2))) and MAE $(maximum(abs.(resNN1)))")
+    println("Neural network 2 Tanh: MSE $(sqrt(mean(resNN2.^2))) and MAE $(maximum(abs.(resNN2)))")
+    println("Neural network 3 Elu: MSE $(sqrt(mean(resNN3.^2))) and MAE $(maximum(abs.(resNN3)))")
+    println("Neural network 4 Sigmoid: MSE $(sqrt(mean(resNN4.^2))) and MAE $(maximum(abs.(resNN4)))")
+    println("Neural network 5 Swish: MSE $(sqrt(mean(resNN5.^2))) and MAE $(maximum(abs.(resNN5)))")
 
 
+    modls = DataFrame(Tables.table([ss hatvrols res1 hatvrbasis res2 hatvrcheby res3
+            hatvrNNR1 resNN1 hatvrNNR2 resNN2 hatvrNNR3 resNN3 hatvrNNR4 resNN4 hatvrNNR5 resNN5],
+            header=[:debt, :output, :VRMod1, :ResMod1, :VRMod2, :ResMod2, :VRMod3, :ResMod3]))
 
+    p1 = plot(modls, x = "debt", y = "ResMod1",color="output", Geom.line,
+            Theme(background_color = "white"))
+    p2 = plot(modls, x = "debt", y = "ResMod2",color="output", Geom.line,
+            Theme(background_color = "white", key_position = :none))
+    p3 = plot(modls, x = "debt", y = "ResMod3",color="output", Geom.line,
+            Theme(background_color = "white", key_position = :none))
 
-    mytrain(NNR1,traindata);
-    mytrain(NNR2,traindata);
-    mytrain(NNR3,traindata);
-    mytrain(NNR4,traindata);
+    set_default_plot_size(12cm, 18cm)
+    h3 = vstack(p1,p2,p3)
+    draw(PNG("./Plots/res1.png"),h3)
 
-    hatvrNNR1 = ((1/2*(NNR1(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
-    hatvrNNR2 = ((1/2*(NNR2(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
-    hatvrNNR3 = ((1/2*(NNR3(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
-    hatvrNNR4 = ((1/2*(NNR4(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
+    hat_vr1 = reshape(hatvrols, params.ne, params.nx)
+    hat_vd  = polfun.vd
+    updmdl1 = update_solve(hat_vr1, hat_vd, settings,params,uf)
+    sim1    = ModelSim(params,trial1, settings,hf, nsim=1000000);
+    pdef    = round(100 * sum(sim1.sim[:, 5])/ 1000000; digits = 2);
+    display("The model with OLS simulates a default frequency of $pdef percent");
 
-    NNR1 = Chain(Dense(2, d, softplus), Dense(d, 1));
-    parNNR1 = Flux.params(NNR1)
-    loss1(x,y) = Flux.mse(NNR1(x),y);
-    Flux.@epochs 10 Flux.Optimise.train!(loss1, parNNR1, traindata, Descent())
+    hat_vr2 = reshape(hatvrbasis, params.ne, params.nx)
+    hat_vd  = polfun.vd
+    updmdl2 = update_solve(hat_vr2, hat_vd, settings,params,uf)
+    sim2    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
+    pdef    = round(100 * sum(sim2.sim[:, 5])/ 1000000; digits = 2);
+    display("The model with basis simulates a default frequency of $pdef percent");
 
-    hatvrNNR1 = ((1/2*(NNR1(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
-    res4   = vr - hatvrNNR1
-    display(maximum(abs.(res4)))
-
-
-    NNR2 = Chain(Dense(2, d, tanh), Dense(d, 1));
-    parNNR2 = Flux.params(NNR2)
-    loss2(x,y) = Flux.mse(NNR2(x),y);
-    Flux.@epochs 10 Flux.Optimise.train!(loss2, parNNR2, traindata, Descent());
-
-    hatvrNNR2 = ((1/2*(NNR2(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
-    res5   = vr - hatvrNNR2
-    display(maximum(abs.(res5)))
-
-
-
-    NNR3 = Chain(Dense(2, d, elu), Dense(d, 1));
-    parNNR3 = Flux.params(NNR3)
-    loss3(x,y) = Flux.mse(NNR3(x),y);
-    Flux.@epochs 10 Flux.Optimise.train!(loss3, parNNR3, traindata, Descent());
-
-    hatvrNNR3 = ((1/2*(NNR3(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
-    res6   = vr - hatvrNNR3
-    display(maximum(abs.(res6)))
-
-
-
-
-
-
-    NNR4 = Chain(Dense(2, d, sigmoid), Dense(d, 1));
-    parNNR4 = Flux.params(NNR4)
-    loss4(x,y) = Flux.mse(NNR4(x),y);
-    Flux.@epochs 10 Flux.Optimise.train!(loss4, parNNR4, traindata, Descent());
-
-    hatvrNNR4 = ((1/2*(NNR4(sst')' .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
-    res7   = vr - hatvrNNR4
-    display(maximum(abs.(res7)))
-
-
-
-
-
-
+    hat_vr3 = reshape(hatvrcheby, params.ne, params.nx)
+    hat_vd  = polfun.vd
+    updmdl3 = update_solve(hat_vr3, hat_vd, settings,params,uf)
+    sim3    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
+    pdef    = round(100 * sum(sim3.sim[:, 5])/ 1000000; digits = 2);
+    display("The model with Chebyshev simulates a default frequency of $pdef percent");
 
 
 
