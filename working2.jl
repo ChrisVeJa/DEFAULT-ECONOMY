@@ -225,13 +225,13 @@ display("After updating the difference in Policy functions is : $difPolFun")
         matv1 = sst[:,1] .^ convert(Array,0:d)'
         matv2 = sst[:,2] .^ convert(Array,0:d)'
         xbasis =  Array{Float64,2}(undef,size(matv1,1),div((d+2)*(d+1),2)) # remember that it start at 0
-        startcol = 1
+        global startcol = 1
         for i in 0:d
             cols = d - i +1
             endcol = startcol + cols - 1
             mati = matv1[:,i+1] .* matv2[:,1:cols]
             xbasis[:,startcol:endcol] = mati
-            startcol = endcol+1
+            global startcol = endcol+1
         end
         βbasis = (xbasis'*xbasis)\ (xbasis'*vrt)
         hatvrbasis = ((1/2*((xbasis*βbasis) .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
@@ -250,13 +250,13 @@ display("After updating the difference in Policy functions is : $difPolFun")
         mat1 = cheby(sst[:,1],d)
         mat2 = cheby(sst[:,2],d)
         xcheby=  Array{Float64,2}(undef,size(mat1,1),div((d+2)*(d+1),2)) # remember that it start at 0
-        startcol = 1
+        global startcol = 1
         for i in 0:d
             cols = d - i +1
             endcol = startcol + cols - 1
             mati = mat1[:,i+1] .* mat2[:,1:cols]
             xcheby[:,startcol:endcol] = mati
-            startcol = endcol+1
+            global startcol = endcol+1
         end
         βcheby = (xcheby'*xcheby)\ (xcheby'*vrt)
         hatvrcheby = ((1/2*((xcheby*βcheby) .+1))*(maximum(vr)-minimum(vr)) .+ minimum(vr))
@@ -353,7 +353,7 @@ display("After updating the difference in Policy functions is : $difPolFun")
         hat_vrfit = reshape(modls[:,1+2*i], params.ne, params.nx)
         polfunfit[i] = update_solve(hat_vrfit, hat_vd, settings,params,uf)
         simfit[i]    = ModelSim(params,polfunfit[i], settings,hf, nsim=nrep);
-        pdef    = round(100 * sum(simfit[i].sim[:, 5])/nrep; digits = 2);
+        global pdef    = round(100 * sum(simfit[i].sim[:, 5])/nrep; digits = 2);
         Derror  = sum(abs.(polfunfit[i].D-polfun.D))/(params.nx*params.ne)
         difB[:,i] = vec(polfunfit[i].bb - polfun.bb)
         display("The model $i has $pdef percent of default and a default error choice of $Derror");
