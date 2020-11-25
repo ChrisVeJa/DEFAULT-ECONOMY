@@ -156,12 +156,22 @@ for i in 1: size(data0,1)
 end
 heads = [:debt, :output, :D]
 DDsimulated = DataFrame(Tables.table(DDsimulated, header =heads))
+p4 = Gadfly.plot(ModelData, x =  "debt", y = "output", color = "D",Geom.rectbin,
+    Scale.color_discrete_manual("yellow", "black"),
+    Theme(background_color = "white",key_title_font_size = 8pt,key_label_font_size = 8pt),
+    Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"),
+    Guide.colorkey(title="Default choice", labels=["Default","No Default"]),
+    Guide.xticks(ticks=[-0.40,-0.3, -0.2, -0.1, 0]), Guide.yticks(ticks= yticks),
+    Guide.title("(a) Whole grid"));
+set_default_plot_size(18cm, 12cm)
+
 p5 = Gadfly.plot(DDsimulated, x =  "debt", y = "output", color = "D",Geom.rectbin,
      Scale.color_discrete_manual("white","black","yellow"),Theme(background_color = "white"),
      Theme(background_color = "white",key_title_font_size = 8pt,key_label_font_size = 8pt),
      Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"),
      Guide.colorkey(title="Default choice", labels=["Non observed", "No Default","Default"]),
-     Guide.xticks(ticks=[-0.40,-0.3, -0.2, -0.1, 0]), Guide.yticks(ticks= yticks))
+     Guide.xticks(ticks=[-0.40,-0.3, -0.2, -0.1, 0]), Guide.yticks(ticks= yticks),
+     Guide.title("(b) Simulated Data"));
 pdef = round(100 * sum(econsim0.sim[:, 5])/ 100000; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 
@@ -174,7 +184,6 @@ display("Simulation finished, with frequency of $pdef default events");
 set_default_plot_size(12cm, 12cm)
 heat1 = Gadfly.vstack(p4, p5)
 draw(PNG("./Plots/heat1.png"),heat1)
-
 
 # **********************************************************
 # [Note] To be sure that the updating code is well,
@@ -296,53 +305,121 @@ display("After updating the difference in Policy functions is : $difPolFun")
     println("Neural network 4 Sigmoid: MSE $(sqrt(mean(resNN4.^2))) and MAE $(maximum(abs.(resNN4)))")
     println("Neural network 5 Swish: MSE $(sqrt(mean(resNN5.^2))) and MAE $(maximum(abs.(resNN5)))")
 
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    # Plotting approximations
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    heads = [:debt, :output, :VRMod1, :ResMod1, :VRMod2, :ResMod2, :VRMod3, :ResMod3,:VRMod4, :ResMod4,
+    :VRMod5, :ResMod5, :VRMod6, :ResMod6,:VRMod7, :ResMod7, :VRMod8, :ResMod8]
+    modls = DataFrame(Tables.table([ss hatvrols res1 hatvrbasis res2 hatvrcheby res3 #=
+    =# hatvrNNR1 resNN1 hatvrNNR2 resNN2 hatvrNNR3 resNN3 hatvrNNR4 resNN4 hatvrNNR5 resNN5],
+    header= heads))
 
-    modls = DataFrame(Tables.table([ss hatvrols res1 hatvrbasis res2 hatvrcheby res3
-            hatvrNNR1 resNN1 hatvrNNR2 resNN2 hatvrNNR3 resNN3 hatvrNNR4 resNN4 hatvrNNR5 resNN5],
-            header=[:debt, :output, :VRMod1, :ResMod1, :VRMod2, :ResMod2, :VRMod3, :ResMod3]))
+    plotres = Array{Any,1}(undef,8)
+    plotfit = Array{Any,1}(undef,8)
+    for i  in 1:8
+        if i == 1
+            plotres[i] = Gadfly.plot(modls, x = "debt", y = heads[2+2*i],color="output", Geom.line,
+                Theme(background_color = "white"),Guide.ylabel("Model 1"),
+                Guide.title("Residuals model " * string(i)))
+            plotfit[i] = Gadfly.plot(modls, x = "debt", y = heads[1+2*i],color="output", Geom.line,
+                        Theme(background_color = "white", key_position= :none),Guide.ylabel("Model "* string(i)),
+                        Guide.title("Fit model " * string(i)))
+        else
+            plotres[i] = Gadfly.plot(modls, x = "debt", y = heads[2+2*i],color="output", Geom.line,
+                Theme(background_color = "white", key_position= :none),Guide.ylabel("Model "* string(i)),
+                Guide.title("Residuals model " * string(i)))
+            plotfit[i] = Gadfly.plot(modls, x = "debt", y = heads[1+2*i],color="output", Geom.line,
+                    Theme(background_color = "white", key_position= :none),Guide.ylabel("Model "* string(i)),
+                    Guide.title("Fit model " * string(i)))
+        end
+    end
+    set_default_plot_size(24cm, 18cm)
+    plotres1 = gridstack([p1 plotres[1] plotres[2];plotres[3] plotres[4] plotres[5];plotres[6] plotres[7] plotres[8]])
+    draw(PNG("./Plots/res1.png"),plotres1)
+    plotfit1 = gridstack([p1 plotfit[1] plotfit[2];plotfit[3] plotfit[4] plotfit[5];plotfit[6] plotfit[7] plotfit[8]])
+    draw(PNG("./Plots/fit1.png"),plotfit1)
 
-    p1 = plot(modls, x = "debt", y = "ResMod1",color="output", Geom.line,
-            Theme(background_color = "white"))
-    p2 = plot(modls, x = "debt", y = "ResMod2",color="output", Geom.line,
-            Theme(background_color = "white", key_position = :none))
-    p3 = plot(modls, x = "debt", y = "ResMod3",color="output", Geom.line,
-            Theme(background_color = "white", key_position = :none))
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+    # Policy function conditional on fit
+    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 
-    set_default_plot_size(12cm, 18cm)
-    h3 = vstack(p1,p2,p3)
-    draw(PNG("./Plots/res1.png"),h3)
-
-    hat_vr1 = reshape(hatvrols, params.ne, params.nx)
+    polfunfit = Array{Any,1}(undef,8)
+    simfit = Array{Any,1}(undef,8)
+    difB   = Array{Float64,2}(undef,params.ne*params.nx,8)
+    plotdifB = Array{Any,1}(undef,8)
     hat_vd  = polfun.vd
-    updmdl1 = update_solve(hat_vr1, hat_vd, settings,params,uf)
-    sim1    = ModelSim(params,trial1, settings,hf, nsim=1000000);
-    pdef    = round(100 * sum(sim1.sim[:, 5])/ 1000000; digits = 2);
-    display("The model with OLS simulates a default frequency of $pdef percent");
+    nrep = 100000
+    for i in  1:8
+        hat_vrfit = reshape(modls[:,1+2*i], params.ne, params.nx)
+        polfunfit[i] = update_solve(hat_vrfit, hat_vd, settings,params,uf)
+        simfit[i]    = ModelSim(params,polfunfit[i], settings,hf, nsim=nrep);
+        pdef    = round(100 * sum(simfit[i].sim[:, 5])/nrep; digits = 2);
+        Derror  = sum(abs.(polfunfit[i].D-polfun.D))/(params.nx*params.ne)
+        difB[:,i] = vec(polfunfit[i].bb - polfun.bb)
+        display("The model $i has $pdef percent of default and a default error choice of $Derror");
+    end
+    headsB = [:debt, :output, :Model1,:Model2,:Model3,:Model4,:Model5,:Model6,:Model7,:Model8]
+    DebtPoldif = DataFrame(Tables.table([ss difB], header=headsB))
 
-    hat_vr2 = reshape(hatvrbasis, params.ne, params.nx)
-    hat_vd  = polfun.vd
-    updmdl2 = update_solve(hat_vr2, hat_vd, settings,params,uf)
-    sim2    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
-    pdef    = round(100 * sum(sim2.sim[:, 5])/ 1000000; digits = 2);
-    display("The model with basis simulates a default frequency of $pdef percent");
+    for i in  1:8
+        plotdifB[i] = Gadfly.plot(DebtPoldif, x = "debt", y = headsB[2+i],color="output", Geom.line,
+                Theme(background_color = "white", key_position= :none),Guide.ylabel("Model "* string(i)),
+                Guide.title("Error in PF model " * string(i)))
+    end
 
-    hat_vr3 = reshape(hatvrcheby, params.ne, params.nx)
-    hat_vd  = polfun.vd
-    updmdl3 = update_solve(hat_vr3, hat_vd, settings,params,uf)
-    sim3    = ModelSim(params,updmdl2, settings,hf, nsim=1000000);
-    pdef    = round(100 * sum(sim3.sim[:, 5])/ 1000000; digits = 2);
-    display("The model with Chebyshev simulates a default frequency of $pdef percent");
-
-
-
-
-
-
+    PFBerror = gridstack([p3 plotdifB[1] plotdifB[2]; #=
+    =# plotdifB[3] plotdifB[4] plotdifB[5];plotdifB[6] plotdifB[7] plotdifB[8]])
+    draw(PNG("./Plots/PFBerror.png"),PFBerror)
 
 
 
 
-NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1));
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#=
+NNR1 = Chain(Dense(2, 16, softplus), Dense(16, 1))
 NNR2 = Chain(Dense(2, 16, tanh), Dense(16, 1));
 NNR3 = Chain(Dense(2, 32, relu), Dense(32, 16,softplus), Dense(16,1));
 NNR4 = Chain(Dense(2, 32, relu), Dense(32, 16,tanh), Dense(16,1));
@@ -388,3 +465,4 @@ p4 = plot(rest, x = "debt", y = "error4",color="y", Geom.line,
 h3 = gridstack([p1 p2; p3 p4])
 
 maxi
+=#
