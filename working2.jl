@@ -552,14 +552,14 @@ for i = 1:8
 end
 
 PFBerror = gridstack([
-    p3 plotdifB[1] plotdifB[2] =
+    p3 plotdifB[1] plotdifB[2]
     plotdifB[3] plotdifB[4] plotdifB[5]
     plotdifB[6] plotdifB[7] plotdifB[8]
-])    =#
+])   #
 draw(PNG("./Plots/PFBerror.png"), PFBerror)
 plotPFB = gridstack([
-    p3 plotPFB[1] plotPFB[2] =
+    p3 plotPFB[1] plotPFB[2]
     plotPFB[3] plotPFB[4] plotPFB[5]
     plotPFB[6] plotPFB[7] plotPFB[8]
-])    =#
+])
 draw(PNG("./Plots/PFB.png"), plotPFB)
