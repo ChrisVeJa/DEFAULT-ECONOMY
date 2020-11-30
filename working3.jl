@@ -211,7 +211,7 @@ d = 4
 xs1 = [ones(params.nx * params.ne, 1) ss ss .^ 2 ss[:, 1] .* ss[:, 2]]  # bₜ, yₜ
 β1  = (xs1' * xs1) \ (xs1' * vr)
 result[1,1] = xs1 * β1
-result[1,2] = vr - hat1
+result[1,2] = vr - result[1,1]
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Normal Basis
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
@@ -303,11 +303,11 @@ for i = 1:8
     hat_vrfit = reshape(modls[:, 1+2*i], params.ne, params.nx)
     polfunfit[i] = update_solve(hat_vrfit, hat_vd, settings, params, uf)
     simfit[i] = ModelSim(params, polfunfit[i], settings, hf, nsim = nrep)
-    global pdef = round(100 * sum(simfit[i].sim[:, 5]) / nrep; digits = 2)
+    pdef1 = round(100 * sum(simfit[i].sim[:, 5]) / nrep; digits = 2)
     Derror = sum(abs.(polfunfit[i].D - polfun.D)) / (params.nx * params.ne)
     PFB[:, i] = vec(polfunfit[i].bb)
     difB[:, i] = vec(polfunfit[i].bb - polfun.bb)
-    display("The model $i has $pdef percent of default and a default error choice of $Derror")
+    display("The model $i has $pdef1 percent of default and a default error choice of $Derror")
 end
 headsB = [:debt, :output, :Model1, :Model2, :Model3, :Model4, :Model5, :Model6, :Model7, :Model8]
 DebtPoldif = DataFrame(Tables.table([ss difB], header = headsB))
