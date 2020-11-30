@@ -319,12 +319,18 @@ end
 # ***************************************
 # [4.a] Value of repayment
 # ***************************************
-
+ss = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
+vr = vec(polfun.vr)
+ssmin = minimum(ss, dims = 1)
+ssmax = maximum(ss, dims = 1)
+vrmin = minimum(vr)
+vrmax = maximum(vr)
+sst = 2 * (ss .- ssmin ) ./ (ssmax - ssmin) .- 1
+vrt = 2 * (vr .- vrmin) ./ (vrmax- vrmin) .- 1
+d = 4
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Approximating using a OLS approach
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-ss = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
-vr = vec(polfun.vr)
 xss = [ones(params.nx * params.ne, 1) ss ss .^ 2 ss[:, 1] .* ss[:, 2]]  # bₜ, yₜ
 β = (xss' * xss) \ (xss' * vr)
 hatvrols = xss * β
@@ -332,55 +338,23 @@ res1 = vr - hatvrols
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Normal Basis
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-sst =
-    2 * (ss .- minimum(ss, dims = 1)) ./ (maximum(ss, dims = 1) - minimum(ss, dims = 1)) .-
-    1
-vrt = 2 * (vr .- minimum(vr)) ./ (maximum(vr) - minimum(vr)) .- 1
-d = 4
-
-matv1 = sst[:, 1] .^ convert(Array, 0:d)'
-matv2 = sst[:, 2] .^ convert(Array, 0:d)'
-xbasis = Array{Float64,2}(undef, size(matv1, 1), div((d + 2) * (d + 1), 2)) # remember that it start at 0
-global startcol = 1
-for i = 0:d
-    cols = d - i + 1
-    endcol = startcol + cols - 1
-    mati = matv1[:, i+1] .* matv2[:, 1:cols]
-    xbasis[:, startcol:endcol] = mati
-    global startcol = endcol + 1
-end
+matv = (sst[:, 1] .^ convert(Array, 0:d)', sst[:, 2] .^ convert(Array, 0:d)')
+xbasis = myexpansion(matv,d)
 βbasis = (xbasis' * xbasis) \ (xbasis' * vrt)
-hatvrbasis =
-    ((1 / 2 * ((xbasis * βbasis) .+ 1)) * (maximum(vr) - minimum(vr)) .+ minimum(vr))
+hatvrbasis = ((1 / 2 * ((xbasis * βbasis) .+ 1)) * (vrmax - vrmin) .+ vrmin)
 res2 = vr - hatvrbasis
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Using Chebyshev Polynomials
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-mat1 = cheby(sst[:, 1], d)
-mat2 = cheby(sst[:, 2], d)
-xcheby = Array{Float64,2}(undef, size(mat1, 1), div((d + 2) * (d + 1), 2)) # remember that it start at 0
-global startcol = 1
-for i = 0:d
-    cols = d - i + 1
-    endcol = startcol + cols - 1
-    mati = mat1[:, i+1] .* mat2[:, 1:cols]
-    xcheby[:, startcol:endcol] = mati
-    global startcol = endcol + 1
-end
+matv1 = (cheby(sst[:, 1], d), cheby(sst[:, 2], d)
+xcheby =  myexpansion(matv1,d) # remember that it start at 0
 βcheby = (xcheby' * xcheby) \ (xcheby' * vrt)
-hatvrcheby =
-    ((1 / 2 * ((xcheby * βcheby) .+ 1)) * (maximum(vr) - minimum(vr)) .+ minimum(vr))
+hatvrcheby = ((1 / 2 * ((xcheby * βcheby) .+ 1)) * (vrmax - vrmin) .+ vrmin)
 res3 = vr - hatvrcheby
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Neural Networks
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-d = 4
-sst =
-    2 * (ss .- minimum(ss, dims = 1)) ./ (maximum(ss, dims = 1) - minimum(ss, dims = 1)) .-
-    1
-vrt = 2 * (vr .- minimum(vr)) ./ (maximum(vr) - minimum(vr)) .- 1
-
 dataux = repeat([sst vrt], 10, 1)
 dataux = dataux[rand(1:size(dataux, 1), size(dataux, 1)), :]
 traindata = Flux.Data.DataLoader((dataux[:, 1:2]', dataux[:, 3]'));
