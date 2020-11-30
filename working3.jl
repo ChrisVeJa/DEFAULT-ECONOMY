@@ -5,20 +5,8 @@
 ############################################################
 # [0] Including our module
 ############################################################
-using Random,
-    Distributions,
-    Statistics,
-    LinearAlgebra,
-    StatsBase,
-    Parameters,
-    Flux,
-    ColorSchemes,
-    Gadfly,
-    Cairo,
-    Fontconfig,
-    Tables,
-    DataFrames,
-    Compose
+using Random, Distributions, Statistics, LinearAlgebra, StatsBase, Parameters, Flux, ColorSchemes, Gadfly
+using Cairo, Fontconfig, Tables, DataFrames, Compose
 include("supcodes.jl");
 
 ############################################################
@@ -93,23 +81,8 @@ end
 ############################################################
 # [2] SETTING
 ############################################################
-params = (
-    r = 0.017,
-    σrisk = 2.0,
-    ρ = 0.945,
-    η = 0.025,
-    β = 0.953,
-    θ = 0.282,
-    nx = 21,
-    m = 3,
-    μ = 0.0,
-    fhat = 0.969,
-    ub = 0,
-    lb = -0.4,
-    tol = 1e-8,
-    maxite = 500,
-    ne = 251,
-);
+params = (r = 0.017,σrisk = 2.0, ρ = 0.945,η = 0.025, β = 0.953,θ = 0.282,nx = 21,m = 3, μ = 0.0,
+        fhat = 0.969, ub = 0,lb = -0.4,tol = 1e-8, maxite = 500,ne = 251)
 uf(x, σrisk) = x .^ (1 - σrisk) / (1 - σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
 
@@ -121,105 +94,43 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 # ----------------------------------------------------------
 polfun, settings = Solver(params, hf, uf);
 MoDel = [vec(polfun[i]) for i = 1:6]
-MoDel =
-    [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1)) hcat(MoDel...)]
+MoDel = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1)) hcat(MoDel...)]
 heads = [:debt, :output, :vf, :vr, :vd, :D, :b, :q]
 ModelData = DataFrame(Tables.table(MoDel, header = heads))
 # ----------------------------------------------------------
 # [3.b] Plotting results from the Model
 # ----------------------------------------------------------
 set_default_plot_size(18cm, 12cm)
-p0 = Gadfly.plot(
-    ModelData,
-    x = "debt",
-    y = "vf",
-    color = "output",
-    Geom.line,
-    Theme(
-        background_color = "white",
-        key_position = :right,
-        key_title_font_size = 6pt,
-        key_label_font_size = 6pt,
-    ),
-    Guide.ylabel("Value function"),
-    Guide.xlabel("Debt (t)"),
-    Guide.title("Value function by output level"),
-)
-draw(PNG("./Plots/ValuFunction.png"), p0);
+plots0 = Array{Any,1}(undef,6)
+vars = ["vf" "vr" "vd" "b"]
+titlevars = ["Value function" "Value of rapayment" "Value of dfefault" "Policy function for debt"]
+for i in 1:length(vars)
+    plots0[i] = Gadfly.plot(ModelData, x = "debt", y = vars[i], color = "output", Geom.line,
+        Theme(background_color = "white",key_position = :right, key_title_font_size = 6pt, key_label_font_size = 6pt),
+        Guide.ylabel("Value function"), Guide.xlabel("Debt (t)"), Guide.title(titlevars[i]))
+end
+draw(PNG("./Plots/ValuFunction.png"), plots0[1]);
+
 
 set_default_plot_size(12cm, 8cm)
-p1 = Gadfly.plot(
-    ModelData,
-    x = "debt",
-    y = "vr",
-    color = "output",
-    Geom.line,
-    Theme(
-        background_color = "white",
-        key_position = :right,
-        key_title_font_size = 6pt,
-        key_label_font_size = 6pt,
-    ),
-    Guide.ylabel("Value of repayment", orientation = :vertical),
-    Guide.xlabel("Debt (t)"),
-    Guide.title("(a) Value function for Repayment"),
-);
-
-p2 = Gadfly.plot(
-    ModelData,
-    x = "debt",
-    y = "vd",
-    color = "output",
-    Geom.line,
-    Theme(background_color = "white", key_position = :none),
-    Guide.ylabel("Value of Default", orientation = :vertical),
-    Guide.xlabel("Debt (t)"),
-    Guide.title("(b) Value function for Default"),
-);
-
-p3 = Gadfly.plot(
-    ModelData,
-    x = "debt",
-    y = "b",
-    color = "output",
-    Geom.line,
-    Theme(background_color = "white", key_position = :none),
-    Guide.ylabel("Debt policy (t+1)", orientation = :vertical),
-    Guide.xlabel("Debt (t)"),
-    Guide.title("(c) Debt policy function"),
-);
-
-
 ytick = round.(settings.y, digits = 2)
 yticks = [ytick[1], ytick[6], ytick[11], ytick[16], ytick[end]]
-p4 = Gadfly.plot(
-    ModelData,
-    x = "debt",
-    y = "output",
-    color = "D",
-    Geom.rectbin,
-    Scale.color_discrete_manual("yellow", "black"),
-    Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
-    Guide.ylabel("Output (t)"),
-    Guide.xlabel("Debt (t)"),
-    Guide.colorkey(title = "Default choice", labels = ["Default", "No Default"]),
-    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
-    Guide.yticks(ticks = yticks),
-    Guide.title("(d) Default Choice"),
-);
+plots0[5] = Gadfly.plot( ModelData, x = "debt", y = "output", color = "D", Geom.rectbin,  Scale.color_discrete_manual("yellow", "black"),
+        Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
+        Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"), Guide.colorkey(title = "Default choice", labels = ["Default", "No Default"]),
+        Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]), Guide.yticks(ticks = yticks),  Guide.title("Default Choice"));
 set_default_plot_size(18cm, 12cm)
-h0 = Gadfly.gridstack([p1 p2; p3 p4])
+h0 = Gadfly.gridstack([plots0[2] plots0[3]; plots0[4] plots0[5]])
 draw(PNG("./Plots/Model0.png"), h0)
-
 
 # ----------------------------------------------------------
 # [3.c] Simulating data from  the model
 # ----------------------------------------------------------
-econsim0 = ModelSim(params, polfun, settings, hf, nsim = 1000000);
+Nsim = 1000000
+econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim);
 data0 = myunique(econsim0.sim)
 DDsimulated = fill(NaN, params.ne * params.nx, 3)
-DDsimulated[:, 1:2] =
-    [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
+DDsimulated[:, 1:2] = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
 for i = 1:size(data0, 1)
     posb = findfirst(x -> x == data0[i, 2], settings.b)
     posy = findfirst(x -> x == data0[i, 8], settings.y)
@@ -227,53 +138,19 @@ for i = 1:size(data0, 1)
 end
 heads = [:debt, :output, :D]
 DDsimulated = DataFrame(Tables.table(DDsimulated, header = heads))
-p4 = Gadfly.plot(
-    ModelData,
-    x = "debt",
-    y = "output",
-    color = "D",
-    Geom.rectbin,
-    Scale.color_discrete_manual("yellow", "black"),
-    Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
-    Guide.ylabel("Output (t)"),
-    Guide.xlabel("Debt (t)"),
-    Guide.colorkey(title = "Default choice", labels = ["Default", "No Default"]),
-    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
-    Guide.yticks(ticks = yticks),
-    Guide.title("(a) Whole grid"),
-);
-set_default_plot_size(18cm, 12cm)
-
-p5 = Gadfly.plot(
-    DDsimulated,
-    x = "debt",
-    y = "output",
-    color = "D",
-    Geom.rectbin,
-    Scale.color_discrete_manual("white", "black", "yellow"),
-    Theme(background_color = "white"),
-    Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
-    Guide.ylabel("Output (t)"),
-    Guide.xlabel("Debt (t)"),
-    Guide.colorkey(
-        title = "Default choice",
-        labels = ["Non observed", "No Default", "Default"],
-    ),
-    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
-    Guide.yticks(ticks = yticks),
-    Guide.title("(b) Simulated Data"),
-);
-pdef = round(100 * sum(econsim0.sim[:, 5]) / 1000000; digits = 2);
+plots0[6] = Gadfly.plot(DDsimulated, x = "debt", y = "output", color = "D", Geom.rectbin, Scale.color_discrete_manual("white", "black", "yellow"),
+    Theme(background_color = "white"), Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
+    Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"), Guide.colorkey(title = "Default choice", labels = ["Non observed", "No Default", "Default"]),
+    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]), Guide.yticks(ticks = yticks), Guide.title("Default choice: Simulated Data"));
+pdef = round(100 * sum(econsim0.sim[:, 5]) / Nsim; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
-
-
 
 #= It gives us the first problems:
     □ The number of unique observations are small
     □ Some yellow whenm they shoul dbe black
  =#
 set_default_plot_size(12cm, 12cm)
-heat1 = Gadfly.vstack(p4, p5)
+heat1 = Gadfly.vstack(plots0[5], plots0[6])
 draw(PNG("./Plots/heat1.png"), heat1)
 
 # **********************************************************
@@ -407,69 +284,28 @@ sumRESID = [
 heads = [:debt, :output, :VRMod1,:ResMod1,:VRMod2, :ResMod2,:VRMod3,:ResMod3,:VRMod4,:ResMod4,:VRMod5,
     :ResMod5,:VRMod6,:ResMod6,:VRMod7,:ResMod7, :VRMod8,:ResMod8]
 modls = DataFrame(Tables.table(
-    [ss hatvrols res1 hatvrbasis res2 hatvrcheby res3 hatvrNNR1 resNN1 hatvrNNR2 resNN2 hatvrNNR3 resNN3 hatvrNNR4 resNN4 hatvrNNR5 resNN5],
-    header = heads,
-))
+        [ss hatvrols res1 hatvrbasis res2 hatvrcheby res3 hatvrNNR1 resNN1 hatvrNNR2 resNN2 hatvrNNR3 resNN3 hatvrNNR4 resNN4 hatvrNNR5 resNN5],
+        header = heads))
 
 plotres = Array{Any,1}(undef, 8)
 plotfit = Array{Any,1}(undef, 8)
 for i = 1:8
     if i == 1
-        plotres[i] = Gadfly.plot(
-            modls,
-            x = "debt",
-            y = heads[2+2*i],
-            color = "output",
-            Geom.line,
-            Theme(background_color = "white"),
-            Guide.ylabel("Model 1"),
-            Guide.title("Residuals model " * string(i)),
-        )
-        plotfit[i] = Gadfly.plot(
-            modls,
-            x = "debt",
-            y = heads[1+2*i],
-            color = "output",
-            Geom.line,
-            Theme(background_color = "white", key_position = :none),
-            Guide.ylabel("Model " * string(i)),
-            Guide.title("Fit model " * string(i)),
-        )
+        plotres[i] = Gadfly.plot(modls, x = "debt", y = heads[2+2*i], color = "output", Geom.line, Theme(background_color = "white"),
+                                Guide.ylabel("Model 1"), Guide.title("Residuals model " * string(i)) )
+        plotfit[i] = Gadfly.plot(modls,x = "debt",y = heads[1+2*i],color = "output",Geom.line, Theme(background_color = "white", key_position = :none),
+                                Guide.ylabel("Model " * string(i)), Guide.title("Fit model " * string(i)))
     else
-        plotres[i] = Gadfly.plot(
-            modls,
-            x = "debt",
-            y = heads[2+2*i],
-            color = "output",
-            Geom.line,
-            Theme(background_color = "white", key_position = :none),
-            Guide.ylabel("Model " * string(i)),
-            Guide.title("Residuals model " * string(i)),
-        )
-        plotfit[i] = Gadfly.plot(
-            modls,
-            x = "debt",
-            y = heads[1+2*i],
-            color = "output",
-            Geom.line,
-            Theme(background_color = "white", key_position = :none),
-            Guide.ylabel("Model " * string(i)),
-            Guide.title("Fit model " * string(i)),
-        )
+        plotres[i] = Gadfly.plot(modls,x = "debt",y = heads[2+2*i],color = "output",Geom.line,Theme(background_color = "white", key_position = :none),
+                                Guide.ylabel("Model " * string(i)), Guide.title("Residuals model " * string(i)))
+        plotfit[i] = Gadfly.plot(modls, x = "debt",y = heads[1+2*i],color = "output",Geom.line,Theme(background_color = "white", key_position = :none),
+                                Guide.ylabel("Model " * string(i)),Guide.title("Fit model " * string(i)))
     end
 end
 set_default_plot_size(24cm, 18cm)
-plotres1 = gridstack([
-    p1 plotres[1] plotres[2]
-    plotres[3] plotres[4] plotres[5]
-    plotres[6] plotres[7] plotres[8]
-])
+plotres1 = gridstack([plots0[2] plotres[1] plotres[2];plotres[3] plotres[4] plotres[5];plotres[6] plotres[7] plotres[8]])
+plotfit1 = gridstack([plots0[2] plotfit[1] plotfit[2];plotfit[3] plotfit[4] plotfit[5];plotfit[6] plotfit[7] plotfit[8]])
 draw(PNG("./Plots/res1.png"), plotres1)
-plotfit1 = gridstack([
-    p1 plotfit[1] plotfit[2]
-    plotfit[3] plotfit[4] plotfit[5]
-    plotfit[6] plotfit[7] plotfit[8]
-])
 draw(PNG("./Plots/fit1.png"), plotfit1)
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
@@ -494,8 +330,7 @@ for i = 1:8
     difB[:, i] = vec(polfunfit[i].bb - polfun.bb)
     display("The model $i has $pdef percent of default and a default error choice of $Derror")
 end
-headsB =
-    [:debt, :output, :Model1, :Model2, :Model3, :Model4, :Model5, :Model6, :Model7, :Model8]
+headsB = [:debt, :output, :Model1, :Model2, :Model3, :Model4, :Model5, :Model6, :Model7, :Model8]
 DebtPoldif = DataFrame(Tables.table([ss difB], header = headsB))
 DebtPol = DataFrame(Tables.table([ss PFB], header = headsB))
 
