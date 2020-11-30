@@ -163,7 +163,7 @@ hat_vd = polfun.vd
 trial1 = update_solve(hat_vr, hat_vd, settings, params, uf)
 difPolFun = max(maximum(abs.(trial1.bb - polfun.bb)), maximum(abs.(trial1.D - polfun.D)))
 display("After updating the difference in Policy functions is : $difPolFun")
-
+result = Array{Any,2}(undef,8,2) # [fit, residual]
 # ##########################################################
 # [4] FULL INFORMATION
 # ##########################################################
@@ -208,26 +208,26 @@ d = 4
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Approximating using a OLS approach
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-xss = [ones(params.nx * params.ne, 1) ss ss .^ 2 ss[:, 1] .* ss[:, 2]]  # bₜ, yₜ
-β = (xss' * xss) \ (xss' * vr)
-hatvrols = xss * β
-res1 = vr - hatvrols
+xs1 = [ones(params.nx * params.ne, 1) ss ss .^ 2 ss[:, 1] .* ss[:, 2]]  # bₜ, yₜ
+β1  = (xs1' * xs1) \ (xs1' * vr)
+result[1,1] = xs1 * β1
+result[1,2] = vr - hat1
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Normal Basis
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-matv = (sst[:, 1] .^ convert(Array, 0:d)', sst[:, 2] .^ convert(Array, 0:d)')
-xbasis = myexpansion(matv,d)
-βbasis = (xbasis' * xbasis) \ (xbasis' * vrt)
-hatvrbasis = ((1 / 2 * ((xbasis * βbasis) .+ 1)) * (vrmax - vrmin) .+ vrmin)
-res2 = vr - hatvrbasis
+mat = (sst[:, 1] .^ convert(Array, 0:d)', sst[:, 2] .^ convert(Array, 0:d)')
+xs2 = myexpansion(mat,d)
+β2  = (xs2' * xs2) \ (xs2' * vrt)
+result[2,1] = ((1 / 2 * ((xs2 * β2) .+ 1)) * (vrmax - vrmin) .+ vrmin)
+result[2,2] = vr - result[2,1]
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Using Chebyshev Polynomials
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-matv1 = (cheby(sst[:, 1], d), cheby(sst[:, 2], d))
-xcheby =  myexpansion(matv1,d) # remember that it start at 0
-βcheby = (xcheby' * xcheby) \ (xcheby' * vrt)
-hatvrcheby = ((1 / 2 * ((xcheby * βcheby) .+ 1)) * (vrmax - vrmin) .+ vrmin)
-res3 = vr - hatvrcheby
+mat = (cheby(sst[:, 1], d), cheby(sst[:, 2], d))
+xs3 =  myexpansion(mat,d) # remember that it start at 0
+β3  = (xs3' * xs3) \ (xs3' * vrt)
+result[3,1] = ((1 / 2 * ((xs3 * β3) .+ 1)) * (vrmax - vrmin) .+ vrmin)
+result[3,2] = vr - result[3,1]
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Neural Networks
@@ -250,61 +250,40 @@ NeuralEsti(NN, data, x, y) = begin
     return hatvrNN, resNN
 end
 
-hatvrNNR1, resNN1 = NeuralEsti(NNR1, traindata, sst, vr)
-hatvrNNR2, resNN2 = NeuralEsti(NNR2, traindata, sst, vr)
-hatvrNNR3, resNN3 = NeuralEsti(NNR3, traindata, sst, vr)
-hatvrNNR4, resNN4 = NeuralEsti(NNR4, traindata, sst, vr)
-hatvrNNR5, resNN5 = NeuralEsti(NNR5, traindata, sst, vr)
+result[4,1], result[4,2] = NeuralEsti(NNR1, traindata, sst, vr)
+result[5,1], result[5,2] = NeuralEsti(NNR2, traindata, sst, vr)
+result[6,1], result[6,2] = NeuralEsti(NNR3, traindata, sst, vr)
+result[7,1], result[7,2] = NeuralEsti(NNR4, traindata, sst, vr)
+result[8,1], result[8,2] = NeuralEsti(NNR5, traindata, sst, vr)
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Summarizing
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-println("Model 1 simple OLS: MSE $(sqrt(mean(res1.^2))) and MAE $(maximum(abs.(res1)))")
-println("Model 2 OLS with normalization: MSE $(sqrt(mean(res2.^2))) and MAE $(maximum(abs.(res2)))")
-println("Model 3 Chebyshev: MSE $(sqrt(mean(res3.^2))) and MAE $(maximum(abs.(res3)))")
-println("Neural network 1 Softplus: MSE $(sqrt(mean(resNN1.^2))) and MAE $(maximum(abs.(resNN1)))")
-println("Neural network 2 Tanh: MSE $(sqrt(mean(resNN2.^2))) and MAE $(maximum(abs.(resNN2)))")
-println("Neural network 3 Elu: MSE $(sqrt(mean(resNN3.^2))) and MAE $(maximum(abs.(resNN3)))")
-println("Neural network 4 Sigmoid: MSE $(sqrt(mean(resNN4.^2))) and MAE $(maximum(abs.(resNN4)))")
-println("Neural network 5 Swish: MSE $(sqrt(mean(resNN5.^2))) and MAE $(maximum(abs.(resNN5)))")
-sumRESID = [
-    sqrt(mean(res1 .^ 2)) maximum(abs.(res1)) sqrt(mean((res1 ./ vr) .^ 2))*100 maximum(abs.(res1 ./ vr))*100
-    sqrt(mean(res2 .^ 2)) maximum(abs.(res2)) sqrt(mean((res2 ./ vr) .^ 2))*100 maximum(abs.(res2 ./ vr))*100
-    sqrt(mean(res3 .^ 2)) maximum(abs.(res3)) sqrt(mean((res3 ./ vr) .^ 2))*100 maximum(abs.(res3 ./ vr))*100
-    sqrt(mean(resNN1 .^ 2)) maximum(abs.(resNN1)) sqrt(mean((resNN1 ./ vr) .^ 2))*100 maximum(abs.(resNN1 ./ vr))*100
-    sqrt(mean(resNN2 .^ 2)) maximum(abs.(resNN2)) sqrt(mean((resNN2 ./ vr) .^ 2))*100 maximum(abs.(resNN2 ./ vr))*100
-    sqrt(mean(resNN3 .^ 2)) maximum(abs.(resNN3)) sqrt(mean((resNN3 ./ vr) .^ 2))*100 maximum(abs.(resNN3 ./ vr))*100
-    sqrt(mean(resNN4 .^ 2)) maximum(abs.(resNN4)) sqrt(mean((resNN4 ./ vr) .^ 2))*100 maximum(abs.(resNN4 ./ vr))*100
-    sqrt(mean(resNN5 .^ 2)) maximum(abs.(resNN5)) sqrt(mean((resNN5 ./ vr) .^ 2))*100 maximum(abs.(resNN5 ./ vr))*100
-]
+sumR = Array{Float32,2}(undef,8,4)
+f1(x)   = sqrt(mean(x .^ 2))
+f2(x)   = maximum(abs.(x))
+f3(x,y) = sqrt(mean((x ./ y) .^ 2))*100
+f4(x,y) = maximum(abs.(x ./ y))*100
+for i in 1:size(sumR,1)
+    sumR[i,:] = [f1(result[i,2]) f2(result[i,2]) f3(result[i,2],vr) f4(result[i,2],vr)]
+end
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Plotting approximations
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-heads = [:debt, :output, :VRMod1,:ResMod1,:VRMod2, :ResMod2,:VRMod3,:ResMod3,:VRMod4,:ResMod4,:VRMod5,
-    :ResMod5,:VRMod6,:ResMod6,:VRMod7,:ResMod7, :VRMod8,:ResMod8]
-modls = DataFrame(Tables.table(
-        [ss hatvrols res1 hatvrbasis res2 hatvrcheby res3 hatvrNNR1 resNN1 hatvrNNR2 resNN2 hatvrNNR3 resNN3 hatvrNNR4 resNN4 hatvrNNR5 resNN5],
-        header = heads))
-
-plotres = Array{Any,1}(undef, 8)
-plotfit = Array{Any,1}(undef, 8)
+heads = [:debt, :output, :VR1,:VR2,:VR3,:VR4,:VR5,:VR6,:VR7,:VR8, :Res1,:Res2,:Res3,:Res4,:Res5,:Res6,:Res7,:Res8]
+modls = DataFrame(Tables.table([ss hcat(result...)],header = heads))
+models= ["OLS" "Power series" "Chebyshev" "Softplus" "Tanh" "Elu" "Sigmoid" "Swish"]
+plots1= Array{Any,2}(undef, 8,2) # [fit, residual]
 for i = 1:8
-    if i == 1
-        plotres[i] = Gadfly.plot(modls, x = "debt", y = heads[2+2*i], color = "output", Geom.line, Theme(background_color = "white"),
-                                Guide.ylabel("Model 1"), Guide.title("Residuals model " * string(i)) )
-        plotfit[i] = Gadfly.plot(modls,x = "debt",y = heads[1+2*i],color = "output",Geom.line, Theme(background_color = "white", key_position = :none),
-                                Guide.ylabel("Model " * string(i)), Guide.title("Fit model " * string(i)))
-    else
-        plotres[i] = Gadfly.plot(modls,x = "debt",y = heads[2+2*i],color = "output",Geom.line,Theme(background_color = "white", key_position = :none),
-                                Guide.ylabel("Model " * string(i)), Guide.title("Residuals model " * string(i)))
-        plotfit[i] = Gadfly.plot(modls, x = "debt",y = heads[1+2*i],color = "output",Geom.line,Theme(background_color = "white", key_position = :none),
-                                Guide.ylabel("Model " * string(i)),Guide.title("Fit model " * string(i)))
-    end
+    plots1[i,1] = Gadfly.plot(modls, x = "debt", y = heads[2+i], color = "output", Geom.line, Theme(background_color = "white",key_position = :none),
+                            Guide.ylabel(""), Guide.title(models[i]) )
+    plots1[i,2] = Gadfly.plot(modls,x = "debt",y = heads[10+i],color = "output",Geom.line, Theme(background_color = "white", key_position = :none),
+                            Guide.ylabel(""), Guide.title(models[i]))
 end
 set_default_plot_size(24cm, 18cm)
-plotres1 = gridstack([plots0[2] plotres[1] plotres[2];plotres[3] plotres[4] plotres[5];plotres[6] plotres[7] plotres[8]])
-plotfit1 = gridstack([plots0[2] plotfit[1] plotfit[2];plotfit[3] plotfit[4] plotfit[5];plotfit[6] plotfit[7] plotfit[8]])
+plotfit1 = gridstack([plots0[2] plots1[1,1] plots1[2,1]; plots1[3,1] plots1[4,1] plots1[5,1]; plots1[6,1] plots1[7,1] plots1[8,1]])
+plotres1 = gridstack([plots0[2] plots1[1,2] plots1[2,2]; plots1[3,2] plots1[4,2] plots1[5,2]; plots1[6,2] plots1[7,2] plots1[8,2]])
 draw(PNG("./Plots/res1.png"), plotres1)
 draw(PNG("./Plots/fit1.png"), plotfit1)
 
