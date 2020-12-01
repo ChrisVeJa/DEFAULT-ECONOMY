@@ -35,48 +35,48 @@ end
 # ----------------------------------------------------------
 # [1.c]  Training of neural network
 # ----------------------------------------------------------
-    mytrain(NN,data) = begin
-        lossf(x,y) = Flux.mse(NN(x),y);
-        pstrain = Flux.params(NN)
-        Flux.@epochs 10 Flux.Optimise.train!(lossf, pstrain, data, Descent())
-    end
+mytrain(NN,data) = begin
+    lossf(x,y) = Flux.mse(NN(x),y);
+    pstrain = Flux.params(NN)
+    Flux.@epochs 10 Flux.Optimise.train!(lossf, pstrain, data, Descent())
+end
 # ----------------------------------------------------------
 # [1.d]  Policy function conditional on expected values
 # ----------------------------------------------------------
-    update_solve(hat_vr, hat_vd, settings,params,uf) = begin
-        # Starting the psolution of the model
-        @unpack P, b,y = settings
-        @unpack r, β, ne, nx, σrisk,θ = params
-        p0 = findmin(abs.(0 .- b))[2]
-        udef = repeat(settings.udef', ne, 1)
-        hat_vf = max.(hat_vr,hat_vd)
-        hat_D  = 1 * (hat_vd .> hat_vr)
-        evf1 = hat_vf * P'
-        evd1 = hat_vd * P'
-        eδD1 = hat_D  * P'
-        q1   = (1 / (1 + r)) * (1 .- eδD1) # price
-        qb1  = q1 .* b
-        βevf1= β*evf1
-        vrnew = Array{Float64,2}(undef,ne,nx)
-        cc1    = Array{Float64,2}(undef,ne,nx)
-        bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
-        yb    = b .+ y'
-        @inbounds for i = 1:ne
-            cc1 = yb[i, :]' .- qb1
-            cc1 = max.(cc1,0)
-            aux_u = uf.(cc1, σrisk) + βevf1
-            vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
-        end
-        bb    = repeat(b, 1, nx)
-        bb    = bb[bpnew]
-        evaux = θ * evf1[p0, :]' .+  (1 - θ) * evd1
-        vdnew = udef + β*evaux
-        vfnew = max.(vrnew, vdnew)
-        Dnew  = 1 * (vdnew .> vrnew)
-        eδD   = Dnew  * P'
-        qnew  = (1 / (1 + r)) * (1 .- eδD)
-        return (vf = vfnew, vr = vrnew, vd = vdnew, D = Dnew, bb =  bb, q = qnew, bp = bpnew)
+update_solve(hat_vr, hat_vd, settings,params,uf) = begin
+    # Starting the psolution of the model
+    @unpack P, b,y = settings
+    @unpack r, β, ne, nx, σrisk,θ = params
+    p0 = findmin(abs.(0 .- b))[2]
+    udef = repeat(settings.udef', ne, 1)
+    hat_vf = max.(hat_vr,hat_vd)
+    hat_D  = 1 * (hat_vd .> hat_vr)
+    evf1 = hat_vf * P'
+    evd1 = hat_vd * P'
+    eδD1 = hat_D  * P'
+    q1   = (1 / (1 + r)) * (1 .- eδD1) # price
+    qb1  = q1 .* b
+    βevf1= β*evf1
+    vrnew = Array{Float64,2}(undef,ne,nx)
+    cc1    = Array{Float64,2}(undef,ne,nx)
+    bpnew = Array{CartesianIndex{2},2}(undef, ne, nx)
+    yb    = b .+ y'
+    @inbounds for i = 1:ne
+        cc1 = yb[i, :]' .- qb1
+        cc1 = max.(cc1,0)
+        aux_u = uf.(cc1, σrisk) + βevf1
+        vrnew[i, :], bpnew[i, :] = findmax(aux_u, dims = 1)
     end
+    bb    = repeat(b, 1, nx)
+    bb    = bb[bpnew]
+    evaux = θ * evf1[p0, :]' .+  (1 - θ) * evd1
+    vdnew = udef + β*evaux
+    vfnew = max.(vrnew, vdnew)
+    Dnew  = 1 * (vdnew .> vrnew)
+    eδD   = Dnew  * P'
+    qnew  = (1 / (1 + r)) * (1 .- eδD)
+    return (vf = vfnew, vr = vrnew, vd = vdnew, D = Dnew, bb =  bb, q = qnew, bp = bpnew)
+end
 
 ############################################################
 # [2] SETTING
@@ -164,9 +164,14 @@ trial1 = update_solve(hat_vr, hat_vd, settings, params, uf)
 difPolFun = max(maximum(abs.(trial1.bb - polfun.bb)), maximum(abs.(trial1.D - polfun.D)))
 display("After updating the difference in Policy functions is : $difPolFun")
 result = Array{Any,2}(undef,8,2) # [fit, residual]
-# ##########################################################
-# [4] FULL INFORMATION
-# ##########################################################
+
+
+# ##########################################################################################
+
+#                 [4] ESTIMATING VALUE OF REPAYMENT WITH FULL GRID
+
+# ##########################################################################################
+
 cheby(x, d) = begin
     mat1 = Array{Float64,2}(undef, size(x, 1), d + 1)
     mat1[:, 1:2] = [ones(size(x, 1)) x]
@@ -193,8 +198,15 @@ myexpansion(vars::Tuple,d) = begin
     return xbasis
 end
 
+NeuralEsti(NN, data, x, y) = begin
+    mytrain(NN, data)
+    hatvrNN = ((1 / 2 * (NN(x')' .+ 1)) * (maximum(y) - minimum(y)) .+ minimum(y))
+    resNN = y - hatvrNN
+    return hatvrNN, resNN
+end
+
 # ***************************************
-# [4.a] Value of repayment
+# [.a]  PRELIMINARIES
 # ***************************************
 ss = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
 vr = vec(polfun.vr)
@@ -206,14 +218,14 @@ sst = 2 * (ss .- ssmin ) ./ (ssmax - ssmin) .- 1
 vrt = 2 * (vr .- vrmin) ./ (vrmax- vrmin) .- 1
 d = 4
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Approximating using a OLS approach
+# [.b] a OLS approach
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 xs1 = [ones(params.nx * params.ne, 1) ss ss .^ 2 ss[:, 1] .* ss[:, 2]]  # bₜ, yₜ
 β1  = (xs1' * xs1) \ (xs1' * vr)
 result[1,1] = xs1 * β1
 result[1,2] = vr - result[1,1]
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Normal Basis
+# Power Basis
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 mat = (sst[:, 1] .^ convert(Array, 0:d)', sst[:, 2] .^ convert(Array, 0:d)')
 xs2 = myexpansion(mat,d)
@@ -221,7 +233,7 @@ xs2 = myexpansion(mat,d)
 result[2,1] = ((1 / 2 * ((xs2 * β2) .+ 1)) * (vrmax - vrmin) .+ vrmin)
 result[2,2] = vr - result[2,1]
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Using Chebyshev Polynomials
+# Chebyshev Polynomials
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 mat = (cheby(sst[:, 1], d), cheby(sst[:, 2], d))
 xs3 =  myexpansion(mat,d) # remember that it start at 0
@@ -242,13 +254,6 @@ NNR3 = Chain(Dense(2, d, elu), Dense(d, 1));
 NNR4 = Chain(Dense(2, d, sigmoid), Dense(d, 1));
 NNR5 = Chain(Dense(2, d, swish), Dense(d, 1));
 
-NeuralEsti(NN, data, x, y) = begin
-    mytrain(NN, data)
-    hatvrNN = ((1 / 2 * (NN(x')' .+ 1)) * (maximum(y) - minimum(y)) .+ minimum(y))
-    resNN = y - hatvrNN
-    return hatvrNN, resNN
-end
-
 result[4,1], result[4,2] = NeuralEsti(NNR1, traindata, sst, vr)
 result[5,1], result[5,2] = NeuralEsti(NNR2, traindata, sst, vr)
 result[6,1], result[6,2] = NeuralEsti(NNR3, traindata, sst, vr)
@@ -256,16 +261,18 @@ result[7,1], result[7,2] = NeuralEsti(NNR4, traindata, sst, vr)
 result[8,1], result[8,2] = NeuralEsti(NNR5, traindata, sst, vr)
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Summarizing
+# Summarizing results
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 sumR = Array{Float32,2}(undef,8,4)
-f1(x)   = sqrt(mean(x .^ 2))
-f2(x)   = maximum(abs.(x))
-f3(x,y) = sqrt(mean((x ./ y) .^ 2))*100
-f4(x,y) = maximum(abs.(x ./ y))*100
+f1(x)   = sqrt(mean(x .^ 2))                # Square root of Mean Square Error
+f2(x)   = maximum(abs.(x))                  # Maximum Absolute Deviation
+f3(x,y) = sqrt(mean((x ./ y) .^ 2))*100     # Square root of Mean Relative Square Error
+f4(x,y) = maximum(abs.(x ./ y))*100         # Maximum Relative deviation
 for i in 1:size(sumR,1)
     sumR[i,:] = [f1(result[i,2]) f2(result[i,2]) f3(result[i,2],vr) f4(result[i,2],vr)]
 end
+
+#   Then the position ij of the matrix sumR is the f_j(residual_mdoel_i)
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Plotting approximations
@@ -273,7 +280,7 @@ end
 heads = [:debt, :output, :VR1,:VR2,:VR3,:VR4,:VR5,:VR6,:VR7,:VR8, :Res1,:Res2,:Res3,:Res4,:Res5,:Res6,:Res7,:Res8]
 modls = DataFrame(Tables.table([ss hcat(result...)],header = heads))
 models= ["OLS" "Power series" "Chebyshev" "Softplus" "Tanh" "Elu" "Sigmoid" "Swish"]
-plots1= Array{Any,2}(undef, 8,2) # [fit, residual]
+plots1= Array{Any,2}(undef, 8,2) # [̂vr ϵ] by model
 for i = 1:8
     plots1[i,1] = Gadfly.plot(modls, x = "debt", y = heads[2+i], color = "output", Geom.line, Theme(background_color = "white",key_position = :none),
                             Guide.ylabel(""), Guide.title(models[i]) )
@@ -285,10 +292,12 @@ plotfit1 = gridstack([plots0[2] plots1[1,1] plots1[2,1]; plots1[3,1] plots1[4,1]
 plotres1 = gridstack([plots0[2] plots1[1,2] plots1[2,2]; plots1[3,2] plots1[4,2] plots1[5,2]; plots1[6,2] plots1[7,2] plots1[8,2]])
 draw(PNG("./Plots/res1.png"), plotres1)
 draw(PNG("./Plots/fit1.png"), plotfit1)
+    # plotfit1 :=  Plots for the estimated  value of repayment
+    # plotres1 :=  Residuals
 
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# UPDATING POLICY FUNCTIONS
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+# ==============================================================================
+#          UPDATING POLICY FUNCTIONS BASED ON PREVIOUS ESTIMATIONS
+# ==============================================================================
 set_default_plot_size(24cm, 18cm)
 hat_vd = polfun.vd
 ResultUp = Array{Float64,2}(undef, params.ne * params.nx, 8*2)
