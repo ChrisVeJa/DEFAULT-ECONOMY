@@ -308,9 +308,9 @@ DebtPolUp = DataFrame(Tables.table([ss ResultUp], header = headsB))
 plotPolUp = Array{Any,2}(undef, 8,2)
 
 for i = 1:8
-    plotPolUp[i,2] = Gadfly.plot(DebtPolUp,x = "debt",y = headsB[2+i],color = "output",Geom.line,
+    plotPolUp[i,1] = Gadfly.plot(DebtPolUp,x = "debt",y = headsB[2+i],color = "output",Geom.line,
         Theme(background_color = "white", key_position = :none),Guide.ylabel("Model " * string(i)),Guide.title("Debt PF model " * string(i)))
-    plotPolUp[i,1] = Gadfly.plot(DebtPolUp, x = "debt",y = headsB[10+i],color = "output",Geom.line,
+    plotPolUp[i,2] = Gadfly.plot(DebtPolUp, x = "debt",y = headsB[10+i],color = "output",Geom.line,
         Theme(background_color = "white", key_position = :none),Guide.ylabel("Model " * string(i)), Guide.title("Error in PF model " * string(i)))
 end
 PlotPFB  = gridstack([plots0[2] plotPolUp[1,1] plotPolUp[2,1];plotPolUp[3,1] plotPolUp[4,1] plotPolUp[5,1];plotPolUp[6,1] plotPolUp[7,1] plotPolUp[8,1]])   #
@@ -426,7 +426,7 @@ for i = 1:8
     plotPolSUp[i,1] = Gadfly.plot(DebtPolSUp, x = "debt",y = headsB[10+i],color = "output",Geom.line,
         Theme(background_color = "white", key_position = :none),Guide.ylabel("Model " * string(i)), Guide.title("Error in PF model " * string(i)))
 end
-PlotSPFB  = gridstack([plots0[2] plotPolSUp[1,1] plotPolSUp[2,1];plotPolSUp[3,1] plotPolSUp[4,1] plotPolSUp[5,1];plotPolSUp[6,1] plotPolSUp[7,1] plotPolSUp[8,1]])   #
-PFBSerror = gridstack([plots0[2] plotPolSUp[1,2] plotPolSUp[2,2];plotPolSUp[3,2] plotPolSUp[4,2] plotPolSUp[5,2];plotPolSUp[6,2] plotPolSUp[7,2] plotPolSUp[8,2]])   #
+PlotSPFB  = gridstack([plots0[4] plotPolSUp[1,1] plotPolSUp[2,1];plotPolSUp[3,1] plotPolSUp[4,1] plotPolSUp[5,1];plotPolSUp[6,1] plotPolSUp[7,1] plotPolSUp[8,1]])   #
+PFBSerror = gridstack([plots0[4] plotPolSUp[1,2] plotPolSUp[2,2];plotPolSUp[3,2] plotPolSUp[4,2] plotPolSUp[5,2];plotPolSUp[6,2] plotPolSUp[7,2] plotPolSUp[8,2]])   #
 draw(PNG("./Plots/PFBS.png"), PlotSPFB)
 draw(PNG("./Plots/PFBSerror.png"), PFBSerror)
