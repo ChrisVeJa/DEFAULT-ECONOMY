@@ -319,7 +319,7 @@ draw(PNG("./Plots/PFB.png"), PlotPFB)
 draw(PNG("./Plots/PFBerror.png"), PFBerror)
 
 ################################################################
-# WITH SIMULATED DATA
+# 5. WITH SIMULATED DATA
 ################################################################
 econsim = ModelSim(params, polfun, settings, hf, nsim = 100000);
 ss1 = econsim.sim[:,2:3]
@@ -330,36 +330,35 @@ vr1min = minimum(vr1)
 vr1max = maximum(vr1)
 sst1 = 2 * (ss1 .- ss1min ) ./ (ss1max - ss1min) .- 1
 vrt1 = 2 * (vr1 .- vr1min) ./ (vr1max- vr1min) .- 1
-d = 4
+resultS = Array{Any,2}(undef,8,2) # [fit, residual]
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Approximating using a OLS approach
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-xss1 = [ones(size(ss1,1)) ss1 ss1 .^ 2 ss1[:, 1] .* ss1[:, 2]]  # bₜ, yₜ
-β1 = (xss1' * xss1) \ (xss1' * vr1)
-hatvrols1 = xss1 * β1
-res1s = vr1 - hatvrols1
+xs1s = [ones(size(ss1,1), 1) ss1 ss1 .^ 2 ss1[:, 1] .* ss1[:, 2]]  # bₜ, yₜ
+β1s  = (xs1s' * xs1s) \ (xs1s' * vr1)
+resultS[1,1] = xs1 * β1s     ###  Original grid
+resultS[1,2] = vr - resultS[1,1]
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Normal Basis
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-mat1v = (sst1[:, 1] .^ convert(Array, 0:d)', sst1[:, 2] .^ convert(Array, 0:d)')
-x1basis = myexpansion(mat1v,d)
-β1basis = (x1basis' * x1basis) \ (x1basis' * vrt1)
-hatvr1basis = ((1 / 2 * ((x1basis * β1basis) .+ 1)) * (vr1max - vr1min) .+ vr1min)
-res2s = vr1 - hatvr1basis
+mats = (sst1[:, 1] .^ convert(Array, 0:d)', sst1[:, 2] .^ convert(Array, 0:d)')
+xs2s = myexpansion(mats,d)
+β2s  = (xs2s' * xs2s) \ (xs2s' * vrt1)
+resultS[2,1] = ((1 / 2 * ((xs2 * β2s) .+ 1)) * (vrmax - vrmin) .+ vrmin)
+resultS[2,2] = vr - resultS[2,1]
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Using Chebyshev Polynomials
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-mat1v1 = (cheby(sst1[:, 1], d), cheby(sst1[:, 2], d))
-x1cheby =  myexpansion(mat1v1,d) # remember that it start at 0
-β1cheby = (x1cheby' * x1cheby) \ (x1cheby' * vrt1)
-hatvr1cheby = ((1 / 2 * ((x1cheby * β1cheby) .+ 1)) * (vr1max - vr1min) .+ vr1min)
-res3s = vr1 - hatvr1cheby
+mats = (cheby(sst1[:, 1], d), cheby(sst1[:, 2], d))
+xs3s =  myexpansion(mats,d) # remember that it start at 0
+β3s  = (xs3s' * xs3s) \ (xs3s' * vrt1)
+resultS[3,1] = ((1 / 2 * ((xs3 * β3s) .+ 1)) * (vrmax - vrmin) .+ vrmin)
+resultS[3,2] = vr - resultS[3,1]
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Neural Networks
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-traindata = Flux.Data.DataLoader((sst1', vrt1'));
-
+traindatas = Flux.Data.DataLoader((sst1', vrt1'));
 
 NNR1s = Chain(Dense(2, d, softplus), Dense(d, 1));
 NNR2s = Chain(Dense(2, d, tanh), Dense(d, 1));
@@ -367,141 +366,67 @@ NNR3s = Chain(Dense(2, d, elu), Dense(d, 1));
 NNR4s = Chain(Dense(2, d, sigmoid), Dense(d, 1));
 NNR5s = Chain(Dense(2, d, swish), Dense(d, 1));
 
-hatvrNNR1s, resNN1s = NeuralEsti(NNR1s, traindata, sst1, vr1)
-hatvrNNR2s, resNN2s = NeuralEsti(NNR2s, traindata, sst1, vr1)
-hatvrNNR3s, resNN3s = NeuralEsti(NNR3s, traindata, sst1, vr1)
-hatvrNNR4s, resNN4s = NeuralEsti(NNR4s, traindata, sst1, vr1)
-hatvrNNR5s, resNN5s = NeuralEsti(NNR5s, traindata, sst1, vr1)
+resultS[4,1], resultS[4,2] = NeuralEsti(NNR1s, traindatas, sst, vr)
+resultS[5,1], resultS[5,2] = NeuralEsti(NNR2s, traindatas, sst, vr)
+resultS[6,1], resultS[6,2] = NeuralEsti(NNR3s, traindatas, sst, vr)
+resultS[7,1], resultS[7,2] = NeuralEsti(NNR4s, traindatas, sst, vr)
+resultS[8,1], resultS[8,2] = NeuralEsti(NNR5s, traindatas, sst, vr)
+
+# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+# Summarizing
+# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+sumRs = Array{Float32,2}(undef,8,4)
+for i in 1:size(sumR,1)
+    sumRs[i,:] = [f1(resultS[i,2]) f2(resultS[i,2]) f3(resultS[i,2],vr) f4(resultS[i,2],vr)]
+end
+
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Plotting approximations
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-heads = [:debt, :output, :VRMod1,:ResMod1,:VRMod2, :ResMod2,:VRMod3,:ResMod3,:VRMod4,:ResMod4,:VRMod5,
-    :ResMod5,:VRMod6,:ResMod6,:VRMod7,:ResMod7, :VRMod8,:ResMod8]
-modlsS = DataFrame(Tables.table(
-    [ss1 hatvrols1 res1s hatvr1basis res2s hatvr1cheby res3s hatvrNNR1s resNN1s hatvrNNR2s resNN2s hatvrNNR3s resNN3s hatvrNNR4s resNN4s hatvrNNR5s resNN5s],
-    header = heads,
-))
-
-plotresS = Array{Any,1}(undef, 8)
-plotfitS = Array{Any,1}(undef, 8)
+heads   = [:debt, :output, :VR1,:VR2,:VR3,:VR4,:VR5,:VR6,:VR7,:VR8, :Res1,:Res2,:Res3,:Res4,:Res5,:Res6,:Res7,:Res8]
+modlsS  = DataFrame(Tables.table([ss hcat(resultS...)],header = heads))
+modelsS = ["OLS" "Power series" "Chebyshev" "Softplus" "Tanh" "Elu" "Sigmoid" "Swish"]
+plots1S = Array{Any,2}(undef, 8,2) # [fit, residual]
 for i = 1:8
-    if i == 1
-        plotresS[i] = Gadfly.plot(
-            modlsS,
-            x = "debt",
-            y = heads[2+2*i],
-            color = "output",
-            Geom.line,
-            Theme(background_color = "white"),
-            Guide.ylabel("Model 1"),
-            Guide.title("Residuals model " * string(i)),
-        )
-        plotfitS[i] = Gadfly.plot(
-            modlsS,
-            x = "debt",
-            y = heads[1+2*i],
-            color = "output",
-            Geom.line,
-            Theme(background_color = "white", key_position = :none),
-            Guide.ylabel("Model " * string(i)),
-            Guide.title("Fit model " * string(i)),
-        )
-    else
-        plotresS[i] = Gadfly.plot(
-            modlsS,
-            x = "debt",
-            y = heads[2+2*i],
-            color = "output",
-            Geom.line,
-            Theme(background_color = "white", key_position = :none),
-            Guide.ylabel("Model " * string(i)),
-            Guide.title("Residuals model " * string(i)),
-        )
-        plotfitS[i] = Gadfly.plot(
-            modlsS,
-            x = "debt",
-            y = heads[1+2*i],
-            color = "output",
-            Geom.line,
-            Theme(background_color = "white", key_position = :none),
-            Guide.ylabel("Model " * string(i)),
-            Guide.title("Fit model " * string(i)),
-        )
-    end
+    plots1S[i,1] = Gadfly.plot(modlsS, x = "debt", y = heads[2+i], color = "output", Geom.line, Theme(background_color = "white",key_position = :none),
+                            Guide.ylabel(""), Guide.title(modelsS[i]) )
+    plots1S[i,2] = Gadfly.plot(modlsS, x = "debt", y = heads[10+i], color = "output",Geom.line, Theme(background_color = "white", key_position = :none),
+                            Guide.ylabel(""), Guide.title(modelsS[i]))
 end
 set_default_plot_size(24cm, 18cm)
-plotres1S = gridstack([
-    p1 plotresS[1] plotresS[2]
-    plotresS[3] plotresS[4] plotresS[5]
-    plotresS[6] plotresS[7] plotresS[8]
-])
+plotfit1S = gridstack([plots0[2] plots1S[1,1] plots1S[2,1]; plots1S[3,1] plots1S[4,1] plots1S[5,1]; plots1S[6,1] plots1S[7,1] plots1S[8,1]])
+plotres1S = gridstack([plots0[2] plots1S[1,2] plots1S[2,2]; plots1S[3,2] plots1S[4,2] plots1S[5,2]; plots1S[6,2] plots1S[7,2] plots1S[8,2]])
 draw(PNG("./Plots/res1S.png"), plotres1S)
-plotfit1S = gridstack([
-    p1 plotfitS[1] plotfitS[2]
-    plotfitS[3] plotfitS[4] plotfitS[5]
-    plotfitS[6] plotfitS[7] plotfitS[8]
-])
 draw(PNG("./Plots/fit1S.png"), plotfit1S)
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Policy function conditional on fit
+# UPDATING POLICY FUNCTIONS
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 set_default_plot_size(24cm, 18cm)
-polfunfit = Array{Any,1}(undef, 8)
-simfit = Array{Any,1}(undef, 8)
-difB = Array{Float64,2}(undef, params.ne * params.nx, 8)
-PFB = Array{Float64,2}(undef, params.ne * params.nx, 8)
-plotdifB = Array{Any,1}(undef, 8)
-plotPFB = Array{Any,1}(undef, 8)
 hat_vd = polfun.vd
-nrep = 100000
+ResultSUp = Array{Float64,2}(undef, params.ne * params.nx, 8*2)
 for i = 1:8
-    hat_vrfit = reshape(modls[:, 1+2*i], params.ne, params.nx)
-    polfunfit[i] = update_solve(hat_vrfit, hat_vd, settings, params, uf)
-    simfit[i] = ModelSim(params, polfunfit[i], settings, hf, nsim = nrep)
-    global pdef = round(100 * sum(simfit[i].sim[:, 5]) / nrep; digits = 2)
-    Derror = sum(abs.(polfunfit[i].D - polfun.D)) / (params.nx * params.ne)
-    PFB[:, i] = vec(polfunfit[i].bb)
-    difB[:, i] = vec(polfunfit[i].bb - polfun.bb)
-    display("The model $i has $pdef percent of default and a default error choice of $Derror")
+    hat_vrSfit = reshape(modlsS[:, 2+i], params.ne, params.nx)
+    polfunSfit = update_solve(hat_vrSfit, hat_vd, settings, params, uf)
+    ResultSUp[:,i]   = vec(polfunSfit.bb)
+    ResultSUp[:,i+8] = vec(polfunSfit.bb - polfun.bb)
+    # Simulation
+    simfit = ModelSim(params, polfunSfit, settings, hf, nsim = Nsim)
+    pdef1 = round(100 * sum(simfit.sim[:, 5]) / Nsim; digits = 2)
+    Derror = sum(abs.(polfunSfit.D - polfun.D)) / (params.nx * params.ne)
+    display("The model $i has $pdef1 percent of default and a default error choice of $Derror")
 end
-headsB =
-    [:debt, :output, :Model1, :Model2, :Model3, :Model4, :Model5, :Model6, :Model7, :Model8]
-DebtPoldif = DataFrame(Tables.table([ss difB], header = headsB))
-DebtPol = DataFrame(Tables.table([ss PFB], header = headsB))
+headsB = [:debt, :output, :PF1, :PF2, :PF3, :PF4, :PF5, :PF6, :PF7, :PF8,:Rs1, :Rs2, :Rs3, :Rs4, :Rs5, :Rs6, :Rs7, :Rs8]
+DebtPolSUp = DataFrame(Tables.table([ss ResultSUp], header = headsB))
+plotPolSUp = Array{Any,2}(undef, 8,2)
 
 for i = 1:8
-    plotdifB[i] = Gadfly.plot(
-        DebtPoldif,
-        x = "debt",
-        y = headsB[2+i],
-        color = "output",
-        Geom.line,
-        Theme(background_color = "white", key_position = :none),
-        Guide.ylabel("Model " * string(i)),
-        Guide.title("Error in PF model " * string(i)),
-    )
-    plotPFB[i] = Gadfly.plot(
-        DebtPol,
-        x = "debt",
-        y = headsB[2+i],
-        color = "output",
-        Geom.line,
-        Theme(background_color = "white", key_position = :none),
-        Guide.ylabel("Model " * string(i)),
-        Guide.title("Debt PF model " * string(i)),
-    )
+    plotPolSUp[i,2] = Gadfly.plot(DebtPolSUp,x = "debt",y = headsB[2+i],color = "output",Geom.line,
+        Theme(background_color = "white", key_position = :none),Guide.ylabel("Model " * string(i)),Guide.title("Debt PF model " * string(i)))
+    plotPolSUp[i,1] = Gadfly.plot(DebtPolSUp, x = "debt",y = headsB[10+i],color = "output",Geom.line,
+        Theme(background_color = "white", key_position = :none),Guide.ylabel("Model " * string(i)), Guide.title("Error in PF model " * string(i)))
 end
-
-PFBerror = gridstack([
-    p3 plotdifB[1] plotdifB[2]
-    plotdifB[3] plotdifB[4] plotdifB[5]
-    plotdifB[6] plotdifB[7] plotdifB[8]
-])   #
-draw(PNG("./Plots/PFBerror.png"), PFBerror)
-plotPFB = gridstack([
-    p3 plotPFB[1] plotPFB[2]
-    plotPFB[3] plotPFB[4] plotPFB[5]
-    plotPFB[6] plotPFB[7] plotPFB[8]
-])
-draw(PNG("./Plots/PFB.png"), plotPFB)
+PlotSPFB  = gridstack([plots0[2] plotPolSUp[1,1] plotPolSUp[2,1];plotPolSUp[3,1] plotPolSUp[4,1] plotPolSUp[5,1];plotPolSUp[6,1] plotPolSUp[7,1] plotPolSUp[8,1]])   #
+PFBSerror = gridstack([plots0[2] plotPolSUp[1,2] plotPolSUp[2,2];plotPolSUp[3,2] plotPolSUp[4,2] plotPolSUp[5,2];plotPolSUp[6,2] plotPolSUp[7,2] plotPolSUp[8,2]])   #
+draw(PNG("./Plots/PFBS.png"), PlotSPFB)
+draw(PNG("./Plots/PFBSerror.png"), PFBSerror)
