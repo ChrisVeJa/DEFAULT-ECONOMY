@@ -236,7 +236,6 @@ dataux = repeat([sst vrt], 10, 1)
 dataux = dataux[rand(1:size(dataux, 1), size(dataux, 1)), :]
 traindata = Flux.Data.DataLoader((dataux[:, 1:2]', dataux[:, 3]'));
 
-
 NNR1 = Chain(Dense(2, d, softplus), Dense(d, 1));
 NNR2 = Chain(Dense(2, d, tanh), Dense(d, 1));
 NNR3 = Chain(Dense(2, d, elu), Dense(d, 1));
@@ -288,67 +287,36 @@ draw(PNG("./Plots/res1.png"), plotres1)
 draw(PNG("./Plots/fit1.png"), plotfit1)
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Policy function conditional on fit
+# UPDATING POLICY FUNCTIONS
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 set_default_plot_size(24cm, 18cm)
-polfunfit = Array{Any,1}(undef, 8)
-simfit = Array{Any,1}(undef, 8)
-difB = Array{Float64,2}(undef, params.ne * params.nx, 8)
-PFB = Array{Float64,2}(undef, params.ne * params.nx, 8)
-plotdifB = Array{Any,1}(undef, 8)
-plotPFB = Array{Any,1}(undef, 8)
 hat_vd = polfun.vd
-nrep = 100000
+ResultUp = Array{Float64,2}(undef, params.ne * params.nx, 8*2)
 for i = 1:8
-    hat_vrfit = reshape(modls[:, 1+2*i], params.ne, params.nx)
-    polfunfit[i] = update_solve(hat_vrfit, hat_vd, settings, params, uf)
-    simfit[i] = ModelSim(params, polfunfit[i], settings, hf, nsim = nrep)
-    pdef1 = round(100 * sum(simfit[i].sim[:, 5]) / nrep; digits = 2)
-    Derror = sum(abs.(polfunfit[i].D - polfun.D)) / (params.nx * params.ne)
-    PFB[:, i] = vec(polfunfit[i].bb)
-    difB[:, i] = vec(polfunfit[i].bb - polfun.bb)
+    hat_vrfit = reshape(modls[:, 2+i], params.ne, params.nx)
+    polfunfit = update_solve(hat_vrfit, hat_vd, settings, params, uf)
+    ResultUp[:,i]   = vec(polfunfit.bb)
+    ResultUp[:,i+8] = vec(polfunfit.bb - polfun.bb)
+    # Simulation
+    simfit = ModelSim(params, polfunfit, settings, hf, nsim = Nsim)
+    pdef1 = round(100 * sum(simfit.sim[:, 5]) / Nsim; digits = 2)
+    Derror = sum(abs.(polfunfit.D - polfun.D)) / (params.nx * params.ne)
     display("The model $i has $pdef1 percent of default and a default error choice of $Derror")
 end
-headsB = [:debt, :output, :Model1, :Model2, :Model3, :Model4, :Model5, :Model6, :Model7, :Model8]
-DebtPoldif = DataFrame(Tables.table([ss difB], header = headsB))
-DebtPol = DataFrame(Tables.table([ss PFB], header = headsB))
+headsB = [:debt, :output, :PF1, :PF2, :PF3, :PF4, :PF5, :PF6, :PF7, :PF8,:Rs1, :Rs2, :Rs3, :Rs4, :Rs5, :Rs6, :Rs7, :Rs8]
+DebtPolUp = DataFrame(Tables.table([ss ResultUp], header = headsB))
+plotPolUp = Array{Any,2}(undef, 8,2)
 
 for i = 1:8
-    plotdifB[i] = Gadfly.plot(
-        DebtPoldif,
-        x = "debt",
-        y = headsB[2+i],
-        color = "output",
-        Geom.line,
-        Theme(background_color = "white", key_position = :none),
-        Guide.ylabel("Model " * string(i)),
-        Guide.title("Error in PF model " * string(i)),
-    )
-    plotPFB[i] = Gadfly.plot(
-        DebtPol,
-        x = "debt",
-        y = headsB[2+i],
-        color = "output",
-        Geom.line,
-        Theme(background_color = "white", key_position = :none),
-        Guide.ylabel("Model " * string(i)),
-        Guide.title("Debt PF model " * string(i)),
-    )
+    plotPolUp[i,2] = Gadfly.plot(DebtPolUp,x = "debt",y = headsB[2+i],color = "output",Geom.line,
+        Theme(background_color = "white", key_position = :none),Guide.ylabel("Model " * string(i)),Guide.title("Debt PF model " * string(i)))
+    plotPolUp[i,1] = Gadfly.plot(DebtPolUp, x = "debt",y = headsB[10+i],color = "output",Geom.line,
+        Theme(background_color = "white", key_position = :none),Guide.ylabel("Model " * string(i)), Guide.title("Error in PF model " * string(i)))
 end
-
-PFBerror = gridstack([
-    p3 plotdifB[1] plotdifB[2]
-    plotdifB[3] plotdifB[4] plotdifB[5]
-    plotdifB[6] plotdifB[7] plotdifB[8]
-])   #
+PlotPFB  = gridstack([plots0[2] plotPolUp[1,1] plotPolUp[2,1];plotPolUp[3,1] plotPolUp[4,1] plotPolUp[5,1];plotPolUp[6,1] plotPolUp[7,1] plotPolUp[8,1]])   #
+PFBerror = gridstack([plots0[2] plotPolUp[1,2] plotPolUp[2,2];plotPolUp[3,2] plotPolUp[4,2] plotPolUp[5,2];plotPolUp[6,2] plotPolUp[7,2] plotPolUp[8,2]])   #
+draw(PNG("./Plots/PFB.png"), PlotPFB)
 draw(PNG("./Plots/PFBerror.png"), PFBerror)
-plotPFB = gridstack([
-    p3 plotPFB[1] plotPFB[2]
-    plotPFB[3] plotPFB[4] plotPFB[5]
-    plotPFB[6] plotPFB[7] plotPFB[8]
-])
-draw(PNG("./Plots/PFB.png"), plotPFB)
-
 
 ################################################################
 # WITH SIMULATED DATA
