@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (MiKTeX 20.7) (preloaded format=pdflatex 2020.10.14)  1 DEC 2020 18:14
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (MiKTeX 20.7) (preloaded format=pdflatex 2020.10.14)  4 DEC 2020 09:00
 entering extended mode
 **./working.tex
 (working.tex
@@ -619,15 +619,9 @@ Package atveryend Info: Empty hook `AfterLastShipout' on input line 174.
 (working.aux)
 Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 174.
 Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 174.
+Package rerunfilecheck Info: File `working.out' has not changed.
+(rerunfilecheck)             Checksum: FDD184599412CCB2FA8C64454850FC2E;116.
 
-
-Package rerunfilecheck Warning: File `working.out' has changed.
-(rerunfilecheck)                Rerun to get outlines right
-(rerunfilecheck)                or use package `bookmark'.
-
-Package rerunfilecheck Info: Checksums for `working.out':
-(rerunfilecheck)             Before: E71C46E9EE0E6C4D1A0E5DF9159FD87A;118
-(rerunfilecheck)             After:  FDD184599412CCB2FA8C64454850FC2E;116.
 
 LaTeX Warning: There were multiply-defined labels.
 
@@ -655,7 +649,7 @@ Users/chris/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy6.
 pfb><C:/Users/chris/AppData/Local/Programs/MiKTeX/fonts/type1/public/amsfonts/c
 m/cmsy8.pfb><C:/Users/chris/AppData/Local/Programs/MiKTeX/fonts/type1/public/am
 sfonts/symbols/msbm10.pfb>
-Output written on working.pdf (7 pages, 669296 bytes).
+Output written on working.pdf (7 pages, 668034 bytes).
 PDF statistics:
  134 PDF objects out of 1000 (max. 8388607)
  28 named destinations out of 1000 (max. 500000)
