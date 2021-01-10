@@ -92,7 +92,7 @@ function mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne, σrisk)
     end
     return vrnew, bpnew
 end
-function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05)
+function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05, ini_st = 0)
     # -------------------------------------------------------------------------
     # 0. Settings
     @unpack r, σrisk, ρ, η, β, θ, nx, m, μ, fhat, ne, ub, lb, tol = params
@@ -101,24 +101,40 @@ function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05)
     y = settings.y
     ydef = hf(y, fhat)
     p0 = findmin(abs.(0 .- b))[2]
-    nsim2 = Int(floor(nsim * (1 + burn)))
+    nsim2 = Int(floor(nsim * (1 + burn)))+1
     # -------------------------------------------------------------------------
     # 1. State simulation
     choices = 1:nx    # Possible states
     # if nseed != 0 Random.seed!(nseed[1]) end
     simul_state = zeros(Int64, nsim2);
-    simul_state[1]  = rand(1:nx);
+    if ini_st == 0
+        simul_state[1]  = rand(1:nx);
+    else
+        simul_state[1]  = ini_st[1];
+    end
     for i = 2:nsim2
         simul_state[i] =
             sample(view(choices, :, :), Weights(view(P, simul_state[i-1], :)))
     end
+    #=mc = MarkovChain(P)
+    if ini_st == 0
+        simul_state = simulate(mc, nsim2, init = rand(1:nx));
+    else
+        simul_state = simulate(mc, nsim2, init = ini_st[1]);
+    end=#
+
 
     # -------------------------------------------------------------------------
     # 2. Simulation of the Economy
     orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) yⱼ vr vd θ"
     distϕ = Bernoulli(θ)
     EconSim = Array{Float64,2}(undef, nsim2, 11)  # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
-    EconSim[1, 1:2] = [0 b[rand(1:ne)]]  # b could be any value in the grid
+    if ini_st == 0
+        EconSim[1, 1:2] = [0 b[rand(1:ne)]]  # b could be any value in the grid
+    else
+        EconSim[1, 1:2] = [ini_st[2] b[ini_st[3]]]  # b could be any value in the grid
+    end
+
     EconSim = simulation!(
         EconSim,simul_state,PolFun,y,ydef,b,distϕ,nsim2,p0)
     # -------------------------------------------------------------------------
