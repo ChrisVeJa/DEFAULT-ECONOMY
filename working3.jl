@@ -6,7 +6,7 @@
 # [0] Including our module
 ############################################################
 using Random, Distributions, Statistics, LinearAlgebra, StatsBase
-using Parameters, Flux, ColorSchemes, Gadfly
+using Parameters, Flux, ColorSchemes, Gadfly, Interpolations
 using Cairo, Fontconfig, Tables, DataFrames, Compose
 include("supcodes.jl");
 
@@ -121,7 +121,7 @@ set_default_plot_size(18cm, 12cm)
 plots0 = Array{Any,1}(undef, 6)
 vars = ["vf" "vr" "vd" "b"]
 titlevars =
-    ["Value function" "Value of rapayment" "Value of dfefault" "Policy function for debt"]
+    ["Value function" "Value of repayment" "Value of default" "Policy function for debt"]
 for i = 1:length(vars)
     plots0[i] = Gadfly.plot(
         ModelData,
@@ -318,7 +318,24 @@ result[3, 2] = vr - result[3, 1]
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Neural Networks
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-dataux = repeat([sst vrt], 10, 1)
+_vrt = reshape(vrt, params.ne, params.nx)
+_vrtaux = zeros(10*(params.ne-1)+1, params.nx)
+_vrtdif = (_vrt[2:end,:] - _vrt[1:end-1,:])./10
+for r  in 1:size(_vrtaux,1)
+    j = div(r-1,10)+1
+    if rem(r,10) == 1
+        _vrtaux[r,:] = _vrt[j,:]
+    else
+        _vrtaux[r,:] = _vrtaux[r-1,:] + _vrtdif[j,:]
+    end
+end
+grid = (1 - -1) / (size(_vrtaux,1) - 1)
+_ss  = [-1 + (i - 1) * grid for i = 1:size(_vrtaux,1)]
+_yy  = unique(sst[:,2])
+_sstaux = [repeat(_ss, params.nx) repeat(_yy, inner = (size(_vrtaux,1), 1))]
+_vrtaux = vec(_vrtaux)
+#dataux = repeat([sst vrt], 10, 1)
+dataux = repeat([_sstaux _vrtaux],10,1)
 dataux = dataux[rand(1:size(dataux, 1), size(dataux, 1)), :]
 traindata = Flux.Data.DataLoader((dataux[:, 1:2]', dataux[:, 3]'));
 
@@ -476,12 +493,12 @@ for i = 1:8
     )
 end
 PlotPFB = gridstack([
-    plots0[2] plotPolUp[1, 1] plotPolUp[2, 1]
+    plots0[4] plotPolUp[1, 1] plotPolUp[2, 1]
     plotPolUp[3, 1] plotPolUp[4, 1] plotPolUp[5, 1]
     plotPolUp[6, 1] plotPolUp[7, 1] plotPolUp[8, 1]
 ])   #
 PFBerror = gridstack([
-    plots0[2] plotPolUp[1, 2] plotPolUp[2, 2]
+    plots0[4] plotPolUp[1, 2] plotPolUp[2, 2]
     plotPolUp[3, 2] plotPolUp[4, 2] plotPolUp[5, 2]
     plotPolUp[6, 2] plotPolUp[7, 2] plotPolUp[8, 2]
 ])   #
