@@ -5,15 +5,8 @@
 ############################################################
 # [0] Including our module
 ############################################################
-using Random,
-    Distributions,
-    Statistics,
-    LinearAlgebra,
-    StatsBase,
-    Parameters,
-    Flux,
-    ColorSchemes,
-    Gadfly
+using Random, Distributions, Statistics, LinearAlgebra, StatsBase
+using Parameters, Flux, ColorSchemes, Gadfly
 using Cairo, Fontconfig, Tables, DataFrames, Compose
 include("supcodes.jl");
 
@@ -177,47 +170,60 @@ Gadfly.draw(PNG("./Plots/Model0.png"), h0)
 # ----------------------------------------------------------
 Nsim = 1000000
 econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [1 0 1]);
-data0 = myunique(econsim0.sim)
-DDsimulated = fill(NaN, params.ne * params.nx, 3)
-DDsimulated[:, 1:2] =
-    [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
-for i = 1:size(data0, 1)
-    posb = findfirst(x -> x == data0[i, 2], settings.b)
-    posy = findfirst(x -> x == data0[i, 8], settings.y)
-    DDsimulated[(posy-1)*params.ne+posb, 3] = data0[i, 5]
+myheat(mysimul, myparams, mysettings ) = begin
+    data0 = myunique(mysimul.sim)
+    DDsimulated = fill(NaN, myparams.ne * myparams.nx, 3)
+    DDsimulated[:, 1:2] = [repeat(mysettings.b, myparams.nx) repeat(mysettings.y, inner = (myparams.ne, 1))]
+    for i = 1:size(data0, 1)
+        posb = findfirst(x -> x == data0[i, 2], mysettings.b)
+        posy = findfirst(x -> x == data0[i, 8], mysettings.y)
+        DDsimulated[(posy-1)*params.ne+posb, 3] = data0[i, 5]
+    end
+    heads = [:debt, :output, :D]
+    DDsimulated = DataFrame(Tables.table(DDsimulated, header = heads))
+    sort!(DDsimulated, :D)
+    myploty = Gadfly.plot(
+        DDsimulated,
+        x = "debt",
+        y = "output",
+        color = "D",
+        Geom.rectbin,
+        Scale.color_discrete_manual("black", "yellow", "white"),
+        Theme(background_color = "white"),
+        Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
+        Guide.ylabel("Output (t)"),
+        Guide.xlabel("Debt (t)"),
+        Guide.colorkey(
+            title = "Default choice",
+            labels = ["No Default", "Default", "Non observed"],
+        ),
+        Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
+        Guide.yticks(ticks = yticks),
+        Guide.title("Default choice: Simulated Data"),
+    );
+    return myploty
 end
-heads = [:debt, :output, :D]
-DDsimulated = DataFrame(Tables.table(DDsimulated, header = heads))
-sort!(DDsimulated, :D)
-plots0[6] = Gadfly.plot(
-    DDsimulated,
-    x = "debt",
-    y = "output",
-    color = "D",
-    Geom.rectbin,
-    Scale.color_discrete_manual("black", "yellow", "white"),
-    Theme(background_color = "white"),
-    Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
-    Guide.ylabel("Output (t)"),
-    Guide.xlabel("Debt (t)"),
-    Guide.colorkey(
-        title = "Default choice",
-        labels = ["No Default", "Default", "Non observed"],
-    ),
-    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
-    Guide.yticks(ticks = yticks),
-    Guide.title("Default choice: Simulated Data"),
-);
+plots0[6] = myheat(econsim0, params, settings )
+set_default_plot_size(12cm, 12cm)
+heat1 = Gadfly.vstack(plots0[5], plots0[6])
+Gadfly.draw(PNG("./Plots/heat1.png"), heat1)
 pdef = round(100 * sum(econsim0.sim[:, 5]) / Nsim; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
+
+econsim01 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [1 0 params.ne]);
+plots0[6] = myheat(econsim01, params, settings)
+heat1 = Gadfly.vstack(plots0[5], plots0[6])
+econsim02 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [params.nx 0 1]);
+plots0[6] = myheat(econsim02, params, settings)
+heat1 = Gadfly.vstack(plots0[5], plots0[6])
+econsim03 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [params.nx 0 params.ne]);
+plots0[6] = myheat(econsim03, params, settings )
+heat1 = Gadfly.vstack(plots0[5], plots0[6])
 
 #= It gives us the first problems:
     □ The number of unique observations are small
     □ Some yellow whenm they shoul dbe black
  =#
-set_default_plot_size(12cm, 12cm)
-heat1 = Gadfly.vstack(plots0[5], plots0[6])
-Gadfly.draw(PNG("./Plots/heat1.png"), heat1)
 
 # **********************************************************
 # [Note] To be sure that the updating code is well,
