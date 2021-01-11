@@ -439,7 +439,8 @@ for i = 1:8
     Derror = 100*sum(abs.(polfunfit.D - polfun.D)) / (params.nx * params.ne)
     display("The model $i has $pdef1 percent of default and a default error choice of $Derror")
 end
-heatUpdate = Gadfly.gridstack([plots0[2] pHeat[2] pHeat[3]; pHeat[4] pHeat[5] pHeat[6]; pHeat[7] pHeat[8] pHeat[9]])
+heatUpdate = Gadfly.gridstack([plots0[5] pHeat[2] pHeat[3]; pHeat[4] pHeat[5] pHeat[6]; pHeat[7] pHeat[8] pHeat[9]])
+draw(PNG("./Plots/heatUpdate1.png"), heatUpdate)
 headsB = [:debt,:output,
         :PF1,:PF2,:PF3,:PF4,:PF5,:PF6,:PF7,:PF8,:Rs1,:Rs2,:Rs3,:Rs4,:Rs5,:Rs6,:Rs7,:Rs8,
         ]
