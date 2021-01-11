@@ -424,6 +424,7 @@ draw(PNG("./Plots/fit1.png"), plotfit1)
 #          UPDATING POLICY FUNCTIONS BASED ON PREVIOUS ESTIMATIONS
 # ==============================================================================
 set_default_plot_size(24cm, 18cm)
+pHeat = Array{Any,1}(undef, 9)
 hat_vd = polfun.vd
 ResultUp = Array{Float64,2}(undef, params.ne * params.nx, 8 * 2)
 for i = 1:8
@@ -433,10 +434,12 @@ for i = 1:8
     ResultUp[:, i+8] = vec(polfunfit.bb - polfun.bb)
     # Simulation
     simfit = ModelSim(params, polfunfit, settings, hf, nsim = Nsim)
+    pHeat[i+1] = myheat(simfit, params, settings )
     pdef1 = round(100 * sum(simfit.sim[:, 5]) / Nsim; digits = 2)
-    Derror = sum(abs.(polfunfit.D - polfun.D)) / (params.nx * params.ne)
+    Derror = 100*sum(abs.(polfunfit.D - polfun.D)) / (params.nx * params.ne)
     display("The model $i has $pdef1 percent of default and a default error choice of $Derror")
 end
+heatUpdate = Gadfly.gridstack([plots0[2] pHeat[2] pHeat[3]; pHeat[4] pHeat[5] pHeat[6]; pHeat[7] pHeat[8] pHeat[9]])
 headsB = [:debt,:output,
         :PF1,:PF2,:PF3,:PF4,:PF5,:PF6,:PF7,:PF8,:Rs1,:Rs2,:Rs3,:Rs4,:Rs5,:Rs6,:Rs7,:Rs8,
         ]

@@ -58,7 +58,7 @@ Second, the difference between the policy function and the state of default. The
 Similar results are obtained if I apply the subroutine of markov chain simulation of Sargent downloaded from QuantEcon.
 \begin{figure}[!hbt]
 	\centering
-	\caption{Simulated default states}
+	\caption{Simulated default states (QuantEcon Simulation)}
 	\includegraphics[scale=0.7]{../Plots/heats(Quant).png}
 	\begin{minipage}{0.65\textwidth}
 		{\scriptsize\par}
@@ -116,7 +116,7 @@ Before to implement the algorithm with simulated data, I will show how some mode
 		$$
 		where $T(x)$ is the Chebyshev polynomial of the first kind.
 		\end{itemize}	
-	\item Neural Networks with one hidden layer, d neurons and the following activation functions
+	\item Neural Networks with one hidden layer, 16 neurons and the following activation functions
 	\begin{enumerate}
 		\item softplus: \hspace{1mm}$f(x) = log(exp(x) + 1)$ 
 		\item tanh:\hspace{8mm}$f(x) = \frac{exp(2x)-1}{exp(2x)+1}$
@@ -138,10 +138,10 @@ Table \ref{tab:1} show the MSE and MAE calculated  over the original values of $
 		\hline
 		   & OLS&Power series& Chebyshev&Sotfplus&Tanh&Elu&Sigmoid&Swish\\
 		\hline
-		RMSE&  0.034 & 0.009 & 0.009 & 0.033 & 0.015 & 0.018 & 0.013 & 0.014 \\
-		MAE&  0.148 & 0.029 & 0.029 & 0.082 & 0.069 & 0.068 & 0.068 & 0.068\\
-		RMS $100*\frac{\hat v_r -v_r}{v_r}$ &0.156 & 0.04 &  0.04 &  0.157 & 0.067  &0.081 & 0.06   &0.066\\
-		MA  $100*\frac{\hat v_r -v_r}{v_r}$ &0.6   & 0.124 & 0.124 & 0.366  &0.28   &0.278  &0.278  &0.277\\
+		RMSE& 0.034&	0.009&	0.009&	0.012&	0.007&	0.008&	0.01&	0.011 \\
+		MAE& 0.149&	0.03&	0.03&	0.037&	0.026&	0.028&	0.033&	0.039\\
+		RMS $100*\frac{\hat v_r -v_r}{v_r}$ &0.155&	0.04&	0.04&	0.053&	0.033&	0.035&	0.045&	0.051	\\
+		MA  $100*\frac{\hat v_r -v_r}{v_r}$ &0.604&	0.125&	0.125&	0.186&	0.121&	0.112&	0.167&	0.165\\
 		\hline
 	\end{tabular}
 	\label{tab:1}
@@ -163,8 +163,8 @@ Table \ref{tab:1} show the MSE and MAE calculated  over the original values of $
 		\hline
 		& OLS&Power series& Chebyshev&Sotfplus&Tanh&Elu&Sigmoid&Swish\\
 		\hline
-		Default \%&  8.47 & 1.99 & 1.94 & 46.81 & 40.2 & 42.87 & 41.47 & 24.01 \\
-		\% Default Error& 2.7 & 0.4 & 0.4 &1.1& 1.3&1.5&1.2&1.2\\
+		Default \%&  8.2 & 1.9 & 1.9 & 15 & 32 & 28 & 21 & 0.2 \\
+		\% Default Error& 2.7 & 0.4 & 0.4 &0.6& 0.3&0.2&0.6&0.32\\
 		\hline
 	\end{tabular}
 	\label{tab:1}
@@ -173,7 +173,7 @@ With exception of the simplest OLS model, the percentage of error in default dec
 \par One possible explanation of these results appears after observing the error in the policy function for  new debt after updating. Figure \ref{fig:erroPF} plots these series.
 \begin{figure}[!hbt]
 	\centering
-	\caption{Estimated residual}
+	\caption{Estimated Debt Policy functions}
 	\includegraphics[scale=0.5]{../Plots/PFB.png}
 	\begin{minipage}{0.85\textwidth}
 		{\scriptsize Panel (a)  plots the policy function for debt, while the rest of panels plot the policy function for new debt of each proposed model.\par}
