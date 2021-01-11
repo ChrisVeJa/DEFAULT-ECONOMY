@@ -6,7 +6,7 @@
 # [0] Including our module
 ############################################################
 using Random, Distributions, Statistics, LinearAlgebra, StatsBase
-using Parameters, Flux, ColorSchemes, Gadfly, Interpolations
+using Parameters, Flux, ColorSchemes, Gadfly
 using Cairo, Fontconfig, Tables, DataFrames, Compose
 include("supcodes.jl");
 
@@ -97,7 +97,7 @@ params = (
     lb = -0.4,
     tol = 1e-8,
     maxite = 500,
-    ne = 251,
+    ne = 1001,
 )
 uf(x, σrisk) = x .^ (1 - σrisk) / (1 - σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
@@ -108,7 +108,7 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 # ----------------------------------------------------------
 # [3.a] Solving the model
 # ----------------------------------------------------------
-polfun, settings = Solver(params, hf, uf);
+@time polfun, settings = Solver(params, hf, uf);
 MoDel = [vec(polfun[i]) for i = 1:6]
 MoDel =
     [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1)) hcat(MoDel...)]
@@ -152,7 +152,7 @@ plots0[5] = Gadfly.plot(
     y = "output",
     color = "D",
     Geom.rectbin,
-    Scale.color_discrete_manual("yellow", "black"),
+    Scale.color_discrete_manual("red", "green"),
     Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
     Guide.ylabel("Output (t)"),
     Guide.xlabel("Debt (t)"),
@@ -169,7 +169,7 @@ Gadfly.draw(PNG("./Plots/Model0.png"), h0)
 # [3.c] Simulating data from  the model
 # ----------------------------------------------------------
 Nsim = 1000000
-econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [1 0 1]);
+econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0);
 myheat(mysimul, myparams, mysettings ) = begin
     data0 = myunique(mysimul.sim)
     DDsimulated = fill(NaN, myparams.ne * myparams.nx, 3)
@@ -188,7 +188,7 @@ myheat(mysimul, myparams, mysettings ) = begin
         y = "output",
         color = "D",
         Geom.rectbin,
-        Scale.color_discrete_manual("black", "yellow", "white"),
+        Scale.color_discrete_manual("green", "red", "white"),
         Theme(background_color = "white"),
         Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
         Guide.ylabel("Output (t)"),
@@ -210,16 +210,17 @@ Gadfly.draw(PNG("./Plots/heat1.png"), heat1)
 pdef = round(100 * sum(econsim0.sim[:, 5]) / Nsim; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 
-econsim01 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [1 0 params.ne]);
-plots0[6] = myheat(econsim01, params, settings)
-heat1 = Gadfly.vstack(plots0[5], plots0[6])
-econsim02 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [params.nx 0 1]);
-plots0[6] = myheat(econsim02, params, settings)
-heat1 = Gadfly.vstack(plots0[5], plots0[6])
-econsim03 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [params.nx 0 params.ne]);
-plots0[6] = myheat(econsim03, params, settings )
-heat1 = Gadfly.vstack(plots0[5], plots0[6])
-
+econsim01 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [1 0 1]);
+heataux1  = myheat(econsim01, params, settings)
+econsim02 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [1 0 params.ne]);
+heataux2  = myheat(econsim02, params, settings)
+econsim03 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [params.nx 0 1]);
+heataux3  = myheat(econsim03, params, settings)
+econsim04 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [params.nx 0 params.ne]);
+heataux4  = myheat(econsim04, params, settings)
+set_default_plot_size(18cm, 12cm)
+h0 = Gadfly.gridstack([heataux1 heataux2 ; heataux3  heataux4])
+Gadfly.draw(PNG("./Plots/heats.png"), h0)
 #= It gives us the first problems:
     □ The number of unique observations are small
     □ Some yellow whenm they shoul dbe black
@@ -319,11 +320,12 @@ result[3, 2] = vr - result[3, 1]
 # Neural Networks
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 _vrt = reshape(vrt, params.ne, params.nx)
-_vrtaux = zeros(10*(params.ne-1)+1, params.nx)
-_vrtdif = (_vrt[2:end,:] - _vrt[1:end-1,:])./10
+nodes = 3
+_vrtaux = zeros(nodes*(params.ne-1)+1, params.nx)
+_vrtdif = (_vrt[2:end,:] - _vrt[1:end-1,:])./nodes
 for r  in 1:size(_vrtaux,1)
-    j = div(r-1,10)+1
-    if rem(r,10) == 1
+    j = div(r-1,nodes)+1
+    if rem(r,nodes) == 1
         _vrtaux[r,:] = _vrt[j,:]
     else
         _vrtaux[r,:] = _vrtaux[r-1,:] + _vrtdif[j,:]
@@ -332,13 +334,18 @@ end
 grid = (1 - -1) / (size(_vrtaux,1) - 1)
 _ss  = [-1 + (i - 1) * grid for i = 1:size(_vrtaux,1)]
 _yy  = unique(sst[:,2])
-_sstaux = [repeat(_ss, params.nx) repeat(_yy, inner = (size(_vrtaux,1), 1))]
+#putting more data in the linear part
+#_sstaux = [repeat(_ss, 7) repeat(_yy[end-6:end], inner = (size(_ss,1), 1))]
+#_vrtaux = vec(_vrtaux[:,end-6:end])
+#_sstaux = [_sstaux ; sst]
+#_vrtaux = [_vrtaux ; vrt]
+_sstaux = [repeat(_ss, params.nx) repeat(_yy, inner = (size(_ss,1), 1))]
 _vrtaux = vec(_vrtaux)
-#dataux = repeat([sst vrt], 10, 1)
 dataux = repeat([_sstaux _vrtaux],10,1)
 dataux = dataux[rand(1:size(dataux, 1), size(dataux, 1)), :]
 traindata = Flux.Data.DataLoader((dataux[:, 1:2]', dataux[:, 3]'));
 
+d = 16
 NNR1 = Chain(Dense(2, d, softplus), Dense(d, 1));
 NNR2 = Chain(Dense(2, d, tanh), Dense(d, 1));
 NNR3 = Chain(Dense(2, d, elu), Dense(d, 1));
@@ -355,8 +362,8 @@ result[8, 1], result[8, 2] = NeuralEsti(NNR5, traindata, sst, vr)
 # Summarizing results
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 sumR = Array{Float32,2}(undef, 8, 4)
-f1(x) = sqrt(mean(x .^ 2))                # Square root of Mean Square Error
-f2(x) = maximum(abs.(x))                  # Maximum Absolute Deviation
+f1(x) = sqrt(mean(x .^ 2))                     # Square root of Mean Square Error
+f2(x) = maximum(abs.(x))                       # Maximum Absolute Deviation
 f3(x, y) = sqrt(mean((x ./ y) .^ 2)) * 100     # Square root of Mean Relative Square Error
 f4(x, y) = maximum(abs.(x ./ y)) * 100         # Maximum Relative deviation
 for i = 1:size(sumR, 1)
@@ -369,26 +376,9 @@ end
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Plotting approximations
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-heads = [
-    :debt,
-    :output,
-    :VR1,
-    :VR2,
-    :VR3,
-    :VR4,
-    :VR5,
-    :VR6,
-    :VR7,
-    :VR8,
-    :Res1,
-    :Res2,
-    :Res3,
-    :Res4,
-    :Res5,
-    :Res6,
-    :Res7,
-    :Res8,
-]
+heads = [:debt,:output,
+        :VR1,:VR2,:VR3,:VR4,:VR5,:VR6,:VR7,:VR8,:Res1,:Res2,:Res3,:Res4,:Res5,:Res6,:Res7,:Res8,
+        ]
 modls = DataFrame(Tables.table([ss hcat(result...)], header = heads))
 models = ["OLS" "Power series" "Chebyshev" "Softplus" "Tanh" "Elu" "Sigmoid" "Swish"]
 plots1 = Array{Any,2}(undef, 8, 2) # [̂vr ϵ] by model
@@ -447,26 +437,9 @@ for i = 1:8
     Derror = sum(abs.(polfunfit.D - polfun.D)) / (params.nx * params.ne)
     display("The model $i has $pdef1 percent of default and a default error choice of $Derror")
 end
-headsB = [
-    :debt,
-    :output,
-    :PF1,
-    :PF2,
-    :PF3,
-    :PF4,
-    :PF5,
-    :PF6,
-    :PF7,
-    :PF8,
-    :Rs1,
-    :Rs2,
-    :Rs3,
-    :Rs4,
-    :Rs5,
-    :Rs6,
-    :Rs7,
-    :Rs8,
-]
+headsB = [:debt,:output,
+        :PF1,:PF2,:PF3,:PF4,:PF5,:PF6,:PF7,:PF8,:Rs1,:Rs2,:Rs3,:Rs4,:Rs5,:Rs6,:Rs7,:Rs8,
+        ]
 DebtPolUp = DataFrame(Tables.table([ss ResultUp], header = headsB))
 plotPolUp = Array{Any,2}(undef, 8, 2)
 
@@ -508,6 +481,7 @@ draw(PNG("./Plots/PFBerror.png"), PFBerror)
 ################################################################
 # 5. WITH SIMULATED DATA
 ################################################################
+d = 4
 econsim = ModelSim(params, polfun, settings, hf, nsim = 100000);
 ss1 = econsim.sim[:, 2:3]
 vr1 = econsim.sim[:, 9]
@@ -546,7 +520,7 @@ resultS[3, 2] = vr - resultS[3, 1]
 # Neural Networks
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 traindatas = Flux.Data.DataLoader((sst1', vrt1'));
-
+d = 16
 NNR1s = Chain(Dense(2, d, softplus), Dense(d, 1));
 NNR2s = Chain(Dense(2, d, tanh), Dense(d, 1));
 NNR3s = Chain(Dense(2, d, elu), Dense(d, 1));

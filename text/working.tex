@@ -18,7 +18,7 @@
 \usepackage[ruled,vlined]{algorithm2e}
 \begin{document}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-The model is solved by value function iteration based on the standard calibration of Arellano (2008)  considering 21 states for the output level, and 250 grid points in the interval [-0.4:0] for debt. The computed value functions are:
+The model is solved by value function iteration based on the standard calibration of Arellano (2008)  considering 21 states for the output level, and 1000 grid points in the interval [-0.4:0] for debt. The computed value functions are:
 \begin{figure}[!hbt]
 	\centering
 	\caption{Value function}
@@ -35,7 +35,7 @@ The result shows states with high non-linearities. When we split the solution in
 	\includegraphics[scale=0.55,clip]{../Plots/Model0.png}
 \end{figure}
 \par In panels (a) and (b) I plot the value functions for repayment and default, respectively. Fo the latter, we observe linear function dependent of the state level. In contrast, the value of repayment is concave for low levels of production and passing to be almost linear in the high states. In panel (c) we observed that the policy function for new issued debt is highly non-linear, while the default choices (panel d) exhibits well defined limits between the states in which the government chooses whether defaulting.\\
-\par After simulated 1 million observations from the model, I find a default probability of 2.58 percent with the following state of default (plotted in panel b):
+\par After simulated 1 million observations (without burning anyone) from the model, I find a default probability of 2.7 percent with the following state of default (plotted in panel b):
 \begin{figure}[!hbt]
 	\centering
 	\caption{Simulated default states}
@@ -44,7 +44,26 @@ The result shows states with high non-linearities. When we split the solution in
 		{\scriptsize Panel (b) plots the simulated states of default leaving in white the state combinations that are not observed in the simulation.\par}
 	\end{minipage}
 \end{figure}
-The figure shows two potential problems that an implementation of a PLM could face. First, there is a large portion of the state-space that is not covered by the simulation. It could lead a high out-sample forecast problem given the overweight of non-default states. Second, the difference between the policy function and the state of default. The policy function reflects the optimal default decision that government makes. However, we only observe that state of default which also considers stay in default after a defaulting. It is showed in panel (b) when although there is not debt the default state is still shaded in yellow. 
+The figure shows two potential problems that an implementation of a PLM could face. First, there is a large portion of the state-space that is not covered by the simulation. It could lead a high out-sample forecast problem given the overweight of non-default states. Then, I proceed to simulate 4 chains with the corners as initial states. This exercise does not solve the problem of small simulated data. For example, if we focus in the upper-left panel of figure 4 [when the simulation start in the lowest output level and higher debt state] we can observe that the optimal choice is defaulting. Therefore, in the next simulated period the government starts outside the market and without any debt moving to the observed region. Something similar happens in the low panel of figure 3. When the country starts with the highest level of output and debt its optimal decision is not defaulting but issuing less debt (lower-left panel of figure 4), the dynamics of the solution makes that in few steps the country arrives to the space of "observed data"
+\begin{figure}[!hbt]
+	\centering
+	\caption{Simulated default states}
+	\includegraphics[scale=0.7]{../Plots/heats.png}
+	\begin{minipage}{0.65\textwidth}
+		{\scriptsize\par}
+	\end{minipage}
+\end{figure}
+\\
+Second, the difference between the policy function and the state of default. The policy function reflects the optimal default decision that government makes. However, we only observe that state of default which also considers stay in default after a defaulting. It is showed in panel (b) of figure 3  when although there is not debt the default state is still shaded in red.\\
+Similar results are obtained if I apply the subroutine of markov chain simulation of Sargent downloaded from QuantEcon.
+\begin{figure}[!hbt]
+	\centering
+	\caption{Simulated default states}
+	\includegraphics[scale=0.7]{../Plots/heats(Quant).png}
+	\begin{minipage}{0.65\textwidth}
+		{\scriptsize\par}
+	\end{minipage}
+\end{figure}
 \section{The updating algorithm}
 To update the policy functions, I follow: \\
 \begin{algorithm}[H]
@@ -108,7 +127,7 @@ Before to implement the algorithm with simulated data, I will show how some mode
 		\item sigmoid:\hspace{2mm}$f(x) = \frac{1}{1+exp(-x)}$
 		\item swish: \hspace{4mm}$f(x) = \frac{x}{1+exp(-x)}$
 	\end{enumerate}
-	The estimation is made by using a descent algorithm,and minimizing the MSE. Each sample is composed by 10 times the total observations number randomly sorted to exploit the learning. I consider 10 epochs per model training. 
+	The estimation is made by using a descent algorithm,and minimizing the MSE. Each sample is composed by 10 times the total observations number randomly sorted to exploit the learning. I also interpolate linearly 3 points between each original debt point. I consider 10 epochs per model training. 
 \end{enumerate}
 Table \ref{tab:1} show the MSE and MAE calculated  over the original values of $v_r$ after estimating each model with $d=4$\\
 \begin{table}[!hbt]
