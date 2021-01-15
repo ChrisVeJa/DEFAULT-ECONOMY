@@ -1,10 +1,6 @@
 ###############################################################################
 # 			APPROXIMATING DEFAULT ECONOMIES WITH NEURAL NETWORKS
 ###############################################################################
-
-############################################################
-# [0] Including our module
-############################################################
 using Random, Distributions, Statistics, LinearAlgebra, StatsBase
 using Parameters, Flux, ColorSchemes, Gadfly
 using Cairo, Fontconfig, Tables, DataFrames, Compose
@@ -80,96 +76,57 @@ update_solve(hat_vr, hat_vd, settings, params, uf) = begin
 end
 
 ############################################################
-# [2] SETTING
-############################################################
-params = (
-    r = 0.017,
-    σrisk = 2.0,
-    ρ = 0.945,
-    η = 0.025,
-    β = 0.953,
-    θ = 0.282,
-    nx = 21,
-    m = 3,
-    μ = 0.0,
-    fhat = 0.969,
-    ub = 0,
-    lb = -0.4,
-    tol = 1e-8,
-    maxite = 500,
-    ne = 1001,
-)
-uf(x, σrisk) = x .^ (1 - σrisk) / (1 - σrisk)
-hf(y, fhat) = min.(y, fhat * mean(y))
-
-############################################################
-# [3] THE MODEL
+#                   [2] THE MODEL
 ############################################################
 # ----------------------------------------------------------
-# [3.a] Solving the model
+# [2.a] Settings
+# ----------------------------------------------------------
+
+params = (r = 0.017, σrisk = 2.0, ρ = 0.945,η = 0.025,β = 0.953,θ = 0.282,nx = 21,
+        m = 3,μ = 0.0, fhat = 0.969,ub = 0,lb = -0.4,tol = 1e-8, maxite = 500, ne = 1001)
+uf(x, σrisk) = x .^ (1 - σrisk) / (1 - σrisk)
+hf(y, fhat) = min.(y, fhat * mean(y))
+# ----------------------------------------------------------
+# [2.b] Solving the model
 # ----------------------------------------------------------
 @time polfun, settings = Solver(params, hf, uf);
 MoDel = [vec(polfun[i]) for i = 1:6]
-MoDel =
-    [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1)) hcat(MoDel...)]
+MoDel = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1)) hcat(MoDel...)]
 heads = [:debt, :output, :vf, :vr, :vd, :D, :b, :q]
 ModelData = DataFrame(Tables.table(MoDel, header = heads))
 # ----------------------------------------------------------
-# [3.b] Plotting results from the Model
+# [2.c] Plotting results from the Model
 # ----------------------------------------------------------
 set_default_plot_size(18cm, 12cm)
 plots0 = Array{Any,1}(undef, 6)
-vars = ["vf" "vr" "vd" "b"]
-titlevars =
-    ["Value function" "Value of repayment" "Value of default" "Policy function for debt"]
-for i = 1:length(vars)
-    plots0[i] = Gadfly.plot(
-        ModelData,
-        x = "debt",
-        y = vars[i],
-        color = "output",
-        Geom.line,
-        Theme(
-            background_color = "white",
-            key_position = :right,
-            key_title_font_size = 6pt,
-            key_label_font_size = 6pt,
-        ),
-        Guide.ylabel("Value function"),
-        Guide.xlabel("Debt (t)"),
-        Guide.title(titlevars[i]),
-    )
+vars   = ["vf" "vr" "vd" "b"]
+titlevars = ["Value function" "Value of repayment" "Value of default" "Policy function for debt"]
+for i in 1:length(vars)
+    plots0[i] = Gadfly.plot(ModelData, x = "debt", y = vars[i], color = "output",
+        Geom.line,Theme(background_color = "white",key_position = :right, key_title_font_size = 6pt,key_label_font_size = 6pt),
+        Guide.ylabel("Value function"),Guide.xlabel("Debt (t)"),Guide.title(titlevars[i]))
 end
 Gadfly.draw(PNG("./Plots/ValuFunction.png"), plots0[1]);
-
-
 set_default_plot_size(12cm, 8cm)
 ytick = round.(settings.y, digits = 2)
 yticks = [ytick[1], ytick[6], ytick[11], ytick[16], ytick[end]]
-plots0[5] = Gadfly.plot(
-    ModelData,
-    x = "debt",
-    y = "output",
-    color = "D",
-    Geom.rectbin,
-    Scale.color_discrete_manual("red", "green"),
-    Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
-    Guide.ylabel("Output (t)"),
-    Guide.xlabel("Debt (t)"),
-    Guide.colorkey(title = "Default choice", labels = ["Default", "No Default"]),
-    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
-    Guide.yticks(ticks = yticks),
-    Guide.title("Default Choice"),
-);
+plots0[5] = Gadfly.plot(ModelData,x = "debt",y = "output",color = "D",Geom.rectbin,
+            Scale.color_discrete_manual("red", "green"),
+            Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
+            Guide.ylabel("Output (t)"),Guide.xlabel("Debt (t)"),
+            Guide.colorkey(title = "Default choice", labels = ["Default", "No Default"]),
+            Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
+            Guide.yticks(ticks = yticks),Guide.title("Default Choice"),
+        );
 set_default_plot_size(18cm, 12cm)
 h0 = Gadfly.gridstack([plots0[2] plots0[3]; plots0[4] plots0[5]])
 Gadfly.draw(PNG("./Plots/Model0.png"), h0)
 
 # ----------------------------------------------------------
-# [3.c] Simulating data from  the model
+# [2.d] Simulating data from  the model
 # ----------------------------------------------------------
-Nsim = 1000000
-econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0);
+Nsim = 100000
+econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim);
 myheat(mysimul, myparams, mysettings ) = begin
     data0 = myunique(mysimul.sim)
     DDsimulated = fill(NaN, myparams.ne * myparams.nx, 3)
@@ -183,24 +140,12 @@ myheat(mysimul, myparams, mysettings ) = begin
     DDsimulated = DataFrame(Tables.table(DDsimulated, header = heads))
     sort!(DDsimulated, :D)
     myploty = Gadfly.plot(
-        DDsimulated,
-        x = "debt",
-        y = "output",
-        color = "D",
-        Geom.rectbin,
-        Scale.color_discrete_manual("green", "red", "white"),
-        Theme(background_color = "white"),
-        Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
-        Guide.ylabel("Output (t)"),
-        Guide.xlabel("Debt (t)"),
-        Guide.colorkey(
-            title = "Default choice",
-            labels = ["No Default", "Default", "Non observed"],
-        ),
-        Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
-        Guide.yticks(ticks = yticks),
-        Guide.title("Default choice: Simulated Data"),
-    );
+            DDsimulated, x = "debt", y = "output", color = "D", Geom.rectbin, Scale.color_discrete_manual("green", "red", "white"),
+            Theme(background_color = "white"), Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
+            Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"),
+            Guide.colorkey(title = "Default choice",labels = ["No Default", "Default", "Non observed"]),
+            Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]), Guide.yticks(ticks = yticks), Guide.title("Default choice: Simulated Data"),
+            );
     return myploty
 end
 plots0[6] = myheat(econsim0, params, settings )
@@ -210,40 +155,9 @@ Gadfly.draw(PNG("./Plots/heat1.png"), heat1)
 pdef = round(100 * sum(econsim0.sim[:, 5]) / Nsim; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 
-econsim01 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [1 0 1]);
-heataux1  = myheat(econsim01, params, settings)
-econsim02 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [1 0 params.ne]);
-heataux2  = myheat(econsim02, params, settings)
-econsim03 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [params.nx 0 1]);
-heataux3  = myheat(econsim03, params, settings)
-econsim04 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0, ini_st = [params.nx 0 params.ne]);
-heataux4  = myheat(econsim04, params, settings)
-set_default_plot_size(18cm, 12cm)
-h0 = Gadfly.gridstack([heataux1 heataux2 ; heataux3  heataux4])
-Gadfly.draw(PNG("./Plots/heats.png"), h0)
-#= It gives us the first problems:
-    □ The number of unique observations are small
-    □ Some yellow whenm they shoul dbe black
- =#
-
-# **********************************************************
-# [Note] To be sure that the updating code is well,
-#       I input the actual value functions and verify the
-#       deviations in policy functions
-# **********************************************************
-hat_vr = polfun.vr
-hat_vd = polfun.vd
-trial1 = update_solve(hat_vr, hat_vd, settings, params, uf)
-difPolFun = max(maximum(abs.(trial1.bb - polfun.bb)), maximum(abs.(trial1.D - polfun.D)))
-display("After updating the difference in Policy functions is : $difPolFun")
-result = Array{Any,2}(undef, 8, 2) # [fit, residual]
-
-
-# ##########################################################################################
-
-#                 [4] ESTIMATING VALUE OF REPAYMENT WITH WITH SIMULATED DATA
-
-# ##########################################################################################
+# ###############################################################
+# [3] ESTIMATING VALUE OF REPAYMENT WITH WITH SIMULATED DATA
+# ###############################################################
 
 cheby(x, d) = begin
     mat1 = Array{Float64,2}(undef, size(x, 1), d + 1)
@@ -279,7 +193,16 @@ NeuralEsti(NN, data, x, y) = begin
     resNN = y - hatvrNN
     return hatvrNN, resNN
 end
-d = 4
+# ***************************************
+# [.a]  PRELIMINARIES
+# ***************************************
+ss = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]; vr = vec(polfun.vr)
+ssmin = minimum(ss, dims = 1) ; ssmax = maximum(ss, dims = 1)
+vrmin = minimum(vr); vrmax = maximum(vr)
+sst = 2 * (ss .- ssmin) ./ (ssmax - ssmin) .- 1
+vrt = 2 * (vr .- vrmin) ./ (vrmax - vrmin) .- 1
+d   = 4
+
 econsim = ModelSim(params, polfun, settings, hf, nsim = 100000);
 ss1 = econsim.sim[:, 2:3]
 vr1 = econsim.sim[:, 9]
@@ -287,69 +210,39 @@ ss1min = minimum(ss1, dims = 1)
 ss1max = maximum(ss1, dims = 1)
 vr1min = minimum(vr1)
 vr1max = maximum(vr1)
-sst1 = 2 * (ss1 .- ss1min) ./ (ss1max - ss1min) .- 1
-vrt1 = 2 * (vr1 .- vr1min) ./ (vr1max - vr1min) .- 1
-resultS = Array{Any,2}(undef, 8, 2) # [fit, residual]
+sst1 = 2 * (ss1 .- ssmin) ./ (ssmax - ssmin) .- 1
+vrt1 = 2 * (vr1 .- vrmin) ./ (vrmax - vrmin) .- 1
+resultS = Array{Any,2}(undef, 3, 2) # [fit, residual]
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Approximating using a OLS approach
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-xs1s = [ones(size(ss1, 1), 1) ss1 ss1 .^ 2 ss1[:, 1] .* ss1[:, 2]]  # bₜ, yₜ
-β1s = (xs1s' * xs1s) \ (xs1s' * vr1)
-resultS[1, 1] = xs1 * β1s     ###  Original grid
-resultS[1, 2] = vr - resultS[1, 1]
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Normal Basis
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-mats = (sst1[:, 1] .^ convert(Array, 0:d)', sst1[:, 2] .^ convert(Array, 0:d)')
-xs2s = myexpansion(mats, d)
-β2s = (xs2s' * xs2s) \ (xs2s' * vrt1)
-resultS[2, 1] = ((1 / 2 * ((xs2 * β2s) .+ 1)) * (vrmax - vrmin) .+ vrmin)
-resultS[2, 2] = vr - resultS[2, 1]
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Using Chebyshev Polynomials
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
+mat = (cheby(sst[:, 1], d), cheby(sst[:, 2], d))
+xs3 = myexpansion(mat, d)
 mats = (cheby(sst1[:, 1], d), cheby(sst1[:, 2], d))
 xs3s = myexpansion(mats, d) # remember that it start at 0
 β3s = (xs3s' * xs3s) \ (xs3s' * vrt1)
-resultS[3, 1] = ((1 / 2 * ((xs3 * β3s) .+ 1)) * (vrmax - vrmin) .+ vrmin)
-resultS[3, 2] = vr - resultS[3, 1]
+resultS[1, 1] = ((1 / 2 * ((xs3 * β3s) .+ 1)) * (vrmax - vrmin) .+ vrmin)
+resultS[1, 2] = vr - resultS[1, 1]
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Neural Networks
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 traindatas = Flux.Data.DataLoader((sst1', vrt1'));
 d = 16
-NNR1s = Chain(Dense(2, d, softplus), Dense(d, 1));
-NNR2s = Chain(Dense(2, d, tanh), Dense(d, 1));
-NNR3s = Chain(Dense(2, d, elu), Dense(d, 1));
-NNR4s = Chain(Dense(2, d, sigmoid), Dense(d, 1));
-NNR5s = Chain(Dense(2, d, swish), Dense(d, 1));
-
-resultS[4, 1], resultS[4, 2] = NeuralEsti(NNR1s, traindatas, sst, vr)
-resultS[5, 1], resultS[5, 2] = NeuralEsti(NNR2s, traindatas, sst, vr)
-resultS[6, 1], resultS[6, 2] = NeuralEsti(NNR3s, traindatas, sst, vr)
-resultS[7, 1], resultS[7, 2] = NeuralEsti(NNR4s, traindatas, sst, vr)
-resultS[8, 1], resultS[8, 2] = NeuralEsti(NNR5s, traindatas, sst, vr)
-
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-# Summarizing
-# ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-sumRs = Array{Float32,2}(undef, 8, 4)
-for i = 1:size(sumR, 1)
-    sumRs[i, :] =
-        [f1(resultS[i, 2]) f2(resultS[i, 2]) f3(resultS[i, 2], vr) f4(resultS[i, 2], vr)]
-end
-
+NNR1 = Chain(Dense(2, d, softplus), Dense(d, 1));
+NNR2 = Chain(Dense(2, d, sigmoid), Dense(d, 1));
+resultS[2, 1], resultS[2, 2] = NeuralEsti(NNR1, traindatas, sst, vr)
+resultS[3, 1], resultS[3, 2] = NeuralEsti(NNR2, traindatas, sst, vr)
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Plotting approximations
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-heads = [:debt,:output,:VR1,:VR2,:VR3,:VR4,:VR5,:VR6,:VR7,:VR8,
-        :Res1,:Res2,:Res3,:Res4,:Res5,:Res6,:Res7,:Res8,
-        ]
+heads = [:debt,:output,:VR1,:VR2,:VR3,:Res1,:Res2,:Res3]
 modlsS = DataFrame(Tables.table([ss hcat(resultS...)], header = heads))
-modelsS = ["OLS" "Power series" "Chebyshev" "Softplus" "Tanh" "Elu" "Sigmoid" "Swish"]
-plots1S = Array{Any,2}(undef, 8, 2) # [fit, residual]
-for i = 1:8
+modelsS = ["Chebyshev" "Softplus"  "Sigmoid"]
+plots1S = Array{Any,2}(undef, 3, 2) # [fit, residual]
+for i = 1:3
     plots1S[i, 1] = Gadfly.plot(
         modlsS,
         x = "debt",
@@ -363,7 +256,7 @@ for i = 1:8
     plots1S[i, 2] = Gadfly.plot(
         modlsS,
         x = "debt",
-        y = heads[10+i],
+        y = heads[5+i],
         color = "output",
         Geom.line,
         Theme(background_color = "white", key_position = :none),
@@ -372,16 +265,8 @@ for i = 1:8
     )
 end
 set_default_plot_size(24cm, 18cm)
-plotfit1S = gridstack([
-    plots0[2] plots1S[1, 1] plots1S[2, 1]
-    plots1S[3, 1] plots1S[4, 1] plots1S[5, 1]
-    plots1S[6, 1] plots1S[7, 1] plots1S[8, 1]
-])
-plotres1S = gridstack([
-    plots0[2] plots1S[1, 2] plots1S[2, 2]
-    plots1S[3, 2] plots1S[4, 2] plots1S[5, 2]
-    plots1S[6, 2] plots1S[7, 2] plots1S[8, 2]
-])
+plotfit1S = gridstack([plots0[2] plots1S[1, 1] ; plots1S[2, 1] plots1S[3, 1]])
+plotres1S = gridstack([plots0[2] plots1S[1, 2] ; plots1S[2, 2] plots1S[3, 2]])
 draw(PNG("./Plots/res1S.png"), plotres1S)
 draw(PNG("./Plots/fit1S.png"), plotfit1S)
 
