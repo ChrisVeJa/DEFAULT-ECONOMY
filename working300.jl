@@ -190,9 +190,8 @@ end
 
 NeuralEsti(NN, data, x, y) = begin
     mytrain(NN, data)
-    hatvrNN = ((1 / 2 * (NN(x')' .+ 1)) * (maximum(y) - minimum(y)) .+ minimum(y))
-    resNN = y - hatvrNN
-    return hatvrNN, resNN
+    hatvrNN = ((1 / 2 * (NN(x')' .+ 1)) .* (y[1] - y[2])) .+ y[2]
+    return hatvrNN
 end
 # ***************************************
 # [.a]  PRELIMINARIES
@@ -233,13 +232,13 @@ traindatas = Flux.Data.DataLoader((ss1', vr1'));
 d = 16
 NNR1 = Chain(Dense(2, d, softplus), Dense(d, 1));
 NNR2 = Chain(Dense(2, d, sigmoid), Dense(d, 1));
-resultS[2, 1], resultS[2, 2] = NeuralEsti(NNR1, traindatas, ss, vr)
-resultS[3, 1], resultS[3, 2] = NeuralEsti(NNR2, traindatas, ss, vr)
+vrhatNN1 = NeuralEsti(NNR1, traindatas, ss, [uvr1 lvr1])
+vrhatNN2 = NeuralEsti(NNR2, traindatas, ss, [uvr1 lvr1])
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Plotting approximations
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-heads = [:debt,:output,:VR1,:VR2,:VR3,:Res1,:Res2,:Res3]
-modlsS = DataFrame(Tables.table([ss hcat(resultS...)], header = heads))
+heads   = [:debt,:output,:VR1,:VR2,:VR3,:Res1,:Res2,:Res3]
+modlsS  = DataFrame(Tables.table([ss hcat(resultS...)], header = heads))
 modelsS = ["Chebyshev" "Softplus"  "Sigmoid"]
 plots1S = Array{Any,2}(undef, 3, 2) # [fit, residual]
 for i = 1:3
