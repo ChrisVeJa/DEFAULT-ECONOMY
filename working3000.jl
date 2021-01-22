@@ -141,6 +141,7 @@ ss1, uss1, lss1 = mynorm(modsim[:, 2:3])
 vr1, uvr1, lvr1 = mynorm(modsim[:, 9])
 d=16
 NNR1 = Chain(Dense(2, d, softplus), Dense(d, 1));
+loss(x, y) = Flux.mse(NNR1(x), y)
 
 
 
