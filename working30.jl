@@ -428,3 +428,6 @@ PFBSerror = gridstack([
 ])   #
 draw(PNG("./Plots/PFBS.png"), PlotSPFB)
 draw(PNG("./Plots/PFBSerror.png"), PFBSerror)
+
+# ##################################################
+# Verifying convergence
