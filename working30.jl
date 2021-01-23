@@ -431,3 +431,4 @@ draw(PNG("./Plots/PFBSerror.png"), PFBSerror)
 
 # ##################################################
 # Verifying convergence
+plots0[6] = myheat(econsim0, params, settings)
