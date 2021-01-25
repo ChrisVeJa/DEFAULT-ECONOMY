@@ -117,6 +117,58 @@ f1(x) = sqrt(mean(x .^ 2))                     # Square root of Mean Square Erro
 f2(x) = maximum(abs.(x))                       # Maximum Absolute Deviation
 f3(x, y) = sqrt(mean((x ./ y) .^ 2)) * 100     # Square root of Mean Relative Square Error
 f4(x, y) = maximum(abs.(x ./ y)) * 100         # Maximum Relative deviation
+myheat(mysimul, myparams, mysettings ) = begin
+    data0 = myunique(mysimul.sim)
+    DDsimulated = fill(NaN, myparams.ne * myparams.nx, 3)
+    DDsimulated[:, 1:2] = [repeat(mysettings.b, myparams.nx) repeat(mysettings.y, inner = (myparams.ne, 1))]
+    for i = 1:size(data0, 1)
+        posb = findfirst(x -> x == data0[i, 2], mysettings.b)
+        posy = findfirst(x -> x == data0[i, 8], mysettings.y)
+        DDsimulated[(posy-1)*params.ne+posb, 3] = data0[i, 5]
+    end
+    heads = [:debt, :output, :D]
+    DDsimulated = DataFrame(Tables.table(DDsimulated, header = heads))
+    sort!(DDsimulated, :D)
+    myploty = Gadfly.plot(
+        DDsimulated,
+        x = "debt",
+        y = "output",
+        color = "D",
+        Geom.rectbin,
+        Scale.color_discrete_manual("green", "red", "white"),
+        Theme(background_color = "white"),
+        Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
+        Guide.ylabel("Output (t)"),
+        Guide.xlabel("Debt (t)"),
+        Guide.colorkey(
+            title = "Default choice",
+            labels = ["No Default", "Default", "Non observed"],
+        ),
+        Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
+        Guide.yticks(ticks = yticks),
+        Guide.title("Default choice: Simulated Data"),
+    );
+    return myploty
+end
+plot2(DatFra,nmod,names, heads) = begin
+    plots1S = Array{Any,2}(undef,nmod,2)
+    for i = 1:nmod
+        for j = 1:2
+            plots1S[i, j] = Gadfly.plot(
+                DatFra,
+                x = "debt",
+                y = heads[2+(j-1)*nmod+i],
+                color = "output",
+                Geom.line,
+                Theme(background_color = "white", key_position = :none),
+                Guide.ylabel(""),
+                Guide.title(names[i]),
+            )
+        end
+    end
+    return plots1S
+end
+
 ############################################################
 # [2] SETTING
 ############################################################
@@ -179,8 +231,6 @@ for i = 1:length(vars)
     )
 end
 Gadfly.draw(PNG("./Plots/ValuFunction.png"), plots0[1]);
-
-
 set_default_plot_size(12cm, 8cm)
 ytick = round.(settings.y, digits = 2)
 yticks = [ytick[1], ytick[6], ytick[11], ytick[16], ytick[end]]
@@ -208,39 +258,6 @@ Gadfly.draw(PNG("./Plots/Model0.png"), h0)
 # ----------------------------------------------------------
 Nsim = 1000000
 econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0);
-myheat(mysimul, myparams, mysettings ) = begin
-    data0 = myunique(mysimul.sim)
-    DDsimulated = fill(NaN, myparams.ne * myparams.nx, 3)
-    DDsimulated[:, 1:2] = [repeat(mysettings.b, myparams.nx) repeat(mysettings.y, inner = (myparams.ne, 1))]
-    for i = 1:size(data0, 1)
-        posb = findfirst(x -> x == data0[i, 2], mysettings.b)
-        posy = findfirst(x -> x == data0[i, 8], mysettings.y)
-        DDsimulated[(posy-1)*params.ne+posb, 3] = data0[i, 5]
-    end
-    heads = [:debt, :output, :D]
-    DDsimulated = DataFrame(Tables.table(DDsimulated, header = heads))
-    sort!(DDsimulated, :D)
-    myploty = Gadfly.plot(
-        DDsimulated,
-        x = "debt",
-        y = "output",
-        color = "D",
-        Geom.rectbin,
-        Scale.color_discrete_manual("green", "red", "white"),
-        Theme(background_color = "white"),
-        Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
-        Guide.ylabel("Output (t)"),
-        Guide.xlabel("Debt (t)"),
-        Guide.colorkey(
-            title = "Default choice",
-            labels = ["No Default", "Default", "Non observed"],
-        ),
-        Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
-        Guide.yticks(ticks = yticks),
-        Guide.title("Default choice: Simulated Data"),
-    );
-    return myploty
-end
 plots0[6] = myheat(econsim0, params, settings )
 set_default_plot_size(12cm, 12cm)
 heat1 = Gadfly.vstack(plots0[5], plots0[6])
@@ -301,6 +318,7 @@ vr1max = maximum(vr1)
 sst1 = 2 * (ss1 .- ss1min) ./ (ss1max - ss1min) .- 1
 vrt1 = 2 * (vr1 .- vr1min) ./ (vr1max - vr1min) .- 1
 resultS = Array{Any,2}(undef, 3, 2) # [fit, residual]
+nmod = 3
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Using Chebyshev Polynomials
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
@@ -326,50 +344,19 @@ resultS[3, 1], resultS[3, 2] = NeuralEsti(NNR2s, traindatas, sst, vr)
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 sumRs = Array{Float32,2}(undef, 3, 4)
 for i = 1:size(sumRs, 1)
-    sumRs[i, :] =
-        [f1(resultS[i, 2]) f2(resultS[i, 2]) f3(resultS[i, 2], vr) f4(resultS[i, 2], vr)]
+    sumRs[i, :] = [f1(resultS[i, 2]) f2(resultS[i, 2]) f3(resultS[i, 2], vr) f4(resultS[i, 2], vr)]
 end
 
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
 # Plotting approximations
 # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-heads = [:debt,:output,:VR1,:VR2,:VR3,
-        :Res1,:Res2,:Res3,
-        ]
+heads = [:debt,:output,:VR1,:VR2,:VR3,:Res1,:Res2,:Res3]
 modlsS = DataFrame(Tables.table([ss hcat(resultS...)], header = heads))
 modelsS = ["Chebyshev" "Softplus" "Sigmoid"]
-plots1S = Array{Any,2}(undef, 3, 2) # [fit, residual]
-for i = 1:3
-    plots1S[i, 1] = Gadfly.plot(
-        modlsS,
-        x = "debt",
-        y = heads[2+i],
-        color = "output",
-        Geom.line,
-        Theme(background_color = "white", key_position = :none),
-        Guide.ylabel(""),
-        Guide.title(modelsS[i]),
-    )
-    plots1S[i, 2] = Gadfly.plot(
-        modlsS,
-        x = "debt",
-        y = heads[2+3+i],
-        color = "output",
-        Geom.line,
-        Theme(background_color = "white", key_position = :none),
-        Guide.ylabel(""),
-        Guide.title(modelsS[i]),
-    )
-end
+plots1S = plot2(modlsS,3,modelsS, heads)
 set_default_plot_size(24cm, 18cm)
-plotfit1S = gridstack([
-    plots0[2] plots1S[1, 1]
-    plots1S[2, 1] plots1S[3, 1]
-])
-plotres1S = gridstack([
-    plots0[2] plots1S[1, 2]
-    plots1S[2, 2] plots1S[3, 2]
-])
+plotfit1S = gridstack([plots0[2] plots1S[1, 1]; plots1S[2, 1] plots1S[3, 1]])
+plotres1S = gridstack([plots0[2] plots1S[1, 2]; plots1S[2, 2] plots1S[3, 2]])
 draw(PNG("./Plots/res1S.png"), plotres1S)
 draw(PNG("./Plots/fit1S.png"), plotfit1S)
 
@@ -390,45 +377,10 @@ for i = 1:3
     Derror = sum(abs.(polfunSfit.D - polfun.D)) / (params.nx * params.ne)
     display("The model $i has $pdef1 percent of default and a default error choice of $Derror")
 end
-headsB = [:debt,:output,:PF1,:PF2,:PF3,
-        :Rs1,:Rs2,:Rs3,
-        ]
+headsB = [:debt,:output,:PF1,:PF2,:PF3,:Rs1,:Rs2,:Rs3]
 DebtPolSUp = DataFrame(Tables.table([ss ResultSUp], header = headsB))
-plotPolSUp = Array{Any,2}(undef, 3, 2)
-
-for i = 1:3
-    plotPolSUp[i, 2] = Gadfly.plot(
-        DebtPolSUp,
-        x = "debt",
-        y = headsB[2+i],
-        color = "output",
-        Geom.line,
-        Theme(background_color = "white", key_position = :none),
-        Guide.ylabel("Model " * string(i)),
-        Guide.title("Debt PF model " * string(i)),
-    )
-    plotPolSUp[i, 1] = Gadfly.plot(
-        DebtPolSUp,
-        x = "debt",
-        y = headsB[2+3+i],
-        color = "output",
-        Geom.line,
-        Theme(background_color = "white", key_position = :none),
-        Guide.ylabel("Model " * string(i)),
-        Guide.title("Error in PF model " * string(i)),
-    )
-end
-PlotSPFB = gridstack([
-    plots0[4] plotPolSUp[1, 1]
-    plotPolSUp[2, 1] plotPolSUp[3, 1]
-])   #
-PFBSerror = gridstack([
-    plots0[4] plotPolSUp[1, 2]
-    plotPolSUp[2, 2] plotPolSUp[3, 2]
-])   #
+plotPolSUp = plot2(DebtPolSUp,3,modelsS, headsB)
+PlotSPFB = gridstack([plots0[4] plotPolSUp[1, 1]; plotPolSUp[2, 1] plotPolSUp[3, 1]])   #
+PFBSerror = gridstack([plots0[4] plotPolSUp[1, 2]; plotPolSUp[2, 2] plotPolSUp[3, 2]])   #
 draw(PNG("./Plots/PFBS.png"), PlotSPFB)
 draw(PNG("./Plots/PFBSerror.png"), PFBSerror)
-
-# ##################################################
-# Verifying convergence
-plots0[6] = myheat(econsim0, params, settings)
