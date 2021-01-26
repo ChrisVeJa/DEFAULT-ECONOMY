@@ -238,13 +238,13 @@ myupd(data1, vrmax, vrmin,d, Nsim, params,polfun, settings,uf,hf) = begin
      vrhat1 = ((1 / 2 * ((xs * βs) .+ 1)) * (vrmax - vrmin) .+ vrmin)
      vrhat1 = reshape(vrhat1,params.ne, params.nx)
   # Updating
-     polfunS = update_solve(vrhat1, polfun.vd, settings, params, uf)
+    polfunS = update_solve(vrhat1, polfun.vd, settings, params, uf)
   # Simulation
-     simaux = ModelSim(params, polfunS, settings, hf, nsim = Nsim)
-     pdef = round(100 * sum(simaux.sim[:, 5]) / Nsim; digits = 2);
-     datanew = (simaux.sim[simaux.sim[:,end].== 0,2:3], simaux.sim[simaux.sim[:,end].== 0,9])
-     display("Simulation finished, with frequency of $pdef default events");
-     return βs,datanew
+    simaux = ModelSim(params, polfunS, settings, hf, nsim = Nsim)
+    pdef = round(100 * sum(simaux.sim[:, 5]) / Nsim; digits = 2);
+    datanew = (simaux.sim[simaux.sim[:,end].== 0,2:3], simaux.sim[simaux.sim[:,end].== 0,9])
+    display("Simulation finished, with frequency of $pdef default events");
+    return βs,datanew
 end
 d = 4
 dif1 = 1
@@ -263,11 +263,26 @@ for i in 1:100
     end
     display("Maximum diference in parameters: $difnew");
 end
-# ##################################################
-    # ∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘∘
-    # Neural Networks
-    traindatas = Flux.Data.DataLoader((sst1', vrt1'));
-    NNR1s = Chain(Dense(2, dNN, softplus), Dense(dNN, 1));
-    NNR2s = Chain(Dense(2, dNN, sigmoid), Dense(dNN, 1));
-    vrhat2, = NeuralEsti(NNR1s, traindatas, sst, vr)
-    vrhat3, = NeuralEsti(NNR2s, traindatas, sst, vr)
+
+dNN=16
+data1 = (econsim0.sim[econsim0.sim[:,end].== 0,2:3], econsim0.sim[econsim0.sim[:,end].== 0,9])
+sst1,vrt1 = mydata(data1)
+traindatas = Flux.Data.DataLoader((sst1', vrt1'));
+NNR1s = Chain(Dense(2, dNN, softplus), Dense(dNN, 1));
+vrhatNN, = NeuralEsti(NNR1s, traindatas, sst, vr)
+β0, = Flux.destructure(NNR1s)
+loss(x, y) = Flux.mse(NNR1s(x), y)
+
+
+ps = Flux.Params(Flux.params(NNR1s))
+gs = gradient(ps) do
+  loss(sst1',vrt1')
+end
+Flux.update!(Descent(0.3),ps,gs)
+β1, = Flux.destructure(NNR1s)
+vrhatNN = ((1 / 2 * (NNR1s(sst')' .+ 1)) * (vrmax - vrmin) .+ vrmin)
+polfunS = update_solve(vrhatNN, polfun.vd, settings, params, uf)
+simaux = ModelSim(params, polfunS, settings, hf, nsim = Nsim)
+pdef = round(100 * sum(simaux.sim[:, 5]) / Nsim; digits = 2);
+datanew = (simaux.sim[simaux.sim[:,end].== 0,2:3], simaux.sim[simaux.sim[:,end].== 0,9])
+display("Simulation finished, with frequency of $pdef default events");
