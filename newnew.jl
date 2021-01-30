@@ -136,21 +136,28 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 # [3.a] Solving the model
 # ----------------------------------------------------------
 @time polfun, settings = Solver(params, hf, uf);
+# ---------------------------------------------------
+# [3.b] Simulating data from  the model
+# ----------------------------------------------------------
 Nsim = 100_000
 econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim);
 pdef = round(100 * sum(econsim0.sim[:, 5]) / Nsim; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
+
+############################################################
+# [4] NEURAL NETWORK
+############################################################
+
 # ---------------------------------------------------
-# [3.c] Simulating data from  the model
-# ----------------------------------------------------------
-ss = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
-vr = vec(polfun.vr)
-ssmin = minimum(ss, dims = 1);   ssmax = maximum(ss, dims = 1)
-vrmin = minimum(vr) ;vrmax = maximum(vr)
-sst = 2 * (ss .- ssmin) ./ (ssmax - ssmin) .- 1
-vrt = 2 * (vr .- vrmin) ./ (vrmax - vrmin) .- 1
+# [4.a] The model
+# ---------------------------------------------------
+dNN=16
+NN = Chain(Dense(2, dNN, softplus), Dense(dNN, 1));
 
 
+# ---------------------------------------------------
+# [4.b] The data
+# ---------------------------------------------------
 x = [econsim0.sim[econsim0.sim[:,end].== 0,2:3] econsim0.sim[econsim0.sim[:,end].== 0,9]]
 lx = minimum(x,dims=1)
 ux = maximum(x,dims=1)
@@ -158,62 +165,73 @@ x0 = 2 * (x .- lx) ./ (ux - lx) .- 1
 x0Tu = [Tuple(x0[i, :]) for i = 1:size(x0, 1)]
 x1Tu = unique(x0Tu)
 xx = countmap(x0Tu)
-w  = [get(xx, i, 0) for i in x1Tu]
 x1 = Array{Float32,2}(undef,size(x1Tu)[1],3)
 for i in 1:size(x1Tu)[1]
     x1[i,:] = [x1Tu[i]...]'
 end
-ss1 = x1[:,1:2]'
+ww  = [get(xx, i, 0) for i in x1Tu]
+ss  = x1[:,1:2]
 yy  = x1[:,3];
-dNN=16
-NNR1s = Chain(Dense(2, dNN, softplus), Dense(dNN, 1));
-loss(x,w,y) = sum(w .* ((NNR1s(x)' - y).^2))
-ps = Flux.Params(Flux.params(NNR1s))
-gs = gradient(ps) do
-  loss(ss1,w,yy)
+
+# ---------------------------------------------------
+# [4.c] Estimation
+# ---------------------------------------------------
+# function for line search
+loss(x,w,y,NN) = sum(w .* ((NN(x) - y).^2))/(sum(w))
+lossbls(x,w,y,NN, θ) = begin
+    be, _N0 = Flux.destructure(NN)
+    NN1 = _N0(θ)
+    loss = sum(w .* ((NN1(x) - y).^2))/(sum(w))
+    return loss
 end
-gradient(() -> loss(ss1,w,yy), ps)
-β0 = nothing
-difNN = 1
-for i in 1:100
-    if i == 1
-        data1 = (econsim0.sim[econsim0.sim[:,end].== 0,2:3], econsim0.sim[econsim0.sim[:,end].== 0,9])
-        sst1,vrt1 = mydata(data1)
-        traindatas = Flux.Data.DataLoader((sst1', vrt1'));
-        vrhatNN, = NeuralEsti(NNR1s, traindatas, sst, vr)
-        β0, = Flux.destructure(NNR1s)
-    else
-        ps = Flux.Params(Flux.params(NNR1s))
-        gs = gradient(ps) do
-          loss(sst1',vrt1')
-        end
-        Flux.update!(Descent(0.1),ps,gs)
-        β1, = Flux.destructure(NNR1s)
-        vrhatNN = ((1 / 2 * (NNR1s(sst')' .+ 1)) * (vrmax - vrmin) .+ vrmin)
-        vrhatNN = reshape(vrhatNN, params.ne, params.nx)
-        polfunS = update_solve(vrhatNN, polfun.vd, settings, params, uf)
-        simaux = ModelSim(params, polfunS, settings, hf, nsim = Nsim)
-        pdef = round(100 * sum(simaux.sim[:, 5]) / Nsim; digits = 2);
-        data1 = (simaux.sim[simaux.sim[:,end].== 0,2:3], simaux.sim[simaux.sim[:,end].== 0,9])
-        sst1,vrt1 = mydata(data1)
-        difNN  = maximum(abs.(β0-β1))
-        display("Simulation finished, with frequency of $pdef default events");
-        display("Iteration $i, updating difference: $difNN");
+
+_updateNN(NN,loss,lossbls,ss,ww,yy)= begin
+    ps = Flux.Params(Flux.params(NN));
+    gs = gradient(ps) do
+      loss(ss',ww',yy',NN)
+    end # gradient, it needs to be recalculated in each iteration
+    #Backtracking line search
+    θ, re =  Flux.destructure(NN)
+    loss0 = loss(ss',ww',yy',NN)
+    ∇θ = vcat(vec.([gs[i] for i in ps])...)
+    ∇f0 = sum(∇θ.^2)
+    α=1
+    decay = 0.3
+    while lossbls(ss',ww',yy',NN, θ-α.*∇θ) > loss0 - 0.5*α*∇f0
+        α *= decay
     end
+    θ1 = θ-α.*∇θ
+    θ1 = 0.9*θ1 + 0.1*θ
+    dif = maximum(abs.(θ1-θ))
+    NN1 = re(θ1)
+    return NN1, dif
+end
+
+_estNN(NN,loss,ss,ww,yy, lossbls) = begin
+    dif = 1
+    rep = 0
+    NN1 = nothing
+    while dif>1e-5 && rep<5000
+        NN1, dif = _updateNN(NN,loss,lossbls,ss,ww,yy);
+        NN = NN1;
+        rep +=1;
+    end
+    display("Iteration $rep: maximum dif $dif")
+    return NN1
+end
+
+θs , more = Flux.destructure(NN)
+NN1 = Array{Any,1}(undef,10)
+for j in 1:10
+    θaux = -1 .+ 2*rand(length(θs))
+    NNaux = more(θaux)
+    NN1[j] = _estNN(NNaux,loss,ss,ww,yy, lossbls);
 end
 
 
-W = rand(2, 5)
-b = rand(2)
-
-predict(x) = W*x .+ b
-
-function loss(x, y)
-  ŷ = predict(x)
-  sum((y .- ŷ).^2)
-end
-
-x, y = rand(5), rand(2) # Dummy data
-loss(x, y)
-
-gs = gradient(() -> loss(x, y), Flux.params(W, b))
+ss = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
+vr = vec(polfun.vr)
+ssmin = minimum(ss, dims = 1);   ssmax = maximum(ss, dims = 1)
+vrmin = minimum(vr) ;vrmax = maximum(vr)
+sst = 2 * (ss .- ssmin) ./ (ssmax - ssmin) .- 1
+vrt = 2 * (vr .- vrmin) ./ (vrmax - vrmin) .- 1
