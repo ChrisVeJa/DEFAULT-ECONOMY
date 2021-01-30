@@ -24,10 +24,6 @@ myunique(data) = begin
     return data
 end
 # ----------------------------------------------------------
-# [1.b]  Normalization:
-#     ̃x = (x - 1/2(xₘₐₓ + xₘᵢₙ)) /(1/2(xₘₐₓ - xₘᵢₙ))
-# ----------------------------------------------------------
-# ----------------------------------------------------------
 # [1.d]  Policy function conditional on expected values
 # ----------------------------------------------------------
 update_solve(hat_vr, hat_vd, settings, params, uf) = begin
@@ -64,10 +60,7 @@ update_solve(hat_vr, hat_vd, settings, params, uf) = begin
     qnew = (1 / (1 + r)) * (1 .- eδD)
     return (vf = vfnew, vr = vrnew, vd = vdnew, D = Dnew, bb = bb, q = qnew, bp = bpnew)
 end
-f1(x) = sqrt(mean(x .^ 2))                     # Square root of Mean Square Error
-f2(x) = maximum(abs.(x))                       # Maximum Absolute Deviation
-f3(x, y) = sqrt(mean((x ./ y) .^ 2)) * 100     # Square root of Mean Relative Square Error
-f4(x, y) = maximum(abs.(x ./ y)) * 100         # Maximum Relative deviation
+
 myheat(mysimul, myparams, mysettings ) = begin
     data0 = myunique(mysimul.sim)
     DDsimulated = fill(NaN, myparams.ne * myparams.nx, 3)
@@ -123,7 +116,7 @@ end
 ############################################################
 # [2] SETTING
 ############################################################
-params = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+par = (r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
         θ = 0.282, nx = 21, m = 3, μ = 0.0, fhat = 0.969, ub = 0,
         lb = -0.4, tol = 1e-8, maxite = 500, ne = 1001)
 uf(x, σrisk) = x .^ (1 - σrisk) / (1 - σrisk)
@@ -135,15 +128,48 @@ hf(y, fhat) = min.(y, fhat * mean(y))
 # ----------------------------------------------------------
 # [3.a] Solving the model
 # ----------------------------------------------------------
-@time polfun, settings = Solver(params, hf, uf);
+@time polfun, set = Solver(par, hf, uf);
+MoDel = hcat([vec(i) for i in polfun]...);
+MoDel = [repeat(set.b, par.nx) repeat(set.y, inner = (par.ne, 1)) MoDel];
+heads = [:debt, :output, :vf, :vr, :vd, :D, :b, :q, :bb];
+ModelData = DataFrame(Tables.table(MoDel, header = heads));
+yticks = round.(set.y, digits = 2);
+yticks = [yticks[1], yticks[6], yticks[11], yticks[16], yticks[end]];
+heat0 = Gadfly.plot(ModelData, x = "debt", y = "output", color = "D", Geom.rectbin,
+    Scale.color_discrete_manual("red","green"), Theme(background_color = "white"),
+    Theme(background_color = "white",
+            key_title_font_size = 8pt, key_label_font_size = 8pt),
+    Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"), Guide.yticks(ticks = yticks),
+    Guide.colorkey(title = "Default choice", labels = ["No Default", "Default"]),
+    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]));
 # ---------------------------------------------------
 # [3.b] Simulating data from  the model
 # ----------------------------------------------------------
 Nsim = 100_000
-econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim);
-pdef = round(100 * sum(econsim0.sim[:, 5]) / Nsim; digits = 2);
+sim0 = ModelSim(par, polfun, set, hf, nsim = Nsim);
+pdef = round(100 * sum(sim0.sim[:, 5]) / Nsim; digits = 2);
 display("Simulation finished, with frequency of $pdef default events");
 
+mataux = dropdims(sim0.sim[:,[2 8 5 9]], dims=2); # we pick only y_j
+mataux = unique(mataux,dims=1);
+heads = [:debt, :output, :D, :vr];
+MatAux= [MoDel[:,1:2] fill(NaN,size(MoDel,1),2)]
+
+for i in 1:size(mataux,1)
+    l1 = findfirst(x -> x == mataux[i, 1], set.b)
+    l2 = findfirst(x -> x == mataux[i, 2], set.y)
+    MatAux[(l2-1)*par.ne+l1,3:4] = mataux[i,3:4]
+end
+
+MatAux = DataFrame(Tables.table(MatAux, header = heads));
+sort!(MatAux, :D)
+heat1 = Gadfly.plot(MatAux, x = "debt", y = "output", color = "D", Geom.rectbin,
+    Scale.color_discrete_manual("green", "red","white"), Theme(background_color = "white"),
+    Theme(background_color = "white",
+            key_title_font_size = 8pt, key_label_font_size = 8pt),
+    Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"), Guide.yticks(ticks = yticks),
+    Guide.colorkey(title = "Default choice", labels = ["No Default", "Default"]),
+    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]));
 ############################################################
 # [4] NEURAL NETWORK
 ############################################################
@@ -229,9 +255,17 @@ for j in 1:10
 end
 
 
+
+
+
 ss = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
 vr = vec(polfun.vr)
 ssmin = minimum(ss, dims = 1);   ssmax = maximum(ss, dims = 1)
 vrmin = minimum(vr) ;vrmax = maximum(vr)
 sst = 2 * (ss .- ssmin) ./ (ssmax - ssmin) .- 1
 vrt = 2 * (vr .- vrmin) ./ (vrmax - vrmin) .- 1
+
+f1(x) = sqrt(mean(x .^ 2))                     # Square root of Mean Square Error
+f2(x) = maximum(abs.(x))                       # Maximum Absolute Deviation
+f3(x, y) = sqrt(mean((x ./ y) .^ 2)) * 100     # Square root of Mean Relative Square Error
+f4(x, y) = maximum(abs.(x ./ y)) * 100         # Maximum Relative deviation
