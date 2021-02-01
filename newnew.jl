@@ -14,16 +14,6 @@ include("supcodes.jl");
 # [1]  FUNCTIONS TO BE USED
 ############################################################
 # ----------------------------------------------------------
-# [1.a] Choosing unique states from the simulated data
-# ----------------------------------------------------------
-myunique(data) = begin
-    dataTu = [Tuple(data[i, :]) for i = 1:size(data)[1]]
-    dataTu = unique(dataTu)
-    dataTu = [[dataTu[i]...]' for i = 1:length(dataTu)]
-    data = [vcat(dataTu...)][1]
-    return data
-end
-# ----------------------------------------------------------
 # [1.d]  Policy function conditional on expected values
 # ----------------------------------------------------------
 update_solve(hat_vr, hat_vd, settings, params, uf) = begin
@@ -61,58 +51,6 @@ update_solve(hat_vr, hat_vd, settings, params, uf) = begin
     return (vf = vfnew, vr = vrnew, vd = vdnew, D = Dnew, bb = bb, q = qnew, bp = bpnew)
 end
 
-myheat(mysimul, myparams, mysettings ) = begin
-    data0 = myunique(mysimul.sim)
-    DDsimulated = fill(NaN, myparams.ne * myparams.nx, 3)
-    DDsimulated[:, 1:2] = [repeat(mysettings.b, myparams.nx) repeat(mysettings.y, inner = (myparams.ne, 1))]
-    for i = 1:size(data0, 1)
-        posb = findfirst(x -> x == data0[i, 2], mysettings.b)
-        posy = findfirst(x -> x == data0[i, 8], mysettings.y)
-        DDsimulated[(posy-1)*params.ne+posb, 3] = data0[i, 5]
-    end
-    heads = [:debt, :output, :D]
-    DDsimulated = DataFrame(Tables.table(DDsimulated, header = heads))
-    sort!(DDsimulated, :D)
-    myploty = Gadfly.plot(
-        DDsimulated,
-        x = "debt",
-        y = "output",
-        color = "D",
-        Geom.rectbin,
-        Scale.color_discrete_manual("green", "red", "white"),
-        Theme(background_color = "white"),
-        Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
-        Guide.ylabel("Output (t)"),
-        Guide.xlabel("Debt (t)"),
-        Guide.colorkey(
-            title = "Default choice",
-            labels = ["No Default", "Default", "Non observed"],
-        ),
-        Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
-        Guide.yticks(ticks = yticks),
-        Guide.title("Default choice: Simulated Data"),
-    );
-    return myploty
-end
-plot2(DatFra,nmod,names, heads) = begin
-    plots1S = Array{Any,2}(undef,nmod,2)
-    for i = 1:nmod
-        for j = 1:2
-            plots1S[i, j] = Gadfly.plot(
-                DatFra,
-                x = "debt",
-                y = heads[2+(j-1)*nmod+i],
-                color = "output",
-                Geom.line,
-                Theme(background_color = "white", key_position = :none),
-                Guide.ylabel(""),
-                Guide.title(names[i]),
-            )
-        end
-    end
-    return plots1S
-end
-
 ############################################################
 # [2] SETTING
 ############################################################
@@ -141,7 +79,7 @@ heat0 = Gadfly.plot(ModelData, x = "debt", y = "output", color = "D", Geom.rectb
             key_title_font_size = 8pt, key_label_font_size = 8pt),
     Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"), Guide.yticks(ticks = yticks),
     Guide.colorkey(title = "Default choice", labels = ["No Default", "Default"]),
-    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]));
+    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]))
 # ---------------------------------------------------
 # [3.b] Simulating data from  the model
 # ----------------------------------------------------------
@@ -169,7 +107,7 @@ heat1 = Gadfly.plot(MatAux, x = "debt", y = "output", color = "D", Geom.rectbin,
             key_title_font_size = 8pt, key_label_font_size = 8pt),
     Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"), Guide.yticks(ticks = yticks),
     Guide.colorkey(title = "Default choice", labels = ["No Default", "Default"]),
-    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]));
+    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]))
 ############################################################
 # [4] NEURAL NETWORK
 ############################################################
@@ -184,10 +122,11 @@ NN = Chain(Dense(2, dNN, softplus), Dense(dNN, 1));
 # ---------------------------------------------------
 # [4.b] The data
 # ---------------------------------------------------
-x = [econsim0.sim[econsim0.sim[:,end].== 0,2:3] econsim0.sim[econsim0.sim[:,end].== 0,9]]
+x = [sim0.sim[sim0.sim[:,end].== 0,2:3] sim0.sim[sim0.sim[:,end].== 0,9]]
 lx = minimum(x,dims=1)
 ux = maximum(x,dims=1)
 x0 = 2 * (x .- lx) ./ (ux - lx) .- 1
+x0 = [x0[:,1:2] x[:,3]]
 x0Tu = [Tuple(x0[i, :]) for i = 1:size(x0, 1)]
 x1Tu = unique(x0Tu)
 xx = countmap(x0Tu)
@@ -247,19 +186,88 @@ _estNN(NN,loss,ss,ww,yy, lossbls) = begin
 end
 
 θs , more = Flux.destructure(NN)
-NN1 = Array{Any,1}(undef,10)
+NN1 = nothing
+NNopt = nothing
+lossvalue = 1e10
 for j in 1:10
     θaux = -1 .+ 2*rand(length(θs))
     NNaux = more(θaux)
-    NN1[j] = _estNN(NNaux,loss,ss,ww,yy, lossbls);
+    NN1 = _estNN(NNaux,loss,ss,ww,yy, lossbls);
+    lossaux = loss(ss',ww',yy',NN1)
+    display("Loss value of model $j is $lossaux")
+    if lossaux < lossvalue
+        NNopt = NN1
+        lossvalue = lossaux
+    end
 end
 
+# Projection over the whole grid
+ssgrid = [repeat(set.b, par.nx) repeat(set.y, inner = (par.ne, 1))]
+ssgrid = 2 * (ssgrid .- lx[1:2]') ./ (ux[1:2]' - lx[1:2]') .- 1
+vrhat  =  reshape(NNopt(ssgrid'),par.ne,par.nx)
+hat_vd = polfun.vd
+polfunSfit = update_solve(vrhat, hat_vd, set, par, uf)
+
+
+MoDel = hcat([vec(i) for i in polfunSfit]...);
+MoDel = [repeat(set.b, par.nx) repeat(set.y, inner = (par.ne, 1)) MoDel];
+heads = [:debt, :output, :vf, :vr, :vd, :D, :b, :q, :bb];
+ModelData = DataFrame(Tables.table(MoDel, header = heads));
+yticks = round.(set.y, digits = 2);
+yticks = [yticks[1], yticks[6], yticks[11], yticks[16], yticks[end]];
+heat0s = Gadfly.plot(ModelData, x = "debt", y = "output", color = "D", Geom.rectbin,
+    Scale.color_discrete_manual("red","green"), Theme(background_color = "white"),
+    Theme(background_color = "white",
+            key_title_font_size = 8pt, key_label_font_size = 8pt),
+    Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"), Guide.yticks(ticks = yticks),
+    Guide.colorkey(title = "Default choice", labels = ["No Default", "Default"]),
+    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]))
 
 
 
 
-ss = [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1))]
-vr = vec(polfun.vr)
+
+
+
+
+simfit = ModelSim(par, polfunSfit, set, hf, nsim = Nsim)
+pdef1 = round(100 * sum(simfit.sim[:, 5]) / Nsim; digits = 2)
+display("Simulation finished $pdef1 percent")
+
+mataux = dropdims(simfit.sim[:,[2 8 5 9]], dims=2); # we pick only y_j
+mataux = unique(mataux,dims=1);
+heads = [:debt, :output, :D, :vr];
+MatAux= [MoDel[:,1:2] fill(NaN,size(MoDel,1),2)]
+
+for i in 1:size(mataux,1)
+    l1 = findfirst(x -> x == mataux[i, 1], set.b)
+    l2 = findfirst(x -> x == mataux[i, 2], set.y)
+    MatAux[(l2-1)*par.ne+l1,3:4] = mataux[i,3:4]
+end
+
+MatAux = DataFrame(Tables.table(MatAux, header = heads));
+sort!(MatAux, :D)
+heat2 = Gadfly.plot(MatAux, x = "debt", y = "output", color = "D", Geom.rectbin,
+    Scale.color_discrete_manual("green", "red","white"), Theme(background_color = "white"),
+    Theme(background_color = "white",
+            key_title_font_size = 8pt, key_label_font_size = 8pt),
+    Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"), Guide.yticks(ticks = yticks),
+    Guide.colorkey(title = "Default choice", labels = ["No Default", "Default"]),
+    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]))
+
+
+
+
+
+
+
+
+
+
+
+
+
+vr     = vec(polfun.vr)
 ssmin = minimum(ss, dims = 1);   ssmax = maximum(ss, dims = 1)
 vrmin = minimum(vr) ;vrmax = maximum(vr)
 sst = 2 * (ss .- ssmin) ./ (ssmax - ssmin) .- 1
