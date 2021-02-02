@@ -17,8 +17,8 @@ function Solver(params, hf, uf)
     b[p0] = 0
     # --------------------------------------------------------------
     # 4. Solving the fixed point problem vf, vr, vd, D, bp, q
-    vf, vr, vd, D, bb, q, bp = FixedPoint(b, y, udef, P, p0, params, uf)
-    PolFun = (vf = vf, vr = vr, vd = vd, D = D, bb = bb, q = q,bp = bp)
+    vf, vr, vd, D, bb, q, bp, eδD = FixedPoint(b, y, udef, P, p0, params, uf)
+    PolFun = (vf = vf, vr = vr, vd = vd, D = D, bb = bb, q = q,bp = bp,eδD =eδD)
     settings = (P = P, y = y, b= b, udef= udef)
     return PolFun, settings
 end
@@ -39,8 +39,9 @@ function FixedPoint(b, y, udef, P, p0, params, uf)
     bp   = Array{CartesianIndex{2},2}(undef, ne, nx)
     q    = Array{Float64,2}(undef, ne, nx)
     CC   = Array{Float64,2}(undef, ne, nx)
+    eδD = nothing
     while dif > tol && rep < maxite
-        vf1, vr1, vd1, D1, bp, q = value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
+        vf1, vr1, vd1, D1, bp, q, eδD = value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
         dif = [vf1 vr1 vd1 D1] - [vf vr vd D]
         dif = maximum(abs.(dif))
         vf, vr, vd, D = (vf1, vr1, vd1, D1)
@@ -53,7 +54,7 @@ function FixedPoint(b, y, udef, P, p0, params, uf)
         print("Convergence achieve after $rep replications \n")
         bb = bb[bp]
     end
-    return vf, vr, vd, D, bb, q, bp
+    return vf, vr, vd, D, bb, q, bp, eδD
 end
 function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
     @unpack β, θ, r, ne, nx, σrisk = params
@@ -81,7 +82,7 @@ function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
     Dnew = 1 * (vdnew .> vrnew)
     eδD  = Dnew  * P'
     qnew = (1 / (1 + r)) * (1 .- eδD)
-    return vfnew, vrnew, vdnew, Dnew, bpnew, qnew
+    return vfnew, vrnew, vdnew, Dnew, bpnew, qnew, eδD
 end
 function mybellman!(vrnew,bpnew,yb, qb,βevf, uf,ne, σrisk)
     @inbounds for i = 1:ne

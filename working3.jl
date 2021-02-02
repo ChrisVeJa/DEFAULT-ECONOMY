@@ -82,94 +82,69 @@ end
 ############################################################
 # [2] SETTING
 ############################################################
-params = (
-    r = 0.017,
-    σrisk = 2.0,
-    ρ = 0.945,
-    η = 0.025,
-    β = 0.953,
-    θ = 0.282,
-    nx = 21,
-    m = 3,
-    μ = 0.0,
-    fhat = 0.969,
-    ub = 0,
-    lb = -0.4,
-    tol = 1e-8,
-    maxite = 500,
-    ne = 1001,
-)
+par = ( r = 0.017, σrisk = 2.0, ρ = 0.945, η = 0.025, β = 0.953,
+        θ = 0.282,nx = 21, m = 3, μ = 0.0,fhat = 0.969,
+        ub = 0, lb = -0.4, tol = 1e-8, maxite = 500, ne = 1001)
 uf(x, σrisk) = x .^ (1 - σrisk) / (1 - σrisk)
 hf(y, fhat) = min.(y, fhat * mean(y))
 
 ############################################################
 # [3] THE MODEL
 ############################################################
+_myplot(ModelData,x, titlex) = Gadfly.plot(ModelData, x = "debt", y = x,
+    color = "output", Geom.line, Guide.ylabel(""),
+    Theme(background_color = "white",key_position = :right,
+    key_title_font_size = 6pt, key_label_font_size = 6pt),
+    Guide.xlabel("Debt (t)"), Guide.title(titlex));
+
+_myheatD(ModelData,yticks) = Gadfly.plot(ModelData, x = "debt",
+    y = "output", color = "D",Geom.rectbin, Theme(background_color = "white",
+    key_title_font_size = 8pt, key_label_font_size = 8pt),
+    Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"),
+    Guide.yticks(ticks = yticks), Scale.color_discrete_manual("red","green"),
+    Theme(background_color = "white"),  Guide.colorkey(title = "Default choice",
+    labels = ["Default","No Default"]),
+    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]));
+
+_myheatPD(ModelData,yticks) = Gadfly.plot(ModelData, x = "debt",
+        y = "output", color = "pd",Geom.rectbin, Theme(background_color = "white",
+        key_title_font_size = 8pt, key_label_font_size = 8pt),
+        Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"),
+        Guide.yticks(ticks = yticks), Theme(background_color = "white"),
+        Scale.color_continuous(colormap=Scale.lab_gradient("midnightblue",
+        "white", "yellow1")),
+        Guide.colorkey(title = "Probability of Default"),
+        Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]));
+
+myplot(xs,set,par) = begin
+    MoDel = hcat([vec(i) for i in xs]...);
+    MoDel = [repeat(set.b, par.nx) repeat(set.y, inner = (par.ne, 1)) MoDel];
+    heads = [:debt, :output, :vf, :vr, :vd, :D, :b, :q, :bb, :pd];
+    ModelData = DataFrame(Tables.table(MoDel, header = heads));
+    yticks = round.(set.y, digits = 2);
+    yticks = [yticks[1], yticks[6], yticks[11], yticks[16], yticks[end]];
+    vars = ["vf" "vr" "vd" "b"]
+    tvars =
+        ["Value function" "Value of repayment" "Value of default" "PF for debt"]
+    ppplot = Array{Any}(undef,6)
+    for i = 1:length(vars)
+        ppplot[i] = _myplot(ModelData,vars[i], tvars[i])
+    end
+    ppplot[5] = _myheatD(ModelData,yticks);
+    ppplot[6] = _myheatPD(ModelData,yticks);
+    return ppplot;
+end
 # ----------------------------------------------------------
 # [3.a] Solving the model
 # ----------------------------------------------------------
-@time polfun, settings = Solver(params, hf, uf);
-MoDel = [vec(polfun[i]) for i = 1:6]
-MoDel =
-    [repeat(settings.b, params.nx) repeat(settings.y, inner = (params.ne, 1)) hcat(MoDel...)]
-heads = [:debt, :output, :vf, :vr, :vd, :D, :b, :q]
-ModelData = DataFrame(Tables.table(MoDel, header = heads))
-# ----------------------------------------------------------
-# [3.b] Plotting results from the Model
-# ----------------------------------------------------------
-set_default_plot_size(18cm, 12cm)
-plots0 = Array{Any,1}(undef, 6)
-vars = ["vf" "vr" "vd" "b"]
-titlevars =
-    ["Value function" "Value of repayment" "Value of default" "Policy function for debt"]
-for i = 1:length(vars)
-    plots0[i] = Gadfly.plot(
-        ModelData,
-        x = "debt",
-        y = vars[i],
-        color = "output",
-        Geom.line,
-        Theme(
-            background_color = "white",
-            key_position = :right,
-            key_title_font_size = 6pt,
-            key_label_font_size = 6pt,
-        ),
-        Guide.ylabel("Value function"),
-        Guide.xlabel("Debt (t)"),
-        Guide.title(titlevars[i]),
-    )
-end
-Gadfly.draw(PNG("./Plots/ValuFunction.png"), plots0[1]);
-
-
-set_default_plot_size(12cm, 8cm)
-ytick = round.(settings.y, digits = 2)
-yticks = [ytick[1], ytick[6], ytick[11], ytick[16], ytick[end]]
-plots0[5] = Gadfly.plot(
-    ModelData,
-    x = "debt",
-    y = "output",
-    color = "D",
-    Geom.rectbin,
-    Scale.color_discrete_manual("red", "green"),
-    Theme(background_color = "white", key_title_font_size = 8pt, key_label_font_size = 8pt),
-    Guide.ylabel("Output (t)"),
-    Guide.xlabel("Debt (t)"),
-    Guide.colorkey(title = "Default choice", labels = ["Default", "No Default"]),
-    Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]),
-    Guide.yticks(ticks = yticks),
-    Guide.title("Default Choice"),
-);
-set_default_plot_size(18cm, 12cm)
-h0 = Gadfly.gridstack([plots0[2] plots0[3]; plots0[4] plots0[5]])
-Gadfly.draw(PNG("./Plots/Model0.png"), h0)
+polfun, set = Solver(par, hf, uf);
+plotM1 = myplot(polfun,set,par)
+#h0 = Gadfly.gridstack([plots0[2] plots0[3]; plots0[4] plots0[5]])
+#Gadfly.draw(PNG("./Plots/Model0.png"), h0)
 
 # ----------------------------------------------------------
 # [3.c] Simulating data from  the model
 # ----------------------------------------------------------
-Nsim = 1000000
-econsim0 = ModelSim(params, polfun, settings, hf, nsim = Nsim, burn = 0);
 myheat(mysimul, myparams, mysettings ) = begin
     data0 = myunique(mysimul.sim)
     DDsimulated = fill(NaN, myparams.ne * myparams.nx, 3)
@@ -203,6 +178,9 @@ myheat(mysimul, myparams, mysettings ) = begin
     );
     return myploty
 end
+Nsim = 1000000
+sim0 = ModelSim(par, polfun, set, hf, nsim = Nsim, burn = 0);
+
 plots0[6] = myheat(econsim0, params, settings )
 set_default_plot_size(12cm, 12cm)
 heat1 = Gadfly.vstack(plots0[5], plots0[6])

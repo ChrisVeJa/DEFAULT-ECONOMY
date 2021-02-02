@@ -134,7 +134,6 @@ myheat(xs,set,par;simulation = 0) = begin
             key_label_font_size = 8pt), Guide.ylabel("Output (t)"),
             Guide.xlabel("Debt (t)"), Guide.yticks(ticks = yticks),
             Scale.color_discrete_manual("red","green"),
-            Theme(background_color = "white"),
             Guide.colorkey(title = "Default choice",
             labels = ["Default","No Default"]),
             Guide.xticks(ticks = [-0.40, -0.3, -0.2, -0.1, 0]));
@@ -156,7 +155,6 @@ myheat(xs,set,par;simulation = 0) = begin
         heat = Gadfly.plot(MatAux, x = "debt",
             y = "output", color = "D", Geom.rectbin,
             Scale.color_discrete_manual("green", "red","white"),
-            Theme(background_color = "white"),
             Theme(background_color = "white",
                     key_title_font_size = 8pt, key_label_font_size = 8pt),
             Guide.ylabel("Output (t)"), Guide.xlabel("Debt (t)"),
@@ -250,6 +248,9 @@ ssgrid = [repeat(set.b, par.nx) repeat(set.y, inner = (par.ne, 1))];
 ssgrid = 2 * (ssgrid .- lx[1:2]') ./ (ux[1:2]' - lx[1:2]') .- 1;
 vrhat  = (0.5 * (NNopt(ssgrid') .+ 1) .* (ux[3]-lx[3])) .+ lx[3];
 vrhat  =  reshape(vrhat,par.ne,par.nx);
+# ---------------------------------------------------
+# [4.e] Simulation
+# --------------------------------------------------
 hat_vd = polfun.vd
 polfunSfit = update_solve(vrhat, hat_vd, set, par, uf);
 simfit = ModelSim(par, polfunSfit, set, hf, nsim = Nsim);
@@ -257,3 +258,5 @@ pdef1 = round(100 * sum(simfit.sim[:, 5]) / Nsim; digits = 2);
 display("Simulation finished $pdef1 percent");
 heat2 = myheat(polfunSfit,set,par);
 heat3 = myheat(simfit,set,par,simulation=1);
+set_default_plot_size(18cm, 12cm)
+h0 = Gadfly.gridstack([heat0 heat1; heat2 heat3])
