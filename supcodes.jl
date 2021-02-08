@@ -17,8 +17,8 @@ function Solver(params, hf, uf)
     b[p0] = 0
     # --------------------------------------------------------------
     # 4. Solving the fixed point problem vf, vr, vd, D, bp, q
-    vf, vr, vd, D, bb, q, bp, eδD = FixedPoint(b, y, udef, P, p0, params, uf)
-    PolFun = (vf = vf, vr = vr, vd = vd, D = D, bb = bb, q = q,bp = bp,eδD =eδD)
+    vf, vr, vd, D, bb, q, eδD = FixedPoint(b, y, udef, P, p0, params, uf)
+    PolFun = (vf = vf, vr = vr, vd = vd, D = D, bb = bb, q = q,eδD =eδD)
     settings = (P = P, y = y, b= b, udef= udef)
     return PolFun, settings
 end
@@ -54,7 +54,7 @@ function FixedPoint(b, y, udef, P, p0, params, uf)
         print("Convergence achieve after $rep replications \n")
         bb = bb[bp]
     end
-    return vf, vr, vd, D, bb, q, bp, eδD
+    return vf, vr, vd, D, bb, q, eδD
 end
 function value_functions(vf, vr, vd, D, b, P, p0, yb, udef,params,uf)
     @unpack β, θ, r, ne, nx, σrisk = params
@@ -123,55 +123,104 @@ function ModelSim(params, PolFun, settings, hf; nsim = 100000, burn = 0.05, ini_
     else
         simul_state = simulate(mc, nsim2, init = ini_st[1]);
     end=#
-
-
     # -------------------------------------------------------------------------
     # 2. Simulation of the Economy
-    orderName = "[Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ)) yⱼ vr vd θ"
-    distϕ = Bernoulli(θ)
-    EconSim = Array{Float64,2}(undef, nsim2, 11)  # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
+    # Labels
+    orderName = ["Dₜ₋₁: Initial state of defaulting"
+                 "Bₜ: observed debt"
+                 "yₜ: observed output"
+                 "yⱼₜ: output withouth default"
+                 "Bₜ₊₁: Policy function for new debt (it is 0 under defaulting)"
+                 "Bⱼₜ₊₁: Policy function for new debt (not defaulting)"
+                 "Dₜ: Policy function for default choice"
+                 "Vₜ: Value function"
+                 "Vᵣ: Value of repayment"
+                 "Vd: Value of defaulting"
+                 "qₜ: Price of new debt (Bⱼₜ₊₁)"
+                 "P(D): Probability of default"
+                 "θₜ: The country is in the market?"];
+    # if the country defaults it will be in the market with probability θ
+    distϕ = Bernoulli(θ);
+    # Initial point
+    EconSim = Array{Float64,2}(undef, nsim2, 13)  # [Dₜ₋₁,Bₜ, yₜ, Bₜ₊₁, Dₜ, Vₜ, qₜ(bₜ₊₁(bₜ,yₜ))]
     if ini_st == 0
         EconSim[1, 1:2] = [0 b[rand(1:ne)]]  # b could be any value in the grid
     else
         EconSim[1, 1:2] = [ini_st[2] b[ini_st[3]]]  # b could be any value in the grid
     end
-
+    # Simulation
     EconSim = simulation!(
         EconSim,simul_state,PolFun,y,ydef,b,distϕ,nsim2,p0)
-    # -------------------------------------------------------------------------
     # 3. Burning and storaging
     EconSim = EconSim[end-nsim:end-1, :]
     modelsim = (sim = EconSim, order = orderName)
-    return modelsim
+    return modelsim;
 end
 function simulation!(sim, simul_state, PolFun, y, ydef, b,distϕ, nsim2, p0)
-    @unpack D, bb, vf , q, vd,vr = PolFun;
-    for i = 1:nsim2-1
+    @unpack D, bb, vf , q, vd,vr, eδD = PolFun;
+    for i = 1:nsim2
         bi = findfirst(x -> x == sim[i, 2], b) # position of B
         j = simul_state[i]                     # state for y
         # Choice if there is not previous default
         if sim[i, 1] == 0
-            defchoice = D[bi, j]
-            ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]
-            bsim = (1 - defchoice) * bb[bi, j]
-            sim[i, 3:11] =
-                [ysim bsim defchoice vf[bi, j] q[bi, j] y[j]  vr[bi, j]  vd[bi, j] 0]
-            sim[i+1, 1:2] = [defchoice bsim]
+            # -----------------------------------
+            # If the country is not in default
+            # -----------------------------------
+            Dchoice = D[bi, j]; # Default choice
+            # yₜ = yⱼ or h(yⱼ) if there is default
+            yt = (1 - Dchoice) * y[j] + Dchoice * ydef[j];
+            yjt = y[j];
+            # bₜ = bₜ₊₁ or 0 if there is default
+            bt = (1 - Dchoice) * bb[bi, j];
+            bjt = bb[bi, j];
+            vft = vf[bi, j];
+            qt  = q[bi, j];
+            vrt = vr[bi, j];
+            vdt = vd[bi, j];
+            pd = eδD[bi, j];
+            sim[i, 3:end] =  [yt yjt bt bjt Dchoice vft vrt vdt qt pd 0]
+            if i < nsim2
+                sim[i+1, 1:2] = [Dchoice bt];
+            end
         else
-            # Under previous default, I simulate if the economy could reenter to the market
-            defstat = rand(distϕ)
+            # -----------------------------------
+            # If the country has defaulted previously
+            defstat = rand(distϕ) # the economy is in or out the market?
             if defstat == 1 # They are in the market
                 sim[i, 1] == 0
-                defchoice = D[p0, j] # default again?
-                ysim = (1 - defchoice) * y[j] + defchoice * ydef[j]# output | choice
-                bsim = (1 - defchoice) * bb[p0, j]
-                sim[i, 3:11] =
-                    [ysim bsim defchoice vf[p0, j] q[p0,j] y[j] vr[p0, j] vd[p0, j] 0]
-                sim[i+1, 1:2] = [defchoice bsim]
+                Dchoice = D[p0, j]; # Default choice
+                # yₜ = yⱼ or h(yⱼ) if there is default
+                yt = (1 - Dchoice) * y[j] + Dchoice * ydef[j];
+                yjt = y[j];
+                # bₜ = bₜ₊₁ or 0 if there is default
+                bt = (1 - Dchoice) * bb[p0, j];
+                bjt = bb[p0, j];
+                vft = vf[p0, j];
+                qt  = q[p0, j];
+                vrt = vr[p0, j];
+                vdt = vd[p0, j];
+                pd = eδD[p0, j];
+                sim[i, 3:end] =  [yt yjt bt bjt Dchoice vft vrt vdt qt pd 0]
+                if i < nsim2
+                    sim[i+1, 1:2] = [Dchoice bt]
+                end
             else # They are out the market
-                sim[i, 3:11] =
-                    [ydef[j] 0 1 vd[p0, j] q[p0, j] y[j] vr[p0, j] vd[p0, j] 1] #second change
-                sim[i+1, 1:2] = [1 0]
+                Dchoice = 1; # Default choice
+                # yₜ = yⱼ or h(yⱼ) if there is default
+                yt = ydef[j];
+                yjt = y[j];
+                # bₜ = bₜ₊₁ or 0 if there is default
+                bt = 0;
+                bjt = bb[p0, j];
+                vft = vd[p0, j];
+                qt  = q[p0, j];
+                vrt = vr[p0, j];
+                vdt = vd[p0, j];
+                pd = eδD[p0, j];
+                sim[i, 3:end] =[yt yjt bt bjt Dchoice vft vrt vdt qt pd 1]
+                if i < nsim2
+                    sim[i+1, 1:2] = [1 0]
+                end
             end
         end
     end
