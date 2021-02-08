@@ -14,14 +14,6 @@ include("supcodes.jl");
 # [1]  FUNCTIONS TO BE USED
 ############################################################
 # ----------------------------------------------------------
-# [1.a]  Training of neural network
-# ----------------------------------------------------------
-mytrain(NN, data) = begin
-    lossf(x, y) = Flux.mse(NN(x), y)
-    pstrain = Flux.params(NN)
-    Flux.@epochs 10 Flux.Optimise.train!(lossf, pstrain, data, Descent())
-end
-# ----------------------------------------------------------
 # [1.b]  Policy function conditional on expected values
 # ----------------------------------------------------------
 update_solve(vr, vd, settings, params, uf,hf) = begin
@@ -42,28 +34,108 @@ update_solve(vr, vd, settings, params, uf,hf) = begin
 end
 
 # ----------------------------------------------------------
+# Loss functions:
+#   Mean squared error
+loss(x,w,y,NN) = sum(w .* ((NN(x) - y).^2))/(sum(w))
+#   Loss function conditional on parameters
+lossbls(x,w,y,NN, θ) = begin
+    be, _N0 = Flux.destructure(NN)
+    NN1 = _N0(θ)
+    loss = sum(w .* ((NN1(x) - y).^2))/(sum(w))
+    return loss
+end
+
+# ----------------------------------------------------------
+# Function for neural networks
+#   Updating the parameters of the neural networks
+function _updateNN(NN,loss,lossbls,ss,ww,yy)
+    ##############################################
+    #   θₕ₊₁ = θₕ - αₕ∇fₓ(θₜ)
+    # where the updating parameter α is choosen
+    # by line searching with armijo rule such that
+    # f(θₕ₊₁) ≦ f(θₜ) - 1/2 αₜ||∇fₓ(θₜ) ||²
+    ##############################################
+    # -----------------------------------
+    # Obtaining the parameters of the NN
+    ps = Flux.Params(Flux.params(NN));
+    # -----------------------------------
+    # Calculating the gradient
+    gs = gradient(ps) do
+      loss(ss',ww',yy',NN);
+    end # gradient, it needs to be recalculated in each iteration
+    # -----------------------------------
+    # Backtracking line search
+    θ, re =  Flux.destructure(NN); #parameters and structure
+    loss0 = loss(ss',ww',yy',NN);  #initial loss function
+    ∇θ  = vcat(vec.([gs[i] for i in ps])...); # gradient vector
+    ∇f0 = sum(∇θ.^2); # square of gradient
+    α   = 1; # initial value of alpha
+    decay = 0.3; # decay parameter
+    while lossbls(ss',ww',yy',NN, θ-α.*∇θ) > loss0 - 0.5*α*∇f0
+        α *= decay; #updating α
+    end
+    θ1 = θ-α.*∇θ; # updating θ
+    θ1 = 0.9*θ1 + 0.1*θ; # new parameter vector
+    dif = maximum(abs.(θ1-θ)); # difference
+    NN1 = re(θ1); # new neural network
+    return NN1, dif;
+end
+#   Estimation of the neural network
+function _estNN(NN,loss,ss,ww,yy, lossbls)
+    dif = 1;  rep = 0; NN1 = nothing;
+    while dif>1e-5 && rep<5000
+        NN1, dif = _updateNN(NN,loss,lossbls,ss,ww,yy);
+        NN = NN1;
+        rep +=1;
+    end
+    display("Iteration $rep: maximum dif $dif")
+    return NN1;
+end
+function myestimationNN(NN,loss,ss,ww,yy,lossbls)
+    θs , more = Flux.destructure(NN)
+    NN1 = nothing
+    NNopt = nothing
+    lossvalue = 1e10
+    for j in 1:10
+        θaux = -1 .+ 2*rand(length(θs)); # random draws from [-1:1]
+        NNaux = more(θaux);
+        NN1 = _estNN(NNaux,loss,ss,ww,yy, lossbls);
+        lossaux = loss(ss',ww',yy',NN1);
+        display("Loss value of model $j is $lossaux")
+        # Updating the neural network if the fit is better
+        if lossaux < lossvalue
+            NNopt = NN1;
+            lossvalue = lossaux;
+        end
+    end
+    return NNopt;
+end
+# ----------------------------------------------------------
 # [1.c] Convergence of neural networks
 # ----------------------------------------------------------
-mydata(sim) = begin
-    x  = sim[:,[2,4,9]];
-    lx = minimum(x, dims = 1);
-    ux = maximum(x, dims = 1);
-    xst = 2 * (x .- lx) ./ (ux - lx) .- 1;
-    return xst,(lx,ux);
+mydata(sim0) = begin
+    x = [sim0.sim[sim0.sim[:,end].== 0,2:3] sim0.sim[sim0.sim[:,end].== 0,9]];
+    lx = minimum(x,dims=1); ux = maximum(x,dims=1) ; # it is better than extrema
+    x0 = 2 * (x .- lx) ./ (ux - lx) .- 1; # normalization
+    x0Tu = [Tuple(x0[i, :]) for i = 1:size(x0, 1)]
+    x1Tu = unique(x0Tu); # unique simulated states
+    xx = countmap(x0Tu); # number of repetitions (in dictionary version)
+    x1 = Array{Float32,2}(undef,size(x1Tu)[1],3)
+    for i in 1:size(x1Tu)[1]
+        x1[i,:] = [x1Tu[i]...]'
+    end
+    ww  = [get(xx, i, 0) for i in x1Tu] ; # weights
+    ss  = x1[:,1:2]; # states
+    yy  = x1[:,3]; # value of repayment
+    return (ss,yy,ww),(lx,ux);
 end
 function updNN(NN_a,polfun,opts)
-    @unpack sswho, set, par, uf, hf, Nsim = opts
+    @unpack sswho, set, par, uf, hf, Nsim,loss,lossbls = opts
     β0, myNN = Flux.destructure(NN_a);
     simaux = ModelSim(par, polfun, set, hf, nsim = Nsim);
-    xst1,(lx1,ux1) = mydata(simaux.sim);
-    (sst1,vrt1) = (xst1[:, 1:2], xst1[:, 3]);
+    (sst1,vrt1,wwt1),(lx1,ux1) = mydata(simaux);
     sswhole =  2 * (sswho .- lx1[1:2]') ./ (ux1[1:2]' - lx1[1:2]') .- 1;
-    loss(x, y) = Flux.mse(NN_a(x), y)
-    ps = Flux.Params(Flux.params(NN_a));
-    gs = gradient(ps) do
-      loss(sst',vrt');
-    end
-    Flux.update!(Descent(),ps,gs);
+    NN_a, dif = _updateNN(NN_a,loss,lossbls,sst1,wwt1,vrt1);
     β1,  = Flux.destructure(NN_a);
     difNN= maximum(abs.(β0-β1));
     newβ = 0.9*β1 + 0.1*β0 ;
@@ -186,13 +258,12 @@ display("Simulation finished, with frequency of $pdef default events");
 # ---------------------------------------------------
 # [3.c] Simulating data from  the model
 # ----------------------------------------------------------
-xst,(lx,ux) = mydata(sim0.sim);
-(sst,vrt) = (xst[:, 1:2], xst[:, 3])
-traindata = Flux.Data.DataLoader((xst[:, 1:2]', xst[:, 3]'));
+(sst,vrt,wwt),(lx,ux) = mydata(sim0);
 sswho = [repeat(set.b, par.nx) repeat(set.y, inner = (par.ne, 1))];
 # Estimation
 d = 16
-opts = (sswho=sswho,set=set,par=par,uf=uf,hf=hf, Nsim= Nsim)
+opts = (sswho=sswho,set=set,par=par,uf=uf,hf=hf, Nsim= Nsim,
+        loss = loss, lossbls= lossbls)
 
 NN1 = Chain(Dense(2, d, softplus), Dense(d, 1));
 NN2 = Chain(Dense(2, d, tanh), Dense(d, 1));
@@ -205,7 +276,7 @@ Results = Array{Any,2}(undef,length(models),5)
 j = 1;
 for nn in models
     _nn = nn;
-    mytrain(_nn,traindata)
+    _nn = = myestimationNN(_nn,loss,sst,wwt,vrt,lossbls)
     _nn, _polfun = convergenNN!(_nn,polfun, opts);
     _sims = ModelSim(par, _polfun, set, hf, nsim = Nsim);
     _plots = myplot(_sims,set,par, simulation=true);
